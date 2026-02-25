@@ -61,9 +61,15 @@ async def test_update_currency_and_timezone(repo):
     )
     await repo.create(create)
 
-    updated = await repo.update("tg:update-me", currency="USD", timezone="America/New_York")
+    updated = await repo.update(
+        "tg:update-me",
+        currency="USD",
+        timezone="America/New_York",
+        locale="en-US",
+    )
     assert updated.currency == "USD"
     assert updated.timezone == "America/New_York"
+    assert updated.locale == "en-US"
     assert updated.username == "update-me"
     assert updated.user_id == "tg:update-me"
 

@@ -16,6 +16,7 @@ class UserProfileCreate(BaseModel):
     platform_id: str
     currency: str = "VND"
     timezone: str = "Asia/Ho_Chi_Minh"
+    locale: str = "vi-VN"
 
     @field_validator("username")
     @classmethod
@@ -41,3 +42,4 @@ class UserProfile:
     platform_id: str
     currency: str
     timezone: str
+    locale: str

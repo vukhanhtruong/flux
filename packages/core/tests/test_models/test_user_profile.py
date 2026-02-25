@@ -11,6 +11,7 @@ def test_user_profile_create_defaults():
     )
     assert p.currency == "VND"
     assert p.timezone == "Asia/Ho_Chi_Minh"
+    assert p.locale == "vi-VN"
     assert p.user_id == "tg:truong-vu"
 
 
@@ -21,8 +22,10 @@ def test_user_profile_create_custom():
         platform_id="84901234567",
         currency="USD",
         timezone="America/New_York",
+        locale="en-US",
     )
     assert p.user_id == "wa:my-wife"
+    assert p.locale == "en-US"
 
 
 def test_username_invalid_characters():

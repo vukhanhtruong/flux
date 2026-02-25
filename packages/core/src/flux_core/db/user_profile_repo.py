@@ -15,11 +15,11 @@ class UserProfileRepository:
         user_id = f"{prefix}:{create.username}"
         await self._db.execute(
             """
-            INSERT INTO users (id, display_name, platform, username, currency, timezone, platform_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO users (id, display_name, platform, username, currency, timezone, locale, platform_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             """,
             user_id, create.username, create.channel,
-            create.username, create.currency, create.timezone, create.platform_id,
+            create.username, create.currency, create.timezone, create.locale, create.platform_id,
         )
         return UserProfile(
             user_id=user_id,
@@ -28,11 +28,12 @@ class UserProfileRepository:
             platform_id=create.platform_id,
             currency=create.currency,
             timezone=create.timezone,
+            locale=create.locale,
         )
 
     async def get_by_user_id(self, user_id: str) -> UserProfile | None:
         row = await self._db.fetchrow(
-            "SELECT id, username, platform, platform_id, currency, timezone FROM users WHERE id = $1",
+            "SELECT id, username, platform, platform_id, currency, timezone, locale FROM users WHERE id = $1",
             user_id,
         )
         if not row:
@@ -44,12 +45,13 @@ class UserProfileRepository:
             platform_id=row["platform_id"],
             currency=row["currency"],
             timezone=row["timezone"],
+            locale=row["locale"],
         )
 
     async def get_by_platform_id(self, channel: str, platform_id: str) -> UserProfile | None:
         row = await self._db.fetchrow(
             """
-            SELECT id, username, platform, platform_id, currency, timezone
+            SELECT id, username, platform, platform_id, currency, timezone, locale
             FROM users WHERE platform = $1 AND platform_id = $2
             """,
             channel, platform_id,
@@ -63,6 +65,7 @@ class UserProfileRepository:
             platform_id=row["platform_id"],
             currency=row["currency"],
             timezone=row["timezone"],
+            locale=row["locale"],
         )
 
     async def username_exists(self, channel: str, username: str) -> bool:
@@ -78,6 +81,7 @@ class UserProfileRepository:
         *,
         currency: str | None = None,
         timezone: str | None = None,
+        locale: str | None = None,
         username: str | None = None,
     ) -> UserProfile:
         """Update mutable profile fields. Renames id when username changes."""
@@ -91,6 +95,9 @@ class UserProfileRepository:
         if timezone is not None:
             params.append(timezone)
             sets.append(f"timezone = ${len(params)}")
+        if locale is not None:
+            params.append(locale)
+            sets.append(f"locale = ${len(params)}")
         if username is not None:
             prefix = next(
                 (p for ch, p in _CHANNEL_PREFIXES.items() if user_id.startswith(f"{p}:")),
@@ -110,7 +117,7 @@ class UserProfileRepository:
                 f"""
                 UPDATE users SET {set_clause}
                 WHERE id = $1
-                RETURNING id, username, platform, platform_id, currency, timezone
+                RETURNING id, username, platform, platform_id, currency, timezone, locale
                 """,
                 *params,
             )
@@ -127,4 +134,5 @@ class UserProfileRepository:
             platform_id=row["platform_id"],
             currency=row["currency"],
             timezone=row["timezone"],
+            locale=row["locale"],
         )
