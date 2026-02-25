@@ -52,7 +52,7 @@ services:
       [
         "sh",
         "-c",
-        "pip install --no-cache-dir watchfiles && watchfiles --filter python --ignore-paths /root/.cache \"python -m flux_mcp.server\" /app/core/src /app/mcp/src",
+        "watchfiles --filter python --ignore-paths /root/.cache \"python -m flux_mcp.server\" /app/core/src /app/mcp/src",
       ]
     volumes:
       - ./packages/core/src:/app/core/src
@@ -111,12 +111,13 @@ services:
       [
         "sh",
         "-c",
-        "pip install --no-cache-dir watchfiles && watchfiles --filter python --ignore-paths /home/bot/.claude --ignore-paths /tmp/flux-images \"python -m flux_bot.main\" /app/core/src /app/mcp-server/src /app/bot/src",
+        "watchfiles --filter python --ignore-paths /home/bot/.claude --ignore-paths /tmp/flux-images \"python -m flux_bot.main\" /app/core/src /app/mcp-server/src /app/bot/src",
       ]
     volumes:
       - ./packages/core/src:/app/core/src
       - ./packages/mcp-server/src:/app/mcp-server/src
       - ./packages/agent-bot/src:/app/bot/src
+      - ./packages/agent-bot/migrations:/app/bot/migrations
       - agent_sessions:/home/bot/.claude
       - agent_images:/tmp/flux-images
     develop:

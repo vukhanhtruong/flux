@@ -26,12 +26,12 @@ COPY packages/mcp-server/src /app/mcp-server/src
 WORKDIR /app/mcp-server
 RUN pip install --no-cache-dir -e .
 
-# Install agent-bot
+# Install agent-bot (+ watchfiles for dev hot-reload)
 WORKDIR /app/bot
 COPY packages/agent-bot/pyproject.toml /app/bot/pyproject.toml
 COPY packages/agent-bot/src /app/bot/src
 COPY packages/agent-bot/migrations /app/bot/migrations
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e . watchfiles
 
 # Build SDK runner (Node sidecar invoked by Python runner).
 WORKDIR /app/sdk-runner

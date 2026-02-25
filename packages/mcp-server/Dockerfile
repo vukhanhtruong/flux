@@ -12,6 +12,6 @@ RUN pip install --no-cache-dir -e ".[embeddings]"
 WORKDIR /app/mcp
 COPY packages/mcp-server/pyproject.toml ./pyproject.toml
 COPY packages/mcp-server/src ./src
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e . watchfiles
 
 CMD ["python", "-m", "flux_mcp.server"]
