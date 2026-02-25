@@ -22,7 +22,9 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger WHERE tgname = 'trg_outbound_message'
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'trg_outbound_message'
+          AND tgrelid = 'bot_outbound_messages'::regclass
     ) THEN
         CREATE TRIGGER trg_outbound_message
         AFTER INSERT ON bot_outbound_messages
