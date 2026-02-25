@@ -12,10 +12,11 @@ def register_ipc_tools(
 ):
     @mcp.tool()
     async def send_message(text: str, sender: str | None = None) -> dict:
-        """Send a message to the user immediately while you're still running.
-        Use for progress updates or to send multiple messages. You can call this
-        multiple times. Your final output is also sent, so use this only when
-        you need to communicate before you finish."""
+        """Send a message to the user immediately, without waiting until you finish.
+        Use for progress updates on long tasks or to stream multiple messages.
+        Your final response is always sent automatically — call this only when
+        you need to deliver information before you finish, not as a substitute
+        for your final reply."""
         db = await get_db()
         return await biz.send_message(get_user_id(), text, sender, db=db)
 
