@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { User, Send, Smartphone, Cpu, Database } from "lucide-react";
 import { USER_ID } from "../lib/constants";
 
 type Tab = "general" | "messaging" | "system";
@@ -30,116 +31,179 @@ export function Settings() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="mt-2 text-gray-600">Configure your preferences and account settings.</p>
+    <div className="space-y-10">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight text-white mb-2">Settings</h1>
+          <p className="text-slate-400">Manage your Account, Notifications, and System preferences.</p>
+        </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 p-1 bg-white/5 rounded-xl w-fit border border-white/5">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium ${
-              activeTab === tab.key
-                ? "bg-blue-600 text-white"
-                : "bg-white text-gray-700 hover:bg-gray-100 shadow"
-            }`}
+            className={`rounded-lg px-6 py-2 text-sm font-bold transition-all ${activeTab === tab.key
+              ? "bg-primary text-dark"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
           >
             {tab.label}
           </button>
         ))}
       </div>
 
-      {activeTab === "general" && (
-        <div className="rounded-lg bg-white p-6 shadow space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">General</h2>
-          <div>
-            <label className="block text-sm font-medium text-gray-500">User ID</label>
-            <p className="mt-1 rounded-md bg-gray-50 px-3 py-2 text-gray-900 font-mono text-sm">
-              {USER_ID}
-            </p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-500">API Base URL</label>
-            <p className="mt-1 rounded-md bg-gray-50 px-3 py-2 text-gray-900 font-mono text-sm">
-              {apiBaseUrl}
-            </p>
-          </div>
-        </div>
-      )}
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+        {activeTab === "general" && (
+          <div className="glass-card p-10 space-y-8">
+            <div className="flex items-center gap-3 mb-2">
+              <User className="w-5 h-5 text-primary" />
+              <h2 className="text-xl font-bold text-white tracking-tight">Account Information</h2>
+            </div>
 
-      {activeTab === "messaging" && (
-        <div className="space-y-4">
-          <div className="rounded-lg bg-white p-6 shadow">
-            <h3 className="text-lg font-semibold text-gray-900">Telegram</h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Connect your flux bot to Telegram for messaging-based finance management.
-            </p>
-            <div className="mt-4 rounded-md bg-gray-50 p-4 text-sm text-gray-700">
-              <p className="font-medium">Setup instructions:</p>
-              <ol className="mt-2 list-decimal list-inside space-y-1">
-                <li>Message @BotFather on Telegram and create a new bot with /newbot</li>
-                <li>Copy the bot token</li>
-                <li>Set <code className="bg-gray-200 px-1 rounded">TELEGRAM_BOT_TOKEN</code> in your .env file</li>
-                <li>Restart: <code className="bg-gray-200 px-1 rounded">docker compose restart agent-bot</code></li>
-              </ol>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">User Identification</label>
+                <div className="group relative">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                  <p className="relative w-full bg-dark border border-white/10 rounded-xl px-4 py-3 text-slate-300 font-mono text-sm leading-none flex items-center h-12">
+                    {USER_ID}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">API Endpoint</label>
+                <div className="group relative">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                  <p className="relative w-full bg-dark border border-white/10 rounded-xl px-4 py-3 text-slate-300 font-mono text-sm leading-none flex items-center h-12 overflow-x-auto whitespace-nowrap scrollbar-hide">
+                    {apiBaseUrl}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
+        )}
 
-          <div className="rounded-lg bg-white p-6 shadow">
-            <h3 className="text-lg font-semibold text-gray-900">WhatsApp</h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Connect your WhatsApp account using the Baileys bridge.
-            </p>
-            <div className="mt-4 rounded-md bg-gray-50 p-4 text-sm text-gray-700">
-              <p className="font-medium">Setup instructions:</p>
-              <ol className="mt-2 list-decimal list-inside space-y-1">
-                <li>Start with WhatsApp profile: <code className="bg-gray-200 px-1 rounded">docker compose --profile whatsapp up -d</code></li>
-                <li>Run: <code className="bg-gray-200 px-1 rounded">docker compose exec whatsapp-bridge npm run login</code></li>
-                <li>Scan the QR code with WhatsApp &rarr; Settings &rarr; Linked Devices</li>
-              </ol>
+        {activeTab === "messaging" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="glass-card p-8 group">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 bg-[#0088cc]/10 rounded-xl group-hover:scale-110 transition-transform">
+                  <Send className="w-6 h-6 text-[#0088cc]" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Telegram Bridge</h3>
+              </div>
+              <p className="text-sm text-slate-400 leading-relaxed mb-8">
+                Connect your Flux Assistant to Telegram for high-speed, messaging-based finance management.
+              </p>
+
+              <div className="space-y-4">
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-4">Configuration Steps</p>
+                  <ol className="list-none space-y-4">
+                    {[
+                      { step: "1", text: "New bot via @BotFather" },
+                      { step: "2", text: "Secure your API token" },
+                      { step: "3", text: "Configure environment variables" },
+                      { step: "4", text: "Restart AI agent-bot container" }
+                    ].map((item) => (
+                      <li key={item.step} className="flex gap-4 items-center">
+                        <span className="flex-none w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold text-slate-400">{item.step}</span>
+                        <span className="text-sm text-slate-300">{item.text}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-card p-8 group">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 bg-[#25D366]/10 rounded-xl group-hover:scale-110 transition-transform">
+                  <Smartphone className="w-6 h-6 text-[#25D366]" />
+                </div>
+                <h3 className="text-xl font-bold text-white">WhatsApp Integration</h3>
+              </div>
+              <p className="text-sm text-slate-400 leading-relaxed mb-8">
+                Interact with your balance and transactions directly through WhatsApp using our secure bridge.
+              </p>
+
+              <div className="space-y-4">
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#25D366] mb-4">Deployment Guide</p>
+                  <ol className="list-none space-y-4">
+                    {[
+                      { step: "1", text: "Initalize WhatsApp docker profile" },
+                      { step: "2", text: "Execute bridge login command" },
+                      { step: "3", text: "Authorize via device QR scan" }
+                    ].map((item) => (
+                      <li key={item.step} className="flex gap-4 items-center">
+                        <span className="flex-none w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold text-slate-400">{item.step}</span>
+                        <span className="text-sm text-slate-300">{item.text}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === "system" && (
-        <div className="rounded-lg bg-white p-6 shadow space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">System</h2>
-          <div>
-            <label className="block text-sm font-medium text-gray-500">Version</label>
-            <p className="mt-1 text-gray-900">0.1.0</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-500">API Health</label>
-            <div className="mt-1 flex items-center gap-3">
-              <button
-                onClick={checkHealth}
-                className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
-              >
-                Check Health
-              </button>
-              {healthStatus && (
-                <span
-                  className={`text-sm ${
-                    healthStatus.startsWith("Healthy") ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {healthStatus}
-                </span>
-              )}
+        {activeTab === "system" && (
+          <div className="glass-card p-10 space-y-10">
+            <div className="flex items-center gap-3 mb-2">
+              <Cpu className="w-5 h-5 text-secondary" />
+              <h2 className="text-xl font-bold text-white tracking-tight">System Core</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Version</label>
+                <div className="inline-flex items-center px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs font-bold text-white">
+                  v0.1.0-alpha
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">API Connectivity</label>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={checkHealth}
+                    className="btn-secondary py-1.5 px-4 text-xs h-9"
+                  >
+                    Ping Server
+                  </button>
+                  {healthStatus && (
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full animate-pulse ${healthStatus.startsWith("Healthy") ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"}`} />
+                      <span className={`text-[10px] font-bold uppercase tracking-wider ${healthStatus.startsWith("Healthy") ? "text-emerald-400" : "text-red-400"}`}>
+                        {healthStatus.startsWith("Healthy") ? "Operational" : "Degraded"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Storage Engine</label>
+                <div className="flex items-center gap-2 text-slate-300">
+                  <Database className="w-4 h-4 text-slate-500" />
+                  <span className="text-xs font-bold">PostgreSQL Cluster</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 bg-dark/50 border border-white/5 rounded-2xl">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 text-center">Infrastucture Connection String</label>
+              <p className="text-center font-mono text-xs text-slate-600 truncate py-2">
+                postgresql://***:***@postgres:5432/fluxfinance
+              </p>
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-500">Database URL</label>
-            <p className="mt-1 rounded-md bg-gray-50 px-3 py-2 text-gray-900 font-mono text-sm">
-              postgresql://***:***@postgres:5432/fluxfinance
-            </p>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

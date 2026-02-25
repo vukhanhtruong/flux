@@ -1,1 +1,40 @@
 @import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+
+@theme {
+  --color-primary: #F59E0B;
+  --color-primary-light: #FBBF24;
+  --color-primary-dark: #D97706;
+  --color-secondary: #8B5CF6;
+  --color-secondary-light: #A78BFA;
+  --color-secondary-dark: #7C3AED;
+  --color-dark: #0F172A;
+  --color-dark-lighter: #1E293B;
+  --color-dark-lightest: #334155;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-dark text-slate-50 font-sans antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-dark-lighter/50 backdrop-blur-md border border-white/10 rounded-2xl;
+  }
+
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-dark text-dark font-medium px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer shadow-lg shadow-primary/20;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary hover:bg-secondary-dark text-white font-medium px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer shadow-lg shadow-secondary/20;
+  }
+}
