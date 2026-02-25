@@ -5,6 +5,7 @@ from flux_core.db.connection import Database
 from flux_core.db.transaction_repo import TransactionRepository
 from flux_core.db.budget_repo import BudgetRepository
 from flux_core.db.goal_repo import GoalRepository
+from flux_core.db.subscription_repo import SubscriptionRepository
 from flux_core.tools import analytics_tools as biz
 
 
@@ -18,7 +19,9 @@ def register_analytics_tools(
         """Generate a spending report for a date range."""
         db = await get_db()
         return await biz.generate_spending_report(
-            get_user_id(), start_date, end_date, TransactionRepository(db),
+            get_user_id(), start_date, end_date,
+            TransactionRepository(db),
+            SubscriptionRepository(db),
         )
 
     @mcp.tool()
