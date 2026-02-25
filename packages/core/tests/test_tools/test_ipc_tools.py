@@ -82,6 +82,18 @@ async def test_schedule_task_invalid_interval(mock_db):
     assert result["status"] == "error"
 
 
+async def test_schedule_task_zero_interval(mock_db):
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Bad",
+        schedule_type="interval",
+        schedule_value="0",
+        db=mock_db,
+    )
+    assert result["status"] == "error"
+    assert "positive" in result["message"]
+
+
 async def test_schedule_task_once(mock_db):
     mock_db.fetchval.return_value = 3
     result = await schedule_task(

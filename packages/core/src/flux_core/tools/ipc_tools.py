@@ -10,8 +10,9 @@ from flux_core.db.connection import Database
 async def send_message(
     user_id: str,
     text: str,
-    db: Database,
     sender: str | None = None,
+    *,
+    db: Database,
 ) -> dict:
     """Queue an outbound message for delivery to the user's channel."""
     msg_id = await db.fetchval(
@@ -42,16 +43,19 @@ async def schedule_task(
             }
         next_run = croniter(schedule_value).get_next(datetime)
     elif schedule_type == "interval":
-        ms = 0
         try:
             ms = int(schedule_value)
         except ValueError:
-            pass
-        if ms <= 0:
             return {
                 "status": "error",
                 "message": f'Invalid interval: "{schedule_value}". '
-                'Must be positive milliseconds (e.g., "300000" for 5 min).',
+                'Must be a whole number of milliseconds (e.g., "300000" for 5 min).',
+            }
+        if ms <= 0:
+            return {
+                "status": "error",
+                "message": f'Interval must be positive, got {ms}ms. '
+                'Use a value like "300000" for 5 minutes.',
             }
         next_run = None
     elif schedule_type == "once":
