@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, ArrowRightLeft } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import { USER_ID } from "../lib/constants";
+import { useProfile } from "../context/ProfileContext";
+import { formatCurrency, formatDate } from "../lib/format";
 import type { Transaction, TransactionCreate, TransactionType } from "../types";
 
 export function Transactions() {
+  const { profile } = useProfile();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -72,142 +75,132 @@ export function Transactions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight text-white mb-2">Transactions</h1>
-          <p className="text-slate-400">View and manage your income and expenses.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Transactions</h1>
+          <p className="mt-2 text-gray-600">View and manage your income and expenses.</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="btn-primary flex items-center gap-2"
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
         >
-          {showForm ? <Trash2 size={18} /> : <Plus size={18} />}
-          {showForm ? "Cancel" : "Add Transaction"}
+          <Plus size={18} />
+          Add Transaction
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="glass-card p-8 animate-in slide-in-from-top duration-500 mb-10">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-6 shadow">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Date</label>
+              <label className="block text-sm font-medium text-gray-700">Date</label>
               <input
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-primary/50 transition-colors"
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Amount</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-4 py-2.5 text-white outline-none focus:border-primary/50 transition-colors"
-                  placeholder="0.00"
-                  required
-                />
-              </div>
+              <label className="block text-sm font-medium text-gray-700">Amount</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+                placeholder="0.00"
+                required
+              />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Category</label>
+              <label className="block text-sm font-medium text-gray-700">Category</label>
               <input
                 type="text"
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-primary/50 transition-colors"
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
                 placeholder="e.g. Food, Transport"
                 required
               />
             </div>
-            <div className="lg:col-span-2">
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Description</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Description</label>
               <input
                 type="text"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-primary/50 transition-colors"
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
                 placeholder="What was this for?"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Type</label>
+              <label className="block text-sm font-medium text-gray-700">Type</label>
               <select
                 value={formData.type}
                 onChange={(e) =>
                   setFormData({ ...formData, type: e.target.value as TransactionType })
                 }
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-1.5 h-[46px] text-white outline-none focus:border-primary/50 transition-colors"
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
               >
-                <option value="expense" className="bg-dark">Expense</option>
-                <option value="income" className="bg-dark">Income</option>
+                <option value="expense">Expense</option>
+                <option value="income">Income</option>
               </select>
             </div>
-          </div>
-          <div className="mt-8 flex justify-end">
-            <button
-              type="submit"
-              className="btn-primary min-w-[120px]"
-            >
-              Save
-            </button>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </form>
       )}
 
-      <div className="glass-card overflow-hidden">
-        <div className="px-8 py-6 border-b border-white/5 bg-white/5">
-          <h2 className="text-xl font-bold text-white">All Transactions</h2>
+      <div className="rounded-lg bg-white shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">All Transactions</h2>
         </div>
         {transactions.length === 0 ? (
-          <div className="px-8 py-16 text-center">
-            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ArrowRightLeft className="w-8 h-8 text-slate-500" />
-            </div>
-            <p className="text-slate-500 italic">No transactions yet. Add your first one!</p>
+          <div className="px-6 py-8 text-center text-gray-500">
+            No transactions yet. Add your first one!
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-white/5 bg-white/[0.02]">
-                  <th className="px-8 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
-                  <th className="px-8 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
-                  <th className="px-8 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Category</th>
-                  <th className="px-8 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Amount</th>
-                  <th className="px-8 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Actions</th>
+              <thead className="border-b border-gray-200 bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-sm font-medium text-gray-500">Date</th>
+                  <th className="px-6 py-3 text-sm font-medium text-gray-500">Description</th>
+                  <th className="px-6 py-3 text-sm font-medium text-gray-500">Category</th>
+                  <th className="px-6 py-3 text-sm font-medium text-gray-500 text-right">Amount</th>
+                  <th className="px-6 py-3 text-sm font-medium text-gray-500 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-gray-200">
                 {transactions.map((txn) => (
-                  <tr key={txn.id} className="hover:bg-white/[0.02] transition-colors group">
-                    <td className="px-8 py-5 text-sm text-slate-300">
-                      {new Date(txn.date).toLocaleDateString()}
+                  <tr key={txn.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {formatDate(txn.date, profile.locale, profile.timezone)}
                     </td>
-                    <td className="px-8 py-5">
-                      <p className="text-sm font-semibold text-white group-hover:text-primary transition-colors">{txn.description}</p>
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/5 text-slate-400 border border-white/10">
-                        {txn.category}
-                      </span>
-                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{txn.description}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{txn.category}</td>
                     <td
-                      className={`px-8 py-5 text-sm font-bold text-right ${txn.type === "income" ? "text-emerald-400" : "text-slate-200"
-                        }`}
+                      className={`px-6 py-4 text-sm font-semibold text-right ${
+                        txn.type === "income" ? "text-green-600" : "text-red-600"
+                      }`}
                     >
-                      {txn.type === "income" ? "+" : "-"}${txn.amount}
+                      {txn.type === "income" ? "+" : "-"}
+                      {formatCurrency(txn.amount, profile.currency, profile.locale)}
                     </td>
-                    <td className="px-8 py-5 text-right">
+                    <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => handleDelete(txn.id)}
-                        className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                        className="text-red-500 hover:text-red-700"
                         title="Delete"
                       >
                         <Trash2 size={16} />

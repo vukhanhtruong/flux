@@ -116,3 +116,20 @@ export interface FinancialHealth {
   budget_adherence: number;
   goal_progress: number;
 }
+
+// User profile types
+export interface UserProfile {
+  user_id: string;
+  username: string;
+  channel: string;
+  platform_id: string;
+  currency: string;
+  timezone: string;
+  locale: string;
+}
+
+export interface UserProfileUpdate {
+  currency?: string;
+  timezone?: string;
+  locale?: string;
+}

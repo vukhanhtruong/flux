@@ -12,6 +12,8 @@ import type {
   AssetCreate,
   SpendingReport,
   FinancialHealth,
+  UserProfile,
+  UserProfileUpdate,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -187,6 +189,20 @@ class ApiClient {
       end_date: endDate,
     });
     return this.request(`/analytics/financial-health?${params}`);
+  }
+
+  // Profile
+  async getProfile(userId: string): Promise<UserProfile> {
+    const params = new URLSearchParams({ user_id: userId });
+    return this.request(`/profile?${params}`);
+  }
+
+  async updateProfile(userId: string, data: UserProfileUpdate): Promise<UserProfile> {
+    const params = new URLSearchParams({ user_id: userId });
+    return this.request(`/profile?${params}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
   }
 }
 
