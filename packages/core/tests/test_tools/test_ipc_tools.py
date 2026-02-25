@@ -150,3 +150,31 @@ async def test_cancel_task_not_found(mock_db):
     mock_db.execute.return_value = "DELETE 0"
     result = await cancel_task(user_id="tg:123", task_id=999, db=mock_db)
     assert result["status"] == "error"
+
+
+async def test_schedule_task_invalid_interval_string(mock_db):
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Bad",
+        schedule_type="interval",
+        schedule_value="abc",
+        db=mock_db,
+    )
+    assert result["status"] == "error"
+
+
+async def test_schedule_task_unknown_type(mock_db):
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Bad",
+        schedule_type="weekly",
+        schedule_value="whatever",
+        db=mock_db,
+    )
+    assert result["status"] == "error"
+
+
+async def test_resume_task_not_found(mock_db):
+    mock_db.execute.return_value = "UPDATE 0"
+    result = await resume_task(user_id="tg:123", task_id=999, db=mock_db)
+    assert result["status"] == "error"
