@@ -10,24 +10,26 @@ from flux_core.tools.analytics_tools import (
 )
 
 
-@pytest.mark.asyncio
 async def test_generate_spending_report():
     mock_txn_repo = AsyncMock()
     mock_txn_repo.get_summary.return_value = {
         "total_income": Decimal("5000.00"),
         "total_expenses": Decimal("3000.00"),
-        "count": 25
+        "count": 25,
     }
     mock_txn_repo.get_category_breakdown.return_value = [
         {"category": "Food", "total": Decimal("800.00"), "count": 10},
-        {"category": "Transport", "total": Decimal("400.00"), "count": 5}
+        {"category": "Transport", "total": Decimal("400.00"), "count": 5},
     ]
+    mock_sub_repo = AsyncMock()
+    mock_sub_repo.list_by_user.return_value = []
 
     result = await generate_spending_report(
         user_id="test_user",
         start_date="2026-01-01",
         end_date="2026-01-31",
-        txn_repo=mock_txn_repo
+        txn_repo=mock_txn_repo,
+        sub_repo=mock_sub_repo,
     )
 
     assert result["total_income"] == "5000.00"
@@ -36,8 +38,59 @@ async def test_generate_spending_report():
     assert result["count"] == 25
     assert len(result["category_breakdown"]) == 2
     assert result["category_breakdown"][0]["category"] == "Food"
+    assert "subscriptions" in result
     mock_txn_repo.get_summary.assert_called_once()
     mock_txn_repo.get_category_breakdown.assert_called_once()
+    mock_sub_repo.list_by_user.assert_called_once_with("test_user", active_only=True)
+
+
+async def test_generate_spending_report_with_subscriptions():
+    mock_txn_repo = AsyncMock()
+    mock_txn_repo.get_summary.return_value = {
+        "total_income": Decimal("5000.00"),
+        "total_expenses": Decimal("3000.00"),
+        "count": 10,
+    }
+    mock_txn_repo.get_category_breakdown.return_value = []
+
+    # monthly sub: 15.99/mo, yearly sub: 120.00/yr = 10.00/mo
+    monthly_sub = type("Sub", (), {
+        "name": "Netflix",
+        "amount": Decimal("15.99"),
+        "billing_cycle": "monthly",
+        "category": "Entertainment",
+        "next_date": date(2026, 2, 1),
+    })()
+    yearly_sub = type("Sub", (), {
+        "name": "iCloud",
+        "amount": Decimal("120.00"),
+        "billing_cycle": "yearly",
+        "category": "Storage",
+        "next_date": date(2026, 6, 1),
+    })()
+
+    mock_sub_repo = AsyncMock()
+    mock_sub_repo.list_by_user.return_value = [monthly_sub, yearly_sub]
+
+    result = await generate_spending_report(
+        user_id="test_user",
+        start_date="2026-01-01",
+        end_date="2026-01-31",
+        txn_repo=mock_txn_repo,
+        sub_repo=mock_sub_repo,
+    )
+
+    subs = result["subscriptions"]
+    assert subs["active_count"] == 2
+    # 15.99 + 120.00/12 = 15.99 + 10.00 = 25.99
+    assert subs["monthly_total"] == "25.99"
+    # 25.99 * 12 = 311.88
+    assert subs["annual_total"] == "311.88"
+    assert len(subs["items"]) == 2
+    assert subs["items"][0]["name"] == "Netflix"
+    assert subs["items"][0]["billing_cycle"] == "monthly"
+    assert subs["items"][1]["name"] == "iCloud"
+    assert subs["items"][1]["billing_cycle"] == "yearly"
 
 
 @pytest.mark.asyncio

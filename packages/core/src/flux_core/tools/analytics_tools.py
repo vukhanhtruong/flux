@@ -4,10 +4,15 @@ from decimal import Decimal
 from flux_core.db.transaction_repo import TransactionRepository
 from flux_core.db.budget_repo import BudgetRepository
 from flux_core.db.goal_repo import GoalRepository
+from flux_core.db.subscription_repo import SubscriptionRepository
 
 
 async def generate_spending_report(
-    user_id: str, start_date: str, end_date: str, txn_repo: TransactionRepository
+    user_id: str,
+    start_date: str,
+    end_date: str,
+    txn_repo: TransactionRepository,
+    sub_repo: SubscriptionRepository,
 ) -> dict:
     """Generate a spending report for a date range."""
     start = date.fromisoformat(start_date)
@@ -15,10 +20,17 @@ async def generate_spending_report(
 
     summary = await txn_repo.get_summary(user_id, start, end)
     breakdown = await txn_repo.get_category_breakdown(user_id, start, end)
+    subs = await sub_repo.list_by_user(user_id, active_only=True)
 
     total_income = summary["total_income"] or Decimal("0")
     total_expenses = summary["total_expenses"] or Decimal("0")
     net = total_income - total_expenses
+
+    monthly_total = sum(
+        (s.amount if s.billing_cycle == "monthly" else s.amount / 12)
+        for s in subs
+    )
+    annual_total = monthly_total * 12
 
     return {
         "total_income": str(total_income),
@@ -31,6 +43,21 @@ async def generate_spending_report(
         ],
         "start_date": start_date,
         "end_date": end_date,
+        "subscriptions": {
+            "active_count": len(subs),
+            "monthly_total": str(round(monthly_total, 2)),
+            "annual_total": str(round(annual_total, 2)),
+            "items": [
+                {
+                    "name": s.name,
+                    "amount": str(s.amount),
+                    "billing_cycle": s.billing_cycle,
+                    "category": s.category,
+                    "next_date": str(s.next_date),
+                }
+                for s in subs
+            ],
+        },
     }
 
 
