@@ -7,8 +7,11 @@ import {
   CalendarRange,
   BarChart3,
   Settings,
-  Flame
+  Flame,
+  Github,
+  Coffee
 } from "lucide-react";
+import { SHOW_PROMO_CARD } from "../lib/constants";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -42,8 +45,8 @@ export function Sidebar() {
               key={item.name}
               to={item.href}
               className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 group ${isActive
-                  ? "bg-primary text-dark shadow-lg shadow-primary/20"
-                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+                ? "bg-primary text-dark shadow-lg shadow-primary/20"
+                : "text-slate-400 hover:bg-white/5 hover:text-white"
                 }`}
             >
               <Icon className={`w-5 h-5 ${isActive ? "text-dark" : "text-slate-400 group-hover:text-white"}`} />
@@ -52,13 +55,37 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="p-4">
-        <div className="glass-card p-4 bg-gradient-to-br from-primary/10 to-transparent">
-          <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Pro Plan</p>
-          <p className="text-xs text-slate-400 mb-3">Unlock advanced analytics and crypto tracking.</p>
-          <button className="w-full btn-primary text-xs py-2">Upgrade Now</button>
+      {SHOW_PROMO_CARD && (
+        <div className="p-4">
+          <div className="glass-card p-4 bg-gradient-to-br from-primary/10 to-transparent border border-white/5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Support flux</p>
+            <div className="space-y-2">
+              <a
+                href="https://github.com/vukhanhtruong/flux"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 text-xs text-slate-400 hover:text-white transition-colors group/link"
+              >
+                <div className="p-1.5 rounded-lg bg-white/5 group-hover/link:bg-primary/20 group-hover/link:text-primary transition-all">
+                  <Github size={14} />
+                </div>
+                <span>Star on GitHub</span>
+              </a>
+              <a
+                href="https://buymeacoffee.com/truongvu"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 text-xs text-slate-400 hover:text-white transition-colors group/link"
+              >
+                <div className="p-1.5 rounded-lg bg-white/5 group-hover/link:bg-amber-400/20 group-hover/link:text-amber-400 transition-all">
+                  <Coffee size={14} />
+                </div>
+                <span>Buy me a coffee</span>
+              </a>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

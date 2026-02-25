@@ -1,4 +1,24 @@
 import { useEffect, useState } from "react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
+  Search,
+  Plus,
+  ShieldCheck,
+  TrendingUp,
+  Wallet,
+  Target,
+  ArrowDownRight,
+  ArrowUpRight,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
@@ -6,24 +26,60 @@ import { formatCurrency, formatDate } from "../lib/format";
 import type { Transaction, FinancialHealth } from "../types";
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const { profile } = useProfile();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [health, setHealth] = useState<FinancialHealth | null>(null);
   const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState<"7d" | "30d">("7d");
+  const [chartData, setChartData] = useState<{ name: string; expense: number; income: number; fullDate: string }[]>([]);
 
   useEffect(() => {
     async function fetchData() {
+      setLoading(true);
       try {
-        const [txns, healthData] = await Promise.all([
-          api.listTransactions(USER_ID, 5),
-          api.getFinancialHealth(
-            USER_ID,
-            new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-            new Date().toISOString().split("T")[0]
-          ),
+        const days = timeRange === "7d" ? 7 : 30;
+        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0];
+        const endDate = new Date().toISOString().split("T")[0];
+
+        const [allTxns, healthData] = await Promise.all([
+          api.listTransactions(USER_ID, 200),
+          api.getFinancialHealth(USER_ID, startDate, endDate),
         ]);
-        setTransactions(txns);
+
+        setTransactions(allTxns.slice(0, 5));
         setHealth(healthData);
+
+        const dataMap: Record<string, { expense: number; income: number }> = {};
+        for (let i = days - 1; i >= 0; i--) {
+          const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+          const dateStr = d.toISOString().split("T")[0];
+          dataMap[dateStr] = { expense: 0, income: 0 };
+        }
+
+        allTxns.forEach((txn) => {
+          const dateStr = txn.date.split("T")[0];
+          if (Object.prototype.hasOwnProperty.call(dataMap, dateStr)) {
+            if (txn.type === "expense") {
+              dataMap[dateStr].expense += parseFloat(txn.amount);
+            } else if (txn.type === "income") {
+              dataMap[dateStr].income += parseFloat(txn.amount);
+            }
+          }
+        });
+
+        const formattedData = Object.entries(dataMap)
+          .map(([date, values]) => ({
+            name: new Date(date).toLocaleDateString(profile.locale, { weekday: "short" }),
+            expense: parseFloat(values.expense.toFixed(2)),
+            income: parseFloat(values.income.toFixed(2)),
+            fullDate: date,
+          }))
+          .sort((a, b) => a.fullDate.localeCompare(b.fullDate));
+
+        setChartData(formattedData);
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
       } finally {
@@ -31,81 +87,233 @@ export function Dashboard() {
       }
     }
     fetchData();
-  }, []);
+  }, [timeRange, profile.locale]);
 
   if (loading) {
-    return <div className="text-gray-600">Loading...</div>;
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-12 h-12 bg-white/10 rounded-full"></div>
+          <div className="h-4 w-32 bg-white/10 rounded"></div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-gray-600">
-          Overview of your financial health and recent activity
-        </p>
+    <div className="space-y-10">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight text-white mb-2">Welcome back</h1>
+          <p className="text-slate-400">
+            Your finances are looking <span className="text-primary font-medium">solid</span> this month.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate("/transactions")}
+            className="p-2.5 rounded-xl glass-card text-slate-400 hover:text-white transition-colors"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => navigate("/transactions")}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Transaction
+          </button>
+        </div>
       </div>
 
       {health && (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg bg-white p-6 shadow">
-            <h3 className="text-sm font-medium text-gray-500">Health Score</h3>
-            <p className="mt-2 text-3xl font-semibold text-gray-900">{health.score}/100</p>
-          </div>
-          <div className="rounded-lg bg-white p-6 shadow">
-            <h3 className="text-sm font-medium text-gray-500">Savings Rate</h3>
-            <p className="mt-2 text-3xl font-semibold text-gray-900">
-              {(health.savings_rate * 100).toFixed(1)}%
-            </p>
-          </div>
-          <div className="rounded-lg bg-white p-6 shadow">
-            <h3 className="text-sm font-medium text-gray-500">Budget Adherence</h3>
-            <p className="mt-2 text-3xl font-semibold text-gray-900">
-              {(health.budget_adherence * 100).toFixed(1)}%
-            </p>
-          </div>
-          <div className="rounded-lg bg-white p-6 shadow">
-            <h3 className="text-sm font-medium text-gray-500">Goal Progress</h3>
-            <p className="mt-2 text-3xl font-semibold text-gray-900">
-              {(health.goal_progress * 100).toFixed(1)}%
-            </p>
-          </div>
+          <HealthCard
+            title="Health Score"
+            value={`${health.score}/100`}
+            icon={ShieldCheck}
+            color="text-emerald-400"
+            bgColor="bg-emerald-400/10"
+          />
+          <HealthCard
+            title="Savings Rate"
+            value={`${(health.savings_rate * 100).toFixed(1)}%`}
+            icon={TrendingUp}
+            color="text-primary"
+            bgColor="bg-primary/10"
+          />
+          <HealthCard
+            title="Budget Adherence"
+            value={typeof health.budget_adherence === 'string'
+              ? (health.budget_adherence === 'good' ? "100%" : "0.0%")
+              : (isNaN(health.budget_adherence) ? "0.0%" : `${(health.budget_adherence * 100).toFixed(1)}%`)}
+            icon={Wallet}
+            color="text-violet-400"
+            bgColor="bg-violet-400/10"
+          />
+          <HealthCard
+            title="Goal Progress"
+            value={isNaN(health.goal_progress) ? "0.0%" : `${(health.goal_progress * 100).toFixed(1)}%`}
+            icon={Target}
+            color="text-sky-400"
+            bgColor="bg-sky-400/10"
+          />
         </div>
       )}
 
-      <div className="rounded-lg bg-white shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 glass-card p-8">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-xl font-bold text-white">Financial Overview</h2>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value as "7d" | "30d")}
+              className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-slate-300 outline-none focus:border-primary/50 transition-colors cursor-pointer"
+            >
+              <option value="7d" className="bg-dark">
+                Last 7 days
+              </option>
+              <option value="30d" className="bg-dark">
+                Last 30 days
+              </option>
+            </select>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  stroke="#475569"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  dy={10}
+                />
+                <YAxis
+                  stroke="#475569"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => formatCurrency(Number(value), profile.currency, profile.locale)}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#1E293B",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "12px",
+                    color: "#F8FAFC",
+                  }}
+                  formatter={(value, name) => [
+                    formatCurrency(Number(value), profile.currency, profile.locale),
+                    name === "expense" ? "Expenses" : "Income"
+                  ]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="income"
+                  stroke="#10B981"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorIncome)"
+                  animationDuration={1500}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="expense"
+                  stroke="#F59E0B"
+                  strokeWidth={3}
+                  fillOpacity={1}
+                  fill="url(#colorExpense)"
+                  animationDuration={1500}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="px-6 py-4">
-          {transactions.length === 0 ? (
-            <p className="text-gray-500">No transactions yet</p>
-          ) : (
-            <ul className="divide-y divide-gray-200">
-              {transactions.map((txn) => (
-                <li key={txn.id} className="py-3">
-                  <div className="flex justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">{txn.description}</p>
-                      <p className="text-sm text-gray-500">
-                        {txn.category} • {formatDate(txn.date, profile.locale, profile.timezone)}
-                      </p>
+
+        <div className="glass-card">
+          <div className="p-6 border-b border-white/5 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white">Recent Activity</h2>
+            <button
+              onClick={() => navigate("/transactions")}
+              className="text-xs font-semibold text-primary hover:text-primary-light transition-colors"
+            >
+              See all
+            </button>
+          </div>
+          <div className="p-2">
+            {transactions.length === 0 ? (
+              <div className="p-8 text-center">
+                <p className="text-slate-500 italic">No recent transactions</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {transactions.map((txn) => (
+                  <div
+                    key={txn.id}
+                    className="flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`p-2.5 rounded-xl ${txn.type === "income"
+                          ? "bg-emerald-400/10 text-emerald-400"
+                          : "bg-red-400/10 text-red-400"
+                          }`}
+                      >
+                        {txn.type === "income" ? (
+                          <ArrowDownRight className="w-5 h-5" />
+                        ) : (
+                          <ArrowUpRight className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white group-hover:text-primary transition-colors">
+                          {txn.description}
+                        </p>
+                        <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">
+                          {txn.category} • {formatDate(txn.date, profile.locale, profile.timezone)}
+                        </p>
+                      </div>
                     </div>
                     <div
-                      className={`text-lg font-semibold ${
-                        txn.type === "income" ? "text-green-600" : "text-red-600"
-                      }`}
+                      className={`text-lg font-bold ${txn.type === "income" ? "text-emerald-400" : "text-slate-200"
+                        }`}
                     >
                       {txn.type === "income" ? "+" : "-"}
                       {formatCurrency(txn.amount, profile.currency, profile.locale)}
                     </div>
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function HealthCard({ title, value, icon: Icon, color, bgColor }: any) {
+  return (
+    <div className="glass-card p-6 border-l-4 border-l-transparent hover:border-l-primary transition-all duration-300">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">{title}</h3>
+        <div className={`p-2 rounded-lg ${bgColor} ${color}`}>
+          <Icon className="w-5 h-5" />
+        </div>
+      </div>
+      <p className="text-3xl font-bold text-white tracking-tight">{value}</p>
     </div>
   );
 }

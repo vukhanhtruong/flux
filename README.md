@@ -8,6 +8,9 @@ A headless, MCP-first personal finance AI agent with a modern web UI.
 # Start all services via Docker Compose
 docker compose up
 
+# Start development stack with hot reload
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
 # Or run locally:
 
 # 1. Start PostgreSQL

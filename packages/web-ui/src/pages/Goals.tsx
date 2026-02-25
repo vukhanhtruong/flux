@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Target } from "lucide-react";
 import { api } from "../lib/api";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
@@ -78,150 +78,189 @@ export function Goals() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-10">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Goals</h1>
-          <p className="mt-2 text-gray-600">Track progress toward your financial goals.</p>
+          <h1 className="text-4xl font-bold tracking-tight text-white mb-2">Goals</h1>
+          <p className="text-slate-400">Track progress toward your financial milestones.</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          className="btn-primary flex items-center gap-2"
         >
-          <Plus size={18} />
-          Create Goal
+          {showForm ? <Trash2 size={18} /> : <Plus size={18} />}
+          {showForm ? "Cancel" : "Create Goal"}
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="rounded-lg bg-white p-6 shadow">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
+        <form
+          onSubmit={handleSubmit}
+          className="glass-card p-8 animate-in slide-in-from-top duration-500"
+        >
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                Goal Name
+              </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-                placeholder="e.g. Emergency Fund"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-primary/50 transition-colors"
+                placeholder="e.g. Dream House, New Car"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Target Amount</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.target_amount}
-                onChange={(e) => setFormData({ ...formData, target_amount: e.target.value })}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
-                placeholder="0.00"
-                required
-              />
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                Target Amount
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.target_amount}
+                  onChange={(e) => setFormData({ ...formData, target_amount: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-4 py-2.5 text-white outline-none focus:border-primary/50 transition-colors"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Deadline</label>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                Deadline
+              </label>
               <input
                 type="date"
                 value={formData.deadline}
                 onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-primary/50 transition-colors"
               />
             </div>
-            <div className="flex items-end">
-              <button
-                type="submit"
-                className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-              >
-                Save
-              </button>
-            </div>
+          </div>
+          <div className="mt-8 flex justify-end">
+            <button type="submit" className="btn-primary min-w-[120px]">
+              Save Goal
+            </button>
           </div>
         </form>
       )}
 
       {goals.length === 0 ? (
-        <div className="rounded-lg bg-white p-8 text-center text-gray-500 shadow">
-          No goals yet. Set your first savings goal!
+        <div className="glass-card p-20 text-center">
+          <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Target className="w-10 h-10 text-slate-500" />
+          </div>
+          <p className="text-slate-500 text-lg italic">No goals yet. Set your first savings goal!</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {goals.map((goal) => {
             const current = parseFloat(goal.current_amount);
             const target = parseFloat(goal.target_amount);
             const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
 
             return (
-              <div key={goal.id} className="rounded-lg bg-white p-6 shadow">
-                <div className="flex items-start justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">{goal.name}</h3>
+              <div
+                key={goal.id}
+                className="glass-card p-8 flex flex-col h-full hover:border-white/20 transition-all group"
+              >
+                <div className="flex items-start justify-between mb-6">
+                  <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">
+                    {goal.name}
+                  </h3>
                   <button
                     onClick={() => handleDelete(goal.id)}
-                    className="text-red-500 hover:text-red-700"
+                    className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
                     title="Delete"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={18} />
                   </button>
                 </div>
 
-                <div className="mt-3">
-                  <div className="flex justify-between text-sm text-gray-600">
-                    <span>{formatCurrency(current, profile.currency, profile.locale)}</span>
-                    <span>{formatCurrency(target, profile.currency, profile.locale)}</span>
+                <div className="flex-1 space-y-4">
+                  <div className="flex justify-between items-end pb-1">
+                    <span className="text-2xl font-bold text-white">
+                      {formatCurrency(current, profile.currency, profile.locale)}
+                    </span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">
+                      of {formatCurrency(target, profile.currency, profile.locale).replace(/\s/g, '\u00A0')}
+                    </span>
                   </div>
-                  <div className="mt-1 h-3 w-full rounded-full bg-gray-200">
+
+                  <div className="h-4 w-full rounded-full bg-white/5 overflow-hidden border border-white/5 p-0.5">
                     <div
-                      className="h-3 rounded-full bg-green-500 transition-all"
+                      className={`h-full rounded-full transition-all duration-1000 ${pct >= 100
+                          ? "bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.5)]"
+                          : "bg-primary shadow-[0_0_15px_rgba(245,158,11,0.5)]"
+                        }`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-sm font-medium text-gray-700">{pct.toFixed(1)}%</p>
+
+                  <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-slate-500 italic">
+                    <span>{pct.toFixed(1)}% Completed</span>
+                    {goal.deadline && (
+                      <span className="text-slate-400">
+                        Due {formatDate(goal.deadline, profile.locale, profile.timezone)}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {goal.deadline && (
-                  <p className="mt-2 text-xs text-gray-500">
-                    Deadline: {formatDate(goal.deadline, profile.locale, profile.timezone)}
-                  </p>
-                )}
-
-                <div className="mt-4">
+                <div className="mt-8 pt-6 border-t border-white/5">
                   {depositGoalId === goal.id ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={depositAmount}
-                        onChange={(e) => setDepositAmount(e.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
-                        placeholder="Amount"
-                      />
-                      <button
-                        onClick={() => handleDeposit(goal, false)}
-                        className="rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700"
-                        title="Deposit"
-                      >
-                        <ArrowUpCircle size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeposit(goal, true)}
-                        className="rounded bg-orange-600 px-2 py-1 text-xs text-white hover:bg-orange-700"
-                        title="Withdraw"
-                      >
-                        <ArrowDownCircle size={16} />
-                      </button>
-                      <button
-                        onClick={() => { setDepositGoalId(null); setDepositAmount(""); }}
-                        className="text-xs text-gray-500 hover:text-gray-700"
-                      >
-                        Cancel
-                      </button>
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={depositAmount}
+                          onChange={(e) => setDepositAmount(e.target.value)}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl pl-6 pr-2 py-2 text-sm text-white outline-none focus:border-primary/50 transition-colors"
+                          placeholder="0.00"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleDeposit(goal, false)}
+                          className="p-2 rounded-lg bg-emerald-400 hover:bg-emerald-500 text-dark transition-colors"
+                          title="Deposit"
+                        >
+                          <ArrowUpCircle size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDeposit(goal, true)}
+                          className="p-2 rounded-lg bg-orange-400 hover:bg-orange-500 text-dark transition-colors"
+                          title="Withdraw"
+                        >
+                          <ArrowDownCircle size={18} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDepositGoalId(null);
+                            setDepositAmount("");
+                          }}
+                          className="p-2 rounded-lg text-slate-400 hover:text-white transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
                       onClick={() => setDepositGoalId(goal.id)}
-                      className="text-sm text-blue-600 hover:text-blue-800"
+                      className="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm font-semibold text-white hover:bg-white/10 hover:border-white/20 transition-all flex items-center justify-center gap-2"
                     >
-                      Deposit / Withdraw
+                      <Plus size={16} />
+                      Manage Funds
                     </button>
                   )}
                 </div>

@@ -107,7 +107,7 @@ export interface SpendingReport {
   total_income: string;
   total_expenses: string;
   net_savings: string;
-  category_breakdown: Record<string, string>;
+  category_breakdown: { category: string; total: string; count: number }[];
 }
 
 export interface FinancialHealth {
