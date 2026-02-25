@@ -143,3 +143,17 @@ async def test_send_typing_action_calls_send_chat_action():
     await ch.send_typing_action(platform_id="12345")
 
     ch._app.bot.send_chat_action.assert_called_once_with(chat_id=12345, action="typing")
+
+
+async def test_send_outbound_no_sender():
+    """send_outbound delivers plain text when sender is None."""
+    ch, _, _, _ = _make_channel()
+    await ch.send_outbound("12345", "Hello from agent!", None)
+    ch._app.bot.send_message.assert_called_once_with(chat_id=12345, text="Hello from agent!")
+
+
+async def test_send_outbound_with_sender():
+    """send_outbound prepends sender name when provided."""
+    ch, _, _, _ = _make_channel()
+    await ch.send_outbound("12345", "Update!", "Researcher")
+    ch._app.bot.send_message.assert_called_once_with(chat_id=12345, text="**Researcher**: Update!")

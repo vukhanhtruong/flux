@@ -66,6 +66,12 @@ class TelegramChannel(Channel):
         if self._app:
             await self._app.bot.send_chat_action(chat_id=int(platform_id), action="typing")
 
+    async def send_outbound(self, platform_id: str, text: str, sender: str | None = None) -> None:
+        """Deliver an outbound message queued by the agent. Called by OutboundWorker."""
+        display_text = f"**{sender}**: {text}" if sender else text
+        if self._app:
+            await self._app.bot.send_message(chat_id=int(platform_id), text=display_text)
+
     async def _handle_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
