@@ -337,6 +337,7 @@ async def test_update_preferences_returns_profile():
         platform_id="12345",
         currency="USD",
         timezone="UTC",
+        locale="en-US",
     )
     mock_repo_instance = AsyncMock()
     mock_repo_instance.update.return_value = mock_profile
@@ -363,6 +364,7 @@ async def test_update_preferences_no_args_returns_current():
         platform_id="12345",
         currency="VND",
         timezone="Asia/Ho_Chi_Minh",
+        locale="vi-VN",
     )
     mock_repo_instance = AsyncMock()
     mock_repo_instance.get_by_user_id.return_value = mock_profile

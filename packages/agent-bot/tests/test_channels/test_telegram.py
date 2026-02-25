@@ -48,6 +48,7 @@ async def test_known_user_stores_message():
         user_id="tg:truong-vu", username="truong-vu",
         channel="telegram", platform_id="12345",
         currency="VND", timezone="Asia/Ho_Chi_Minh",
+        locale="vi-VN",
     )
     ch, msg_repo, _, _ = _make_channel(profile=profile)
     update = _make_update(user_id=12345, text="spent 20k lunch")
@@ -110,6 +111,7 @@ async def test_handle_photo_message_stores_image_path():
         user_id="tg:photo-user", username="photo-user",
         channel="telegram", platform_id="456",
         currency="VND", timezone="Asia/Ho_Chi_Minh",
+        locale="vi-VN",
     )
     ch, msg_repo, _, _ = _make_channel(profile=profile)
 

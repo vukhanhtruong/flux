@@ -36,6 +36,7 @@ def test_all_routes_registered():
     # Analytics
     assert "/analytics/spending-report" in routes
     assert "/analytics/financial-health" in routes
+    assert "/profile" in routes
 
 
 def test_openapi_docs_available():
@@ -55,3 +56,4 @@ def test_openapi_docs_available():
     assert "/assets/" in paths
     assert "/analytics/spending-report" in paths
     assert "/analytics/financial-health" in paths
+    assert "/profile" in paths

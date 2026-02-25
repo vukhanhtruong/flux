@@ -12,6 +12,7 @@ def _make_profile(user_id="tg:truong-vu"):
         user_id=user_id, username="truong-vu",
         channel="telegram", platform_id="12345",
         currency="VND", timezone="Asia/Ho_Chi_Minh",
+        locale="vi-VN",
     )
 
 
