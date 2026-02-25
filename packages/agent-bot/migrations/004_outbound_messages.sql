@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS bot_outbound_messages (
     status TEXT DEFAULT 'pending',
     error TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    sent_at TIMESTAMPTZ
+    completed_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_bot_outbound_status

@@ -43,7 +43,7 @@ class OutboundRepository:
             await conn.execute(
                 """
                 UPDATE bot_outbound_messages
-                SET status = 'sent', sent_at = NOW()
+                SET status = 'sent', completed_at = NOW()
                 WHERE id = $1
                 """,
                 msg_id,
@@ -55,7 +55,7 @@ class OutboundRepository:
             await conn.execute(
                 """
                 UPDATE bot_outbound_messages
-                SET status = 'failed', sent_at = NOW(), error = $2
+                SET status = 'failed', completed_at = NOW(), error = $2
                 WHERE id = $1
                 """,
                 msg_id, error,
