@@ -1,0 +1,129 @@
+services:
+  adminer:
+    image: adminer:latest
+    container_name: flux-adminer
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: flux-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-flux}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-flux}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flux}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api-server:
+    build:
+      context: .
+      dockerfile: packages/api-server/Dockerfile
+    container_name: flux-api
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-flux}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flux}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      HF_HOME: /root/.cache/huggingface
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: packages/mcp-server/Dockerfile
+    container_name: flux-mcp
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-flux}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flux}
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - huggingface_cache:/root/.cache/huggingface
+    depends_on:
+      postgres:
+        condition: service_healthy
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  web-ui:
+    build:
+      context: .
+      dockerfile: packages/web-ui/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:${API_PORT:-8000}
+        VITE_USER_ID: ${VITE_USER_ID:-demo-user}
+    container_name: flux-web
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    depends_on:
+      - api-server
+    restart: unless-stopped
+
+  agent-bot:
+    build:
+      context: .
+      dockerfile: packages/agent-bot/Dockerfile
+    container_name: flux-agent
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-flux}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flux}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      MCP_CONFIG_PATH: /app/mcp-config.json
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-}
+      CLAUDE_TIMEOUT: ${CLAUDE_TIMEOUT:-300}
+      CLAUDE_AUTH_TOKEN: ${CLAUDE_AUTH_TOKEN:-}
+    volumes:
+      - agent_sessions:/home/bot/.claude
+      - agent_images:/tmp/flux-images
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  whatsapp-bridge:
+    build:
+      context: packages/agent-bot/bridge
+      dockerfile: Dockerfile
+    container_name: flux-whatsapp
+    environment:
+      AGENT_WS_URL: ws://agent-bot:9000
+    volumes:
+      - whatsapp_auth:/app/auth
+    depends_on:
+      - agent-bot
+    profiles:
+      - whatsapp
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  agent_sessions:
+  agent_images:
+  whatsapp_auth:
+  huggingface_cache:

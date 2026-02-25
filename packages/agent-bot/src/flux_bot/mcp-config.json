@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "flux": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "flux_mcp.server"],
+      "env": {
+        "DATABASE_URL": "${DATABASE_URL}"
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+firebase/
+.worktrees/
+node_modules/
+huggingface_cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+.env
+.ruff_cache/
+.pytest_cache/
+finbot/
+docs/

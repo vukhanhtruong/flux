@@ -1,0 +1,117 @@
+import asyncio
+from unittest.mock import AsyncMock
+
+from flux_bot.orchestrator.poller import Poller
+
+
+async def test_poller_fetches_pending_and_dispatches():
+    """Poller fetches pending messages and dispatches each to the queue."""
+    msg_repo = AsyncMock()
+    msg_repo.fetch_pending.return_value = [
+        {"id": 1, "user_id": "tg:123", "channel": "telegram", "text": "hello", "image_path": None},
+        {"id": 2, "user_id": "tg:456", "channel": "telegram", "text": "hi", "image_path": None},
+    ]
+    msg_repo.mark_processing = AsyncMock()
+
+    queue = AsyncMock()
+
+    poller = Poller(message_repo=msg_repo, queue=queue, poll_interval=0.1)
+    await poller._poll_once()
+
+    assert msg_repo.mark_processing.call_count == 2
+    assert queue.enqueue.call_count == 2
+
+
+async def test_poller_skips_when_no_pending():
+    """Poller does nothing when there are no pending messages."""
+    msg_repo = AsyncMock()
+    msg_repo.fetch_pending.return_value = []
+    queue = AsyncMock()
+
+    poller = Poller(message_repo=msg_repo, queue=queue, poll_interval=0.1)
+    await poller._poll_once()
+
+    queue.enqueue.assert_not_called()
+
+
+async def test_on_notify_sets_event():
+    """Calling _on_notify sets the internal event so the poll loop wakes."""
+    msg_repo = AsyncMock()
+    queue = AsyncMock()
+    poller = Poller(message_repo=msg_repo, queue=queue, database_url="postgresql://x/db")
+
+    assert not poller._notify_event.is_set()
+    poller._on_notify(None, None, None, None)
+    assert poller._notify_event.is_set()
+
+
+async def test_notify_event_wakes_poll_loop():
+    """Setting the notify event wakes the poll loop before the fallback interval."""
+    msg_repo = AsyncMock()
+    msg_repo.fetch_pending.return_value = []
+    queue = AsyncMock()
+
+    poller = Poller(
+        message_repo=msg_repo,
+        queue=queue,
+        poll_interval=2.0,
+        fallback_poll_interval=30.0,
+    )
+
+    async def fire_event():
+        await asyncio.sleep(0.05)
+        poller._on_notify(None, None, None, None)
+        await asyncio.sleep(0.05)
+        poller.stop()
+
+    asyncio.create_task(fire_event())
+    await asyncio.wait_for(poller.start(), timeout=2.0)
+
+    # _poll_once should have been called at least twice (initial + after notify wakeup)
+    assert msg_repo.fetch_pending.call_count >= 2
+
+
+async def test_setup_listener_returns_false_without_url():
+    """_setup_listener returns False when no database_url is provided."""
+    msg_repo = AsyncMock()
+    queue = AsyncMock()
+    poller = Poller(message_repo=msg_repo, queue=queue)
+
+    result = await poller._setup_listener()
+    assert result is False
+    assert poller._listener_conn is None
+
+
+async def test_setup_listener_handles_connection_failure(monkeypatch):
+    """_setup_listener returns False when asyncpg.connect fails."""
+    msg_repo = AsyncMock()
+    queue = AsyncMock()
+    poller = Poller(message_repo=msg_repo, queue=queue, database_url="postgresql://x/db")
+
+    async def _fail(*a, **kw):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr("flux_bot.orchestrator.poller.asyncpg.connect", _fail)
+
+    result = await poller._setup_listener()
+    assert result is False
+    assert poller._listener_conn is None
+
+
+async def test_close_without_listener():
+    """close() is safe when no listener connection exists."""
+    msg_repo = AsyncMock()
+    queue = AsyncMock()
+    poller = Poller(message_repo=msg_repo, queue=queue)
+
+    await poller.close()  # should not raise
+
+
+async def test_stop_sets_event_to_wake_loop():
+    """stop() sets the notify event so the loop exits promptly."""
+    msg_repo = AsyncMock()
+    queue = AsyncMock()
+    poller = Poller(message_repo=msg_repo, queue=queue)
+
+    poller.stop()
+    assert poller._notify_event.is_set()

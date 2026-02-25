@@ -1,0 +1,35 @@
+import pytest
+from pydantic import ValidationError
+from flux_core.models.user_profile import UserProfile, UserProfileCreate
+
+
+def test_user_profile_create_defaults():
+    p = UserProfileCreate(
+        username="truong-vu",
+        channel="telegram",
+        platform_id="12345",
+    )
+    assert p.currency == "VND"
+    assert p.timezone == "Asia/Ho_Chi_Minh"
+    assert p.user_id == "tg:truong-vu"
+
+
+def test_user_profile_create_custom():
+    p = UserProfileCreate(
+        username="my-wife",
+        channel="whatsapp",
+        platform_id="84901234567",
+        currency="USD",
+        timezone="America/New_York",
+    )
+    assert p.user_id == "wa:my-wife"
+
+
+def test_username_invalid_characters():
+    with pytest.raises(ValidationError):
+        UserProfileCreate(username="Truong Vu!", channel="telegram", platform_id="1")
+
+
+def test_username_too_short():
+    with pytest.raises(ValidationError):
+        UserProfileCreate(username="a", channel="telegram", platform_id="1")
