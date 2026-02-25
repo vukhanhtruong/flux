@@ -157,3 +157,12 @@ async def test_send_outbound_with_sender():
     ch, _, _, _ = _make_channel()
     await ch.send_outbound("12345", "Update!", "Researcher")
     ch._app.bot.send_message.assert_called_once_with(chat_id=12345, text="**Researcher**: Update!")
+
+
+async def test_send_outbound_raises_if_not_started():
+    """send_outbound raises RuntimeError when bot is not initialized."""
+    ch, _, _, _ = _make_channel()
+    ch._app = None
+    import pytest
+    with pytest.raises(RuntimeError, match="not initialized"):
+        await ch.send_outbound("12345", "Hello")
