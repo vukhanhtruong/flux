@@ -42,10 +42,19 @@ async def test_mark_sent(repo):
     assert msg_id not in ids
 
 
-async def test_mark_failed(repo):
+async def test_mark_failed(repo, pool):
     msg_id = await repo.insert(user_id="tg:789", text="Oops")
     await repo.mark_failed(msg_id, "Connection timeout")
 
+    # Not in pending list
     pending = await repo.fetch_pending()
     ids = [m["id"] for m in pending]
     assert msg_id not in ids
+
+    # Error is stored
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT status, error FROM bot_outbound_messages WHERE id = $1", msg_id
+        )
+    assert row["status"] == "failed"
+    assert row["error"] == "Connection timeout"

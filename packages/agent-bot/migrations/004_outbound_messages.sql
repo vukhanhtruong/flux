@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS bot_outbound_messages (
     text TEXT NOT NULL,
     sender TEXT,
     status TEXT DEFAULT 'pending',
+    error TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     sent_at TIMESTAMPTZ
 );
