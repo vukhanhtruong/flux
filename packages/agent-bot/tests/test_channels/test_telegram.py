@@ -153,10 +153,12 @@ async def test_send_outbound_no_sender():
 
 
 async def test_send_outbound_with_sender():
-    """send_outbound prepends sender name when provided."""
+    """send_outbound prepends sender name in Markdown bold when provided."""
     ch, _, _, _ = _make_channel()
     await ch.send_outbound("12345", "Update!", "Researcher")
-    ch._app.bot.send_message.assert_called_once_with(chat_id=12345, text="**Researcher**: Update!")
+    ch._app.bot.send_message.assert_called_once_with(
+        chat_id=12345, text="*Researcher*: Update!", parse_mode="Markdown"
+    )
 
 
 async def test_send_outbound_raises_if_not_started():

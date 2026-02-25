@@ -70,8 +70,14 @@ class TelegramChannel(Channel):
         """Deliver an outbound message queued by the agent. Called by OutboundWorker."""
         if not self._app:
             raise RuntimeError("Telegram bot not initialized — cannot deliver outbound message")
-        display_text = f"**{sender}**: {text}" if sender else text
-        await self._app.bot.send_message(chat_id=int(platform_id), text=display_text)
+        if sender:
+            await self._app.bot.send_message(
+                chat_id=int(platform_id),
+                text=f"*{sender}*: {text}",
+                parse_mode="Markdown",
+            )
+        else:
+            await self._app.bot.send_message(chat_id=int(platform_id), text=text)
 
     async def _handle_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
