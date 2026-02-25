@@ -61,18 +61,25 @@ def client(mock_db, mock_embedding_service):
     app.dependency_overrides.clear()
 
 
-def test_spending_report(client, mock_txn_repo):
-    """Test GET /analytics/spending-report returns report dict."""
+def test_spending_report(client):
+    """Test GET /analytics/spending-report returns report dict with subscriptions block."""
     expected = {
-        "period": {"start": "2024-01-01", "end": "2024-01-31"},
-        "total_expenses": "500.00",
-        "by_category": {"groceries": "200.00", "transport": "300.00"},
+        "total_income": "5000.00",
+        "total_expenses": "3000.00",
+        "net": "2000.00",
+        "count": 25,
+        "category_breakdown": [],
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-31",
+        "subscriptions": {
+            "active_count": 0,
+            "monthly_total": "0",
+            "annual_total": "0",
+            "items": [],
+        },
     }
 
     with patch(
-        "flux_api.routes.analytics.TransactionRepository",
-        return_value=mock_txn_repo,
-    ), patch(
         "flux_api.routes.analytics.analytics_tools.generate_spending_report",
         new=AsyncMock(return_value=expected),
     ):
@@ -82,9 +89,9 @@ def test_spending_report(client, mock_txn_repo):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["period"]["start"] == "2024-01-01"
-    assert data["total_expenses"] == "500.00"
-    assert "groceries" in data["by_category"]
+    assert data["total_income"] == "5000.00"
+    assert "subscriptions" in data
+    assert data["subscriptions"]["active_count"] == 0
 
 
 def test_financial_health(client, mock_txn_repo, mock_budget_repo, mock_goal_repo):
