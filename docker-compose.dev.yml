@@ -1,5 +1,18 @@
 services:
+  adminer:
+    extends:
+      file: docker-compose.yml
+      service: adminer
+
+  postgres:
+    extends:
+      file: docker-compose.yml
+      service: postgres
+
   api-server:
+    extends:
+      file: docker-compose.yml
+      service: api-server
     command:
       [
         "uvicorn",
@@ -32,6 +45,9 @@ services:
           path: ./packages/api-server/pyproject.toml
 
   mcp-server:
+    extends:
+      file: docker-compose.yml
+      service: mcp-server
     command:
       [
         "sh",
@@ -56,6 +72,9 @@ services:
           path: ./packages/mcp-server/pyproject.toml
 
   web-ui:
+    extends:
+      file: docker-compose.yml
+      service: web-ui
     command:
       [
         "sh",
@@ -85,6 +104,9 @@ services:
           target: /app/vite.config.ts
 
   agent-bot:
+    extends:
+      file: docker-compose.yml
+      service: agent-bot
     command:
       [
         "sh",
@@ -116,4 +138,9 @@ services:
           path: ./packages/agent-bot/pyproject.toml
 
 volumes:
+  postgres_data:
+  agent_sessions:
+  agent_images:
+  whatsapp_auth:
+  huggingface_cache:
   web_ui_node_modules:
