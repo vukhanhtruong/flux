@@ -20,10 +20,10 @@ async def test_create_and_get_by_user_id(repo):
         currency="VND", timezone="Asia/Ho_Chi_Minh",
     )
     profile = await repo.create(create)
-    assert profile.user_id == "tg:truong-vu"
+    assert profile.user_id == "tg:12345"
     assert profile.currency == "VND"
 
-    fetched = await repo.get_by_user_id("tg:truong-vu")
+    fetched = await repo.get_by_user_id("tg:12345")
     assert fetched is not None
     assert fetched.username == "truong-vu"
 
@@ -36,7 +36,7 @@ async def test_get_by_platform_id(repo):
 
     fetched = await repo.get_by_platform_id("telegram", "99999")
     assert fetched is not None
-    assert fetched.user_id == "tg:another-user"
+    assert fetched.user_id == "tg:99999"
 
 
 async def test_username_exists(repo):
@@ -62,7 +62,7 @@ async def test_update_currency_and_timezone(repo):
     await repo.create(create)
 
     updated = await repo.update(
-        "tg:update-me",
+        "tg:11111",
         currency="USD",
         timezone="America/New_York",
         locale="en-US",
@@ -71,26 +71,23 @@ async def test_update_currency_and_timezone(repo):
     assert updated.timezone == "America/New_York"
     assert updated.locale == "en-US"
     assert updated.username == "update-me"
-    assert updated.user_id == "tg:update-me"
+    assert updated.user_id == "tg:11111"
 
 
-async def test_update_username_renames_user_id(repo):
+async def test_update_username_keeps_user_id(repo):
+    """Changing username should NOT change user_id (which is based on platform_id)."""
     create = UserProfileCreate(
         username="old-name", channel="telegram", platform_id="22222",
     )
     await repo.create(create)
 
-    updated = await repo.update("tg:old-name", username="new-name")
+    updated = await repo.update("tg:22222", username="new-name")
     assert updated.username == "new-name"
-    assert updated.user_id == "tg:new-name"
+    assert updated.user_id == "tg:22222"  # user_id unchanged
 
-    # Old user_id no longer exists
-    old = await repo.get_by_user_id("tg:old-name")
-    assert old is None
-
-    # New user_id exists
-    new = await repo.get_by_user_id("tg:new-name")
-    assert new is not None
+    fetched = await repo.get_by_user_id("tg:22222")
+    assert fetched is not None
+    assert fetched.username == "new-name"
 
 
 async def test_update_username_conflict_raises(repo):
@@ -102,4 +99,4 @@ async def test_update_username_conflict_raises(repo):
     ))
 
     with pytest.raises(ValueError, match="username already taken"):
-        await repo.update("tg:clashing", username="taken")
+        await repo.update("tg:44444", username="taken")

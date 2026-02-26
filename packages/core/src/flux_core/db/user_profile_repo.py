@@ -12,7 +12,7 @@ class UserProfileRepository:
 
     async def create(self, create: UserProfileCreate) -> UserProfile:
         prefix = _CHANNEL_PREFIXES.get(create.channel, create.channel)
-        user_id = f"{prefix}:{create.username}"
+        user_id = f"{prefix}:{create.platform_id}"
         await self._db.execute(
             """
             INSERT INTO users (id, display_name, platform, username, currency, timezone, locale, platform_id)
@@ -99,17 +99,10 @@ class UserProfileRepository:
             params.append(locale)
             sets.append(f"locale = ${len(params)}")
         if username is not None:
-            prefix = next(
-                (p for ch, p in _CHANNEL_PREFIXES.items() if user_id.startswith(f"{p}:")),
-                user_id.split(":")[0],
-            )
-            new_id = f"{prefix}:{username}"
             params.append(username)
             sets.append(f"username = ${len(params)}")
             params.append(username)
             sets.append(f"display_name = ${len(params)}")
-            params.append(new_id)
-            sets.append(f"id = ${len(params)}")
 
         set_clause = ", ".join(sets)
         try:
