@@ -1,3 +1,4 @@
+from datetime import UTC
 from unittest.mock import AsyncMock
 import pytest
 
@@ -10,10 +11,17 @@ from flux_core.tools.ipc_tools import (
     cancel_task,
 )
 
+_PROFILE_ROW = {
+    "id": "tg:123", "username": "testuser", "platform": "telegram",
+    "platform_id": "123", "currency": "USD", "timezone": "UTC", "locale": "en",
+}
+
 
 @pytest.fixture
 def mock_db():
-    return AsyncMock()
+    db = AsyncMock()
+    db.fetchrow.return_value = _PROFILE_ROW
+    return db
 
 
 async def test_send_message(mock_db):
@@ -190,3 +198,73 @@ async def test_resume_task_not_found(mock_db):
     mock_db.execute.return_value = "UPDATE 0"
     result = await resume_task(user_id="tg:123", task_id=999, db=mock_db)
     assert result["status"] == "error"
+
+
+async def test_schedule_task_once_converts_to_utc(mock_db):
+    """'once' input in Asia/Ho_Chi_Minh (UTC+7) must be stored as UTC."""
+    mock_db.fetchrow.return_value = {
+        "id": "tg:123", "username": "testuser", "platform": "telegram",
+        "platform_id": "123", "currency": "USD", "timezone": "Asia/Ho_Chi_Minh", "locale": "en",
+    }
+    mock_db.fetchval.return_value = 99
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Reminder",
+        schedule_type="once",
+        schedule_value="2026-03-01T10:00:00",
+        db=mock_db,
+    )
+    assert result["status"] == "scheduled"
+    # Extract next_run passed to DB (5th positional arg of fetchval INSERT call)
+    call_args = mock_db.fetchval.call_args
+    next_run = call_args.args[5]
+    assert next_run.utcoffset() is not None, "next_run must be timezone-aware"
+    assert next_run.astimezone(UTC).hour == 3
+    assert next_run.astimezone(UTC).minute == 0
+    assert next_run.astimezone(UTC).day == 1
+    assert next_run.astimezone(UTC).month == 3
+
+
+async def test_schedule_task_cron_uses_user_tz(mock_db):
+    """Cron 'daily 9 AM' for Asia/Ho_Chi_Minh user must yield next_run_at at 2 AM UTC."""
+    mock_db.fetchrow.return_value = {
+        "id": "tg:123", "username": "testuser", "platform": "telegram",
+        "platform_id": "123", "currency": "USD", "timezone": "Asia/Ho_Chi_Minh", "locale": "en",
+    }
+    mock_db.fetchval.return_value = 88
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Daily reminder",
+        schedule_type="cron",
+        schedule_value="0 9 * * *",
+        db=mock_db,
+    )
+    assert result["status"] == "scheduled"
+    call_args = mock_db.fetchval.call_args
+    next_run = call_args.args[5]
+    assert next_run.utcoffset() is not None, "next_run must be timezone-aware"
+    next_run_utc = next_run.astimezone(UTC)
+    # 9 AM Ho Chi Minh (UTC+7) = 2 AM UTC
+    assert next_run_utc.hour == 2
+    assert next_run_utc.minute == 0
+
+
+async def test_schedule_task_once_no_profile_falls_back_to_utc(mock_db):
+    """When user profile not found, 'once' input is treated as UTC directly."""
+    mock_db.fetchrow.return_value = None
+    mock_db.fetchval.return_value = 77
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Reminder",
+        schedule_type="once",
+        schedule_value="2026-03-01T10:00:00",
+        db=mock_db,
+    )
+    assert result["status"] == "scheduled"
+    call_args = mock_db.fetchval.call_args
+    next_run = call_args.args[5]
+    assert next_run.utcoffset() is not None, "next_run must be timezone-aware"
+    next_run_utc = next_run.astimezone(UTC)
+    assert next_run_utc.hour == 10
+    assert next_run_utc.minute == 0
+    assert next_run_utc.day == 1

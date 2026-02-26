@@ -1,10 +1,12 @@
 """IPC tools — send messages and manage scheduled tasks via PostgreSQL."""
 
-from datetime import datetime
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
 from flux_core.db.connection import Database
+from flux_core.db.user_profile_repo import UserProfileRepository
 
 
 async def send_message(
@@ -34,6 +36,9 @@ async def schedule_task(
     db: Database,
 ) -> dict:
     """Schedule a recurring or one-time task."""
+    profile = await UserProfileRepository(db).get_by_user_id(user_id)
+    user_tz = ZoneInfo(profile.timezone) if profile else ZoneInfo("UTC")
+
     if schedule_type == "cron":
         if not croniter.is_valid(schedule_value):
             return {
@@ -41,7 +46,8 @@ async def schedule_task(
                 "message": f'Invalid cron: "{schedule_value}". '
                 'Use format like "0 9 * * *" (daily 9am) or "*/5 * * * *" (every 5 min).',
             }
-        next_run = croniter(schedule_value).get_next(datetime)
+        now_local = datetime.now(user_tz)
+        next_run = croniter(schedule_value, now_local).get_next(datetime).astimezone(UTC)
     elif schedule_type == "interval":
         try:
             ms = int(schedule_value)
@@ -60,7 +66,8 @@ async def schedule_task(
         next_run = None
     elif schedule_type == "once":
         try:
-            next_run = datetime.fromisoformat(schedule_value)
+            naive_dt = datetime.fromisoformat(schedule_value)
+            next_run = naive_dt.replace(tzinfo=user_tz).astimezone(UTC)
         except ValueError:
             return {
                 "status": "error",
