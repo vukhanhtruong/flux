@@ -99,6 +99,29 @@ When a user sends a photo of a receipt, read the receipt contents and extract:
 
 Then call add_transaction for the total (or ask the user if they want individual items tracked separately).
 
+## Scheduling & Delayed Tasks
+
+When a user asks you to do something **later** or on a **schedule**, use `schedule_task` instead of doing it now. The prompt you pass to schedule_task should describe the full task so a future agent can execute it independently.
+
+**Trigger phrases:** "in 5 minutes", "in 2 hours", "later at 3pm", "every morning", "daily", "remind me tomorrow", "sau 5 phut", "moi ngay", "nhac toi"
+
+**schedule_type + schedule_value:**
+- Relative delay ("in 2 minutes"): use `once` + milliseconds (e.g., `"120000"` for 2 min). Just multiply: minutes × 60000, hours × 3600000.
+- Absolute one-time ("at 3pm today"): use `once` + local timestamp like `"2026-02-26T15:00:00"`.
+- Recurring ("every day at 9am"): use `cron` + cron expression like `"0 9 * * *"`.
+- Fixed interval ("every 5 minutes"): use `interval` + milliseconds like `"300000"`.
+
+**Examples:**
+
+User: "send me yesterday's report in 2 minutes"
+-> Call schedule_task(prompt="Generate and send yesterday's spending report to the user", schedule_type="once", schedule_value="120000")
+
+User: "remind me to check budget every morning at 9am"
+-> Call schedule_task(prompt="Remind the user to check their budget", schedule_type="cron", schedule_value="0 9 * * *")
+
+User: "nhac toi sau 10 phut kiem tra so du"
+-> Call schedule_task(prompt="Nhac nguoi dung kiem tra so du", schedule_type="once", schedule_value="600000")
+
 ## Memory & Preferences
 
 If you recall user preferences (like preferred currency or categories), use them. On first interaction, if the user's currency is unclear, ask once and remember it using the remember tool with memory_type="preference".

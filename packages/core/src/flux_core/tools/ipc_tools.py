@@ -65,21 +65,28 @@ async def schedule_task(
             }
         next_run = datetime.now(UTC) + timedelta(milliseconds=ms)
     elif schedule_type == "once":
-        try:
-            naive_dt = datetime.fromisoformat(schedule_value)
-            next_run = naive_dt.replace(tzinfo=user_tz).astimezone(UTC)
-        except ValueError:
-            return {
-                "status": "error",
-                "message": f'Invalid timestamp: "{schedule_value}". '
-                'Use ISO 8601 format like "2026-02-01T15:30:00".',
-            }
-        if next_run <= datetime.now(UTC):
-            return {
-                "status": "error",
-                "message": f'Scheduled time "{schedule_value}" is already in the past. '
-                "Please provide a future date and time.",
-            }
+        if schedule_value.isdigit():
+            # Relative delay in milliseconds
+            ms = int(schedule_value)
+            if ms <= 0:
+                return {"status": "error", "message": "Delay must be positive."}
+            next_run = datetime.now(UTC) + timedelta(milliseconds=ms)
+        else:
+            try:
+                naive_dt = datetime.fromisoformat(schedule_value)
+                next_run = naive_dt.replace(tzinfo=user_tz).astimezone(UTC)
+            except ValueError:
+                return {
+                    "status": "error",
+                    "message": f'Invalid timestamp: "{schedule_value}". '
+                    'Use ISO 8601 format like "2026-02-01T15:30:00".',
+                }
+            if next_run <= datetime.now(UTC):
+                return {
+                    "status": "error",
+                    "message": f'Scheduled time "{schedule_value}" is already in the past. '
+                    "Please provide a future date and time.",
+                }
     else:
         return {"status": "error", "message": f"Unknown schedule_type: {schedule_type}"}
 

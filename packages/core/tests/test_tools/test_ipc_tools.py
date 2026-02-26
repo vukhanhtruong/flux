@@ -285,6 +285,41 @@ async def test_schedule_task_once_no_profile_falls_back_to_utc(mock_db):
     assert next_run_utc.day == 1
 
 
+async def test_schedule_task_once_ms_delay(mock_db):
+    """'once' with a pure integer value is treated as a ms delay from now."""
+    mock_db.fetchval.return_value = 10
+    before = datetime.now(UTC)
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Report in 2 min",
+        schedule_type="once",
+        schedule_value="120000",  # 2 minutes in ms
+        db=mock_db,
+    )
+    after = datetime.now(UTC)
+
+    assert result["status"] == "scheduled"
+    assert result["task_id"] == 10
+
+    call_args = mock_db.fetchval.call_args
+    next_run_at = call_args.args[5]
+    expected = timedelta(milliseconds=120000)
+    assert before + expected <= next_run_at <= after + expected
+
+
+async def test_schedule_task_once_ms_delay_zero(mock_db):
+    """'once' with ms delay of 0 must be rejected."""
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Bad",
+        schedule_type="once",
+        schedule_value="0",
+        db=mock_db,
+    )
+    assert result["status"] == "error"
+    assert "positive" in result["message"].lower()
+
+
 async def test_schedule_task_interval_sets_next_run_at(mock_db):
     """Interval tasks must have next_run_at set to now+interval so the scheduler picks them up."""
     mock_db.fetchval.return_value = 5
