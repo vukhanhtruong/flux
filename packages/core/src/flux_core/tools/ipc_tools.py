@@ -74,6 +74,12 @@ async def schedule_task(
                 "message": f'Invalid timestamp: "{schedule_value}". '
                 'Use ISO 8601 format like "2026-02-01T15:30:00".',
             }
+        if next_run <= datetime.now(UTC):
+            return {
+                "status": "error",
+                "message": f'Scheduled time "{schedule_value}" is already in the past. '
+                "Please provide a future date and time.",
+            }
     else:
         return {"status": "error", "message": f"Unknown schedule_type: {schedule_type}"}
 

@@ -249,6 +249,21 @@ async def test_schedule_task_cron_uses_user_tz(mock_db):
     assert next_run_utc.minute == 0
 
 
+async def test_schedule_task_once_rejects_past_time(mock_db):
+    """'once' input that resolves to a past UTC time must return an error."""
+    mock_db.fetchrow.return_value = _PROFILE_ROW  # timezone = "UTC"
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Stale",
+        schedule_type="once",
+        schedule_value="2000-01-01T00:00:00",   # definitely in the past
+        db=mock_db,
+    )
+    assert result["status"] == "error"
+    assert "past" in result["message"].lower()
+    mock_db.fetchval.assert_not_called()   # must NOT insert
+
+
 async def test_schedule_task_once_no_profile_falls_back_to_utc(mock_db):
     """When user profile not found, 'once' input is treated as UTC directly."""
     mock_db.fetchrow.return_value = None
