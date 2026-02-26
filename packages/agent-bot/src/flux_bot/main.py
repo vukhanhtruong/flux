@@ -16,6 +16,8 @@ from flux_bot.channels.telegram import TelegramChannel
 from flux_bot.orchestrator.handler import make_handle_message
 from flux_bot.db.outbound import OutboundRepository
 from flux_bot.orchestrator.outbound import OutboundWorker
+from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
+from flux_bot.orchestrator.scheduler import SchedulerWorker
 from flux_bot.orchestrator.poller import Poller
 from flux_bot.orchestrator.queue import UserQueue
 from flux_bot.runner.sdk import ClaudeRunner
@@ -101,8 +103,16 @@ async def main():
         fallback_poll_interval=config.fallback_poll_interval,
     )
 
+    task_repo = ScheduledTaskRepository(pool)
+    scheduler_worker = SchedulerWorker(
+        task_repo=task_repo,
+        message_repo=msg_repo,
+        poll_interval=config.fallback_poll_interval,
+    )
+
     poller_task = asyncio.create_task(poller.start())
     outbound_task = asyncio.create_task(outbound_worker.start())
+    scheduler_task = asyncio.create_task(scheduler_worker.start())
     logger.info("Orchestrator running. Press Ctrl+C to stop.")
 
     stop = asyncio.Event()
@@ -116,8 +126,10 @@ async def main():
     poller.stop()
     queue.stop()
     outbound_worker.stop()
+    scheduler_worker.stop()
     poller_task.cancel()
     outbound_task.cancel()
+    scheduler_task.cancel()
     await poller.close()
     await outbound_worker.close()
     for ch in channels.values():
