@@ -32,7 +32,9 @@ def register_ipc_tools(
         schedule_value:
           - cron: "0 9 * * *" (daily 9am), "*/5 * * * *" (every 5 min)
           - interval: milliseconds like "300000" (5 min), "3600000" (1 hour)
-          - once: local timestamp like "2026-02-01T15:30:00" (no Z suffix)
+          - once: local timestamp like "2026-02-01T15:30:00" (no Z suffix).
+                  For relative requests ("in 2 minutes"), add the offset to the
+                  current date/time from your system context.
         """
         db = await get_db()
         return await biz.schedule_task(

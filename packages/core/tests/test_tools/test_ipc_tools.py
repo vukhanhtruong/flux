@@ -1,4 +1,4 @@
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 import pytest
 
@@ -283,3 +283,27 @@ async def test_schedule_task_once_no_profile_falls_back_to_utc(mock_db):
     assert next_run_utc.hour == 10
     assert next_run_utc.minute == 0
     assert next_run_utc.day == 1
+
+
+async def test_schedule_task_interval_sets_next_run_at(mock_db):
+    """Interval tasks must have next_run_at set to now+interval so the scheduler picks them up."""
+    mock_db.fetchval.return_value = 5
+    before = datetime.now(UTC)
+    result = await schedule_task(
+        user_id="tg:123",
+        prompt="Poll API",
+        schedule_type="interval",
+        schedule_value="120000",   # 2 minutes
+        db=mock_db,
+    )
+    after = datetime.now(UTC)
+
+    assert result["status"] == "scheduled"
+
+    # 5th positional arg to fetchval is next_run_at
+    call_args = mock_db.fetchval.call_args
+    next_run_at = call_args.args[5]  # (query, user_id, prompt, type, value, next_run_at)
+
+    assert next_run_at is not None, "next_run_at must not be NULL for interval tasks"
+    expected = timedelta(milliseconds=120000)
+    assert before + expected <= next_run_at <= after + expected

@@ -1,6 +1,6 @@
 """IPC tools — send messages and manage scheduled tasks via PostgreSQL."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
@@ -63,7 +63,7 @@ async def schedule_task(
                 "message": f'Interval must be positive, got {ms}ms. '
                 'Use a value like "300000" for 5 minutes.',
             }
-        next_run = None
+        next_run = datetime.now(UTC) + timedelta(milliseconds=ms)
     elif schedule_type == "once":
         try:
             naive_dt = datetime.fromisoformat(schedule_value)
