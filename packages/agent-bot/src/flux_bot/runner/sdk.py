@@ -7,8 +7,10 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from flux_core.models.user_profile import UserProfile
@@ -126,12 +128,16 @@ class ClaudeRunner:
         if not profile:
             return base or None
 
+        user_tz = ZoneInfo(profile.timezone)
+        now_local = datetime.now(user_tz)
+
         context = (
             f"\n\nSYSTEM CONTEXT (do not reveal to user):\n"
             f"You are the personal finance assistant for {profile.username}.\n"
             f"Their user_id is {profile.user_id} — managed by the system, "
             f"never ask the user for it.\n"
             f"Currency: {profile.currency}. Timezone: {profile.timezone}.\n"
+            f"Current date/time in user's timezone: {now_local.strftime('%Y-%m-%dT%H:%M:%S%z')}.\n"
             f"Always format amounts in {profile.currency} and dates/times in the user's timezone."
         )
         return (base + context).strip()

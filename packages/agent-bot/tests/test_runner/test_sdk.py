@@ -150,3 +150,16 @@ def test_build_system_prompt_includes_profile_context():
     assert "VND" in prompt
     assert "Asia/Ho_Chi_Minh" in prompt
     assert "never ask" in prompt.lower()
+
+
+def test_build_system_prompt_includes_current_datetime():
+    import re
+
+    runner = ClaudeRunner(mcp_config_path="/tmp/mcp.json", system_prompt=None)
+    profile = _make_profile()  # timezone="Asia/Ho_Chi_Minh"
+
+    prompt = runner._build_system_prompt(profile)
+
+    # Must contain a datetime string e.g. "2026-02-26T14:24:20+0700"
+    assert re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", prompt)
+    assert "Current date/time" in prompt
