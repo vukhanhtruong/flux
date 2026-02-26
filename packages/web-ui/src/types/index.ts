@@ -106,8 +106,23 @@ export interface AssetCreate {
 export interface SpendingReport {
   total_income: string;
   total_expenses: string;
-  net_savings: string;
+  net: string;
+  count: number;
   category_breakdown: { category: string; total: string; count: number }[];
+  start_date: string;
+  end_date: string;
+  subscriptions: {
+    active_count: number;
+    monthly_total: string;
+    annual_total: string;
+    items: {
+      name: string;
+      amount: string;
+      billing_cycle: string;
+      category: string;
+      next_date: string;
+    }[];
+  };
 }
 
 export interface FinancialHealth {

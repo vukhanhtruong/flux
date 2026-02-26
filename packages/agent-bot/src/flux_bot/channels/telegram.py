@@ -6,6 +6,7 @@ from pathlib import Path
 
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.request import HTTPXRequest
 
 from flux_bot.channels.base import Channel
 from flux_bot.db.messages import MessageRepository
@@ -39,7 +40,15 @@ class TelegramChannel(Channel):
         Path(self.image_dir).mkdir(parents=True, exist_ok=True)
 
     async def start(self) -> None:
-        self._app = Application.builder().token(self.bot_token).build()
+        # Use a longer read timeout for the long-polling getUpdates connection
+        # so it doesn't race with Telegram's own polling timeout (~5s by default).
+        get_updates_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
+        self._app = (
+            Application.builder()
+            .token(self.bot_token)
+            .get_updates_request(get_updates_request)
+            .build()
+        )
         self._app.add_handler(
             MessageHandler(
                 (filters.TEXT | filters.PHOTO) & ~filters.COMMAND,

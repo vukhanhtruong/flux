@@ -13,11 +13,12 @@ import {
   ArrowDownRight,
   ShieldCheck,
   Target,
+  Repeat,
 } from "lucide-react";
 import { api } from "../lib/api";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
-import { formatCurrency } from "../lib/format";
+import { formatCurrency, formatDate } from "../lib/format";
 import type { SpendingReport, FinancialHealth } from "../types";
 
 const COLORS = [
@@ -158,20 +159,20 @@ export function Reports() {
             </div>
 
             <div
-              className={`glass-card p-8 hover:border-primary/30 transition-all group ${parseFloat(report.net_savings) >= 0
+              className={`glass-card p-8 hover:border-primary/30 transition-all group ${parseFloat(report.net) >= 0
                 ? "border-primary/10"
                 : "border-red-500/10"
                 }`}
             >
               <div className="flex items-center gap-3 mb-4">
                 <div
-                  className={`p-2 rounded-lg ${parseFloat(report.net_savings) >= 0
+                  className={`p-2 rounded-lg ${parseFloat(report.net) >= 0
                     ? "bg-primary/10"
                     : "bg-red-500/10"
                     }`}
                 >
                   <ShieldCheck
-                    className={`w-5 h-5 ${parseFloat(report.net_savings) >= 0
+                    className={`w-5 h-5 ${parseFloat(report.net) >= 0
                       ? "text-primary"
                       : "text-red-500"
                       }`}
@@ -182,12 +183,12 @@ export function Reports() {
                 </h3>
               </div>
               <p
-                className={`text-4xl font-black transition-colors ${parseFloat(report.net_savings) >= 0
+                className={`text-4xl font-black transition-colors ${parseFloat(report.net) >= 0
                   ? "text-white group-hover:text-primary"
                   : "text-red-400"
                   }`}
               >
-                {formatCurrency(report.net_savings, profile.currency, profile.locale)}
+                {formatCurrency(report.net, profile.currency, profile.locale)}
               </p>
             </div>
           </div>
@@ -330,6 +331,70 @@ export function Reports() {
               </div>
             )}
           </div>
+
+          {report.subscriptions && report.subscriptions.active_count > 0 && (
+            <div className="glass-card p-10">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Repeat className="w-5 h-5 text-primary" />
+                </div>
+                <h2 className="text-xl font-bold text-white tracking-tight">
+                  Active Subscriptions
+                </h2>
+                <span className="ml-auto text-sm text-slate-400">
+                  {report.subscriptions.active_count} active
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    Monthly Total
+                  </p>
+                  <p className="text-3xl font-black text-white">
+                    {formatCurrency(report.subscriptions.monthly_total, profile.currency, profile.locale)}
+                  </p>
+                </div>
+                <div className="p-6 bg-white/5 rounded-2xl border border-white/5 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    Annual Total
+                  </p>
+                  <p className="text-3xl font-black text-white">
+                    {formatCurrency(report.subscriptions.annual_total, profile.currency, profile.locale)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {report.subscriptions.items.map((sub) => (
+                  <div
+                    key={sub.name}
+                    className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:border-primary/20 transition-all"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Repeat className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">{sub.name}</p>
+                        <p className="text-xs text-slate-400">
+                          {sub.category} &middot; {sub.billing_cycle}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-white">
+                        {formatCurrency(sub.amount, profile.currency, profile.locale)}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Next: {formatDate(sub.next_date, profile.locale, profile.timezone)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
