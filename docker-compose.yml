@@ -94,6 +94,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-flux}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flux}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ALLOW_FROM: ${TELEGRAM_ALLOW_FROM:-}
       MCP_CONFIG_PATH: /app/mcp-config.json
       CLAUDE_MODEL: ${CLAUDE_MODEL:-}
       CLAUDE_TIMEOUT: ${CLAUDE_TIMEOUT:-300}

@@ -52,7 +52,7 @@ services:
       [
         "sh",
         "-c",
-        "watchfiles --filter python --ignore-paths /root/.cache \"python -m flux_mcp.server\" /app/core/src /app/mcp/src",
+        'watchfiles --filter python --ignore-paths /root/.cache "python -m flux_mcp.server" /app/core/src /app/mcp/src',
       ]
     volumes:
       - ./packages/core/src:/app/core/src
@@ -76,11 +76,7 @@ services:
       file: docker-compose.yml
       service: web-ui
     command:
-      [
-        "sh",
-        "-c",
-        "npm install && npm run dev -- --host 0.0.0.0 --port 5173",
-      ]
+      ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port 5173"]
     environment:
       VITE_API_BASE_URL: http://localhost:${API_PORT:-8000}
       VITE_USER_ID: ${VITE_USER_ID:-demo-user}
@@ -107,11 +103,13 @@ services:
     extends:
       file: docker-compose.yml
       service: agent-bot
+    env_file:
+      - .env
     command:
       [
         "sh",
         "-c",
-        "watchfiles --filter python --ignore-paths /home/bot/.claude --ignore-paths /tmp/flux-images \"python -m flux_bot.main\" /app/core/src /app/mcp-server/src /app/bot/src",
+        'watchfiles --filter python --ignore-paths /home/bot/.claude --ignore-paths /tmp/flux-images "python -m flux_bot.main" /app/core/src /app/mcp-server/src /app/bot/src',
       ]
     volumes:
       - ./packages/core/src:/app/core/src

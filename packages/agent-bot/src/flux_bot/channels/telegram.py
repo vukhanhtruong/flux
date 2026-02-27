@@ -39,14 +39,19 @@ class TelegramChannel(Channel):
         self._app: Application | None = None
         Path(self.image_dir).mkdir(parents=True, exist_ok=True)
 
+    # Telegram message length limit
+    _MAX_MESSAGE_LEN = 4096
+
     async def start(self) -> None:
-        # Use a longer read timeout for the long-polling getUpdates connection
-        # so it doesn't race with Telegram's own polling timeout (~5s by default).
+        # Longer read timeout for long-polling getUpdates (races Telegram's ~5s poll timeout)
         get_updates_request = HTTPXRequest(read_timeout=20, connect_timeout=10)
+        # Longer timeouts for regular API calls (send_message etc.) — Claude responses can be large
+        request = HTTPXRequest(read_timeout=30, write_timeout=30, connect_timeout=10)
         self._app = (
             Application.builder()
             .token(self.bot_token)
             .get_updates_request(get_updates_request)
+            .request(request)
             .build()
         )
         self._app.add_handler(
@@ -66,9 +71,15 @@ class TelegramChannel(Channel):
             await self._app.shutdown()
 
     async def send_message(self, platform_id: str, text: str) -> None:
-        """Send a message to a Telegram user by their raw numeric platform ID."""
-        if self._app:
-            await self._app.bot.send_message(chat_id=int(platform_id), text=text)
+        """Send a message to a Telegram user, splitting if it exceeds Telegram's 4096-char limit."""
+        if not self._app:
+            return
+        chunks = [
+            text[i : i + self._MAX_MESSAGE_LEN]
+            for i in range(0, len(text), self._MAX_MESSAGE_LEN)
+        ]
+        for chunk in chunks:
+            await self._app.bot.send_message(chat_id=int(platform_id), text=chunk)
 
     async def send_typing_action(self, platform_id: str) -> None:
         """Send a typing indicator to the Telegram user."""
@@ -79,14 +90,18 @@ class TelegramChannel(Channel):
         """Deliver an outbound message queued by the agent. Called by OutboundWorker."""
         if not self._app:
             raise RuntimeError("Telegram bot not initialized — cannot deliver outbound message")
-        if sender:
+        full_text = f"*{sender}*: {text}" if sender else text
+        parse_mode = "Markdown" if sender else None
+        chunks = [
+            full_text[i : i + self._MAX_MESSAGE_LEN]
+            for i in range(0, len(full_text), self._MAX_MESSAGE_LEN)
+        ]
+        for chunk in chunks:
             await self._app.bot.send_message(
                 chat_id=int(platform_id),
-                text=f"*{sender}*: {text}",
-                parse_mode="Markdown",
+                text=chunk,
+                parse_mode=parse_mode,
             )
-        else:
-            await self._app.bot.send_message(chat_id=int(platform_id), text=text)
 
     async def _handle_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
