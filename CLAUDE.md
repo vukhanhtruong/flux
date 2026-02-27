@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 flux is a headless, MCP-first personal finance AI agent with a modern web UI. Users can interact via:
 - **Web UI**: React 19 + TypeScript + Tailwind CSS (packages/web-ui)
 - **REST API**: FastAPI backend (packages/api-server)
-- **Telegram Bot**: NanoClaw-style orchestrator that spawns Claude Code CLI (packages/agent-bot)
+- **Telegram Bot**: NanoClaw-style orchestrator using Python Agent SDK (packages/agent-bot)
 - **MCP Protocol**: FastMCP server for Claude Desktop / other MCP clients (packages/mcp-server)
 
 The `firebase/` directory contains the legacy browser-based React app (localStorage + Gemini AI). It is **not** the active codebase — it serves only as a reference for the domain model and feature set being ported.
@@ -19,7 +19,7 @@ packages/
   core/              # Shared business logic, models, DB access
   api-server/        # FastAPI REST API
   mcp-server/        # FastMCP protocol server
-  agent-bot/         # Telegram bot — NanoClaw-style orchestrator with Claude CLI
+  agent-bot/         # Telegram bot — NanoClaw-style orchestrator with Python Agent SDK
   web-ui/            # React 19 + Vite + TypeScript frontend
 ```
 
@@ -32,7 +32,7 @@ Claude Desktop ──MCP───▶ FastMCP Server ──▶      ↑
 Telegram ──▶ Agent Bot (Python orchestrator)
                ├── polls bot_messages table
                ├── per-user async queues
-               └── spawns Claude CLI subprocess
+               └── claude-agent-sdk (Python)
                      └── connects to MCP Server (stdio) ──▶ Core Package
 ```
 
@@ -40,7 +40,7 @@ Telegram ──▶ Agent Bot (Python orchestrator)
 1. Telegram receives message → stores in `bot_messages` table
 2. Poller polls `bot_messages` every 2s → dispatches to per-user queue
 3. Queue processes one message at a time per user (parallel across users)
-4. `ClaudeRunner` spawns `claude -p` subprocess with `--mcp-config` (finance tools)
+4. `ClaudeRunner` uses `claude-agent-sdk` Python to run Claude with MCP tools (finance tools)
 5. Response sent back to user via Telegram, session saved for conversation continuity
 
 **Layered architecture in packages/core**:
@@ -54,7 +54,7 @@ Telegram ──▶ Agent Bot (Python orchestrator)
 **Thin interface layers**:
 - **packages/api-server**: FastAPI routes delegating to core tools
 - **packages/mcp-server**: FastMCP tool registration delegating to core tools
-- **packages/agent-bot**: NanoClaw-style orchestrator — spawns Claude CLI which connects to MCP server for tools
+- **packages/agent-bot**: NanoClaw-style orchestrator — uses `claude-agent-sdk` Python which connects to MCP server for tools
 - **packages/web-ui**: React components consuming REST API
 
 ## Tech Stack

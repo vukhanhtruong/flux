@@ -62,7 +62,7 @@ def client(mock_db, mock_embedding_service):
 
 
 def test_spending_report(client):
-    """Test GET /analytics/spending-report returns report dict with subscriptions block."""
+    """Test GET /analytics/spending-report returns report dict."""
     expected = {
         "total_income": "5000.00",
         "total_expenses": "3000.00",
@@ -71,12 +71,6 @@ def test_spending_report(client):
         "category_breakdown": [],
         "start_date": "2024-01-01",
         "end_date": "2024-01-31",
-        "subscriptions": {
-            "active_count": 0,
-            "monthly_total": "0",
-            "annual_total": "0",
-            "items": [],
-        },
     }
 
     with patch(
@@ -90,8 +84,7 @@ def test_spending_report(client):
     assert response.status_code == 200
     data = response.json()
     assert data["total_income"] == "5000.00"
-    assert "subscriptions" in data
-    assert data["subscriptions"]["active_count"] == 0
+    assert "subscriptions" not in data
 
 
 def test_financial_health(client, mock_txn_repo, mock_budget_repo, mock_goal_repo):

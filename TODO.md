@@ -1,4 +1,4 @@
 - Bank savings
 - Onboarding tips
-- Multi people used, like family used
 - Schedule to retry error message
+- slash command

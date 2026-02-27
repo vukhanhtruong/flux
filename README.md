@@ -22,8 +22,7 @@ A headless, MCP-first personal finance AI agent with a modern web UI.
 │                      │                 │ spawns            │ │
 │                      │                 ▼                   │ │
 │                      │  ┌──────────────────────────────┐  │ │
-│                      │  │ Node SDK sidecar               │  │ │
-│                      │  │  (@anthropic-ai/claude-code)   │  │ │
+│                      │  │ claude-agent-sdk (Python)      │  │ │
 │                      │  │  - session resume              │  │ │
 │                      │  │  - vision (photos)             │  │ │
 │                      │  └──────────────┬─────────────────┘  │ │
@@ -66,9 +65,9 @@ A headless, MCP-first personal finance AI agent with a modern web UI.
    └── Calls ClaudeRunner
    │
    ▼
-5. ClaudeRunner spawns Node.js SDK sidecar
-   ├── Sends JSON payload (prompt, session_id, model, MCP config)
-   ├── SDK sidecar calls Claude API via @anthropic-ai/claude-code
+5. ClaudeRunner calls claude-agent-sdk (Python)
+   ├── Builds MCP servers config with user_id injected
+   ├── claude-agent-sdk invokes Claude with MCP tools
    └── Returns (response_text, new_session_id)
    │
    ▼
