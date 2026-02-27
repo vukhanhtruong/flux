@@ -46,3 +46,17 @@ class ScheduledTaskRepository:
                 """,
                 task_id, next_run_at,
             )
+
+    async def list_by_user(self, user_id: str) -> list[dict]:
+        """Return active scheduled tasks for a user, ordered by next_run_at."""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, user_id, prompt, schedule_type, schedule_value, next_run_at, created_at
+                FROM bot_scheduled_tasks
+                WHERE user_id = $1 AND status = 'active'
+                ORDER BY next_run_at ASC NULLS LAST
+                """,
+                user_id,
+            )
+            return [dict(r) for r in rows]

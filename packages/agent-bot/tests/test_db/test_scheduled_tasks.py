@@ -97,3 +97,48 @@ async def test_advance_next_run(pg_url):
         assert row["last_run_at"] is not None
     finally:
         await pool.close()
+
+
+async def test_list_by_user_returns_active_tasks(pg_url):
+    pool, repo = await _setup(pg_url)
+    try:
+        future = datetime.now(UTC) + timedelta(hours=1)
+        task_id = await _insert_task(pool, next_run_at=future)
+        tasks = await repo.list_by_user("tg:99")
+        ids = [t["id"] for t in tasks]
+        assert task_id in ids
+    finally:
+        await pool.close()
+
+
+async def test_list_by_user_excludes_other_users(pg_url):
+    pool, repo = await _setup(pg_url)
+    try:
+        future = datetime.now(UTC) + timedelta(hours=1)
+        async with pool.acquire() as conn:
+            task_id = await conn.fetchval(
+                """
+                INSERT INTO bot_scheduled_tasks
+                    (user_id, prompt, schedule_type, schedule_value, status, next_run_at)
+                VALUES ('tg:other', 'other prompt', 'once', '2000-01-01T00:00:00', 'active', $1)
+                RETURNING id
+                """,
+                future,
+            )
+        tasks = await repo.list_by_user("tg:99")
+        ids = [t["id"] for t in tasks]
+        assert task_id not in ids
+    finally:
+        await pool.close()
+
+
+async def test_list_by_user_excludes_completed(pg_url):
+    pool, repo = await _setup(pg_url)
+    try:
+        future = datetime.now(UTC) + timedelta(hours=1)
+        task_id = await _insert_task(pool, next_run_at=future, status="completed")
+        tasks = await repo.list_by_user("tg:99")
+        ids = [t["id"] for t in tasks]
+        assert task_id not in ids
+    finally:
+        await pool.close()
