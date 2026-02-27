@@ -149,7 +149,9 @@ async def test_send_outbound_no_sender():
     """send_outbound delivers plain text when sender is None."""
     ch, _, _, _ = _make_channel()
     await ch.send_outbound("12345", "Hello from agent!", None)
-    ch._app.bot.send_message.assert_called_once_with(chat_id=12345, text="Hello from agent!")
+    ch._app.bot.send_message.assert_called_once_with(
+        chat_id=12345, text="Hello from agent!", parse_mode=None
+    )
 
 
 async def test_send_outbound_with_sender():

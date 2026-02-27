@@ -73,7 +73,7 @@ async def test_full_onboarding_creates_profile(pg_url):
     profile = await profile_repo.create(create)
     await onboarding_repo.delete(platform_id, channel)
 
-    # Verify profile
+    # Verify profile — user_id format is tg:<platform_id> (not username)
     assert profile.user_id == f"tg:{platform_id}"
     assert profile.currency == "VND"
     assert profile.timezone == "Asia/Ho_Chi_Minh"
