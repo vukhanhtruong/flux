@@ -109,3 +109,37 @@ async def test_success_without_signature_error():
     assert deps["runner"].run.call_count == 1
     deps["session_repo"].upsert.assert_awaited_once_with("tg:123", "sess-xyz")
     deps["msg_repo"].mark_processed.assert_awaited_once_with(70)
+
+
+async def test_delivery_failure_sends_error_notification_and_marks_failed():
+    """When send_message fails delivering Claude's response, an error notification is sent and message is marked failed."""
+    channel = AsyncMock()
+    # First call (Claude response) raises, second call (error notification) succeeds
+    channel.send_message.side_effect = [Exception("Network error"), None]
+
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(text="Great response!", session_id="sess-abc")
+
+    handler = make_handle_message(**deps)
+    await handler(_MSG)
+
+    # send_message called twice: once for response, once for error notification
+    assert channel.send_message.call_count == 2
+    deps["msg_repo"].mark_failed.assert_awaited_once()
+    deps["msg_repo"].mark_processed.assert_not_awaited()
+
+
+async def test_delivery_failure_notification_also_fails_still_marks_failed():
+    """Even when the error notification delivery also fails, message is marked failed and exception does not propagate."""
+    channel = AsyncMock()
+    channel.send_message.side_effect = Exception("Network error")
+
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(text="Great response!", session_id="sess-abc")
+
+    handler = make_handle_message(**deps)
+    # Must not raise
+    await handler(_MSG)
+
+    deps["msg_repo"].mark_failed.assert_awaited_once()
+    deps["msg_repo"].mark_processed.assert_not_awaited()

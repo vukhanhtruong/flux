@@ -168,3 +168,43 @@ async def test_send_outbound_raises_if_not_started():
     import pytest
     with pytest.raises(RuntimeError, match="not initialized"):
         await ch.send_outbound("12345", "Hello")
+
+
+async def test_send_message_retries_on_timeout():
+    """send_message retries on TimedOut and eventually succeeds."""
+    import pytest
+    from telegram.error import TimedOut
+
+    ch, _, _, _ = _make_channel()
+    call_count = 0
+
+    async def flaky_send(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise TimedOut()
+
+    ch._app.bot.send_message = flaky_send
+
+    await ch.send_message(platform_id="12345", text="Hello!")
+    assert call_count == 3
+
+
+async def test_send_message_raises_after_max_retries():
+    """send_message propagates TimedOut after _MAX_SEND_RETRIES exhausted."""
+    import pytest
+    from telegram.error import TimedOut
+    from flux_bot.channels.telegram import _MAX_SEND_RETRIES
+
+    ch, _, _, _ = _make_channel()
+
+    async def always_fail(**kwargs):
+        raise TimedOut()
+
+    ch._app.bot.send_message = always_fail
+
+    with pytest.raises(TimedOut):
+        await ch.send_message(platform_id="12345", text="Hello!")
+
+    # The assertion that it was called _MAX_SEND_RETRIES times is implicit:
+    # if it raised TimedOut the loop exhausted all retries

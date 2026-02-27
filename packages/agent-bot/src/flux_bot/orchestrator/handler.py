@@ -8,6 +8,7 @@ from flux_bot.orchestrator.heartbeat import typing_heartbeat
 logger = logging.getLogger(__name__)
 
 _THINKING_SIGNATURE_ERROR = "Invalid `signature` in `thinking` block"
+_DELIVERY_ERROR_MSG = "⚠️ I got a response but couldn't send it due to a network issue. Please try again."
 
 
 def make_handle_message(*, runner, msg_repo, session_repo, profile_repo, channels):
@@ -69,7 +70,16 @@ def make_handle_message(*, runner, msg_repo, session_repo, profile_repo, channel
             await session_repo.upsert(user_id, result.session_id)
 
         if channel and result.text and platform_id:
-            await channel.send_message(platform_id, result.text)
+            try:
+                await channel.send_message(platform_id, result.text)
+            except Exception as e:
+                logger.error(f"Delivery failed for message {msg['id']}: {e}")
+                try:
+                    await channel.send_message(platform_id, _DELIVERY_ERROR_MSG)
+                except Exception:
+                    logger.error(f"Could not deliver error notification to {user_id}")
+                await msg_repo.mark_failed(msg["id"], f"Delivery failed: {e}")
+                return
 
         await msg_repo.mark_processed(msg["id"])
         logger.info(f"Message {msg['id']} processed for {user_id}")

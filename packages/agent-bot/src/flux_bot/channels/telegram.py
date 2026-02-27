@@ -1,10 +1,12 @@
 """Telegram channel — receives messages and routes through onboarding or message queue."""
 
+import asyncio
 import logging
 import os
 from pathlib import Path
 
 from telegram import Update
+from telegram.error import NetworkError, TimedOut
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 from telegram.request import HTTPXRequest
 
@@ -18,6 +20,7 @@ from flux_core.models.user_profile import UserProfileCreate
 logger = logging.getLogger(__name__)
 
 _ONBOARDING_HANDLER = OnboardingHandler()
+_MAX_SEND_RETRIES = 3
 
 
 class TelegramChannel(Channel):
@@ -70,6 +73,23 @@ class TelegramChannel(Channel):
             await self._app.stop()
             await self._app.shutdown()
 
+    async def _send_with_retry(self, chat_id: int, text: str, **kwargs) -> None:
+        """Send a single message chunk with exponential-backoff retry on transient errors."""
+        delay = 1.0
+        for attempt in range(_MAX_SEND_RETRIES):
+            try:
+                await self._app.bot.send_message(chat_id=chat_id, text=text, **kwargs)
+                return
+            except (TimedOut, NetworkError) as e:
+                if attempt == _MAX_SEND_RETRIES - 1:
+                    raise
+                logger.warning(
+                    f"Telegram send to {chat_id} failed (attempt {attempt + 1}), "
+                    f"retrying in {delay}s: {e}"
+                )
+                await asyncio.sleep(delay)
+                delay *= 2
+
     async def send_message(self, platform_id: str, text: str) -> None:
         """Send a message to a Telegram user, splitting if it exceeds Telegram's 4096-char limit."""
         if not self._app:
@@ -79,7 +99,7 @@ class TelegramChannel(Channel):
             for i in range(0, len(text), self._MAX_MESSAGE_LEN)
         ]
         for chunk in chunks:
-            await self._app.bot.send_message(chat_id=int(platform_id), text=chunk)
+            await self._send_with_retry(int(platform_id), chunk)
 
     async def send_typing_action(self, platform_id: str) -> None:
         """Send a typing indicator to the Telegram user."""
@@ -96,12 +116,9 @@ class TelegramChannel(Channel):
             full_text[i : i + self._MAX_MESSAGE_LEN]
             for i in range(0, len(full_text), self._MAX_MESSAGE_LEN)
         ]
+        extra = {"parse_mode": parse_mode} if parse_mode else {}
         for chunk in chunks:
-            await self._app.bot.send_message(
-                chat_id=int(platform_id),
-                text=chunk,
-                parse_mode=parse_mode,
-            )
+            await self._send_with_retry(int(platform_id), chunk, **extra)
 
     async def _handle_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
