@@ -145,3 +145,147 @@ async def test_tasks_long_prompt_is_truncated():
     text = update.message.reply_text.call_args[0][0]
     assert "…" in text
     assert long_prompt not in text
+
+
+# ---------------------------------------------------------------------------
+# /settings
+# ---------------------------------------------------------------------------
+
+async def test_settings_shows_menu_for_known_user():
+    from telegram.ext import ConversationHandler
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="/settings")
+    result = await handlers.cmd_settings(update, MagicMock())
+    update.message.reply_text.assert_called_once()
+    call_kwargs = update.message.reply_text.call_args[1]
+    assert "reply_markup" in call_kwargs
+    assert result != ConversationHandler.END
+
+
+async def test_settings_unknown_user_ends_conversation():
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers(profile=None)
+    update = _make_update(text="/settings")
+    result = await handlers.cmd_settings(update, MagicMock())
+    assert result == ConversationHandler.END
+
+
+async def test_settings_currency_valid_input_updates_profile():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="USD")
+    context = MagicMock()
+    context.user_data = {"user_id": "tg:12345"}
+    result = await handlers._handle_currency_input(update, context)
+    handlers.profile_repo.update.assert_called_once_with("tg:12345", currency="USD")
+    update.message.reply_text.assert_called()
+    assert result == _MENU
+
+
+async def test_settings_currency_invalid_input_stays_in_state():
+    handlers = _make_handlers()
+    update = _make_update(text="not-valid-123!!")
+    context = MagicMock()
+    context.user_data = {"user_id": "tg:12345"}
+    result = await handlers._handle_currency_input(update, context)
+    handlers.profile_repo.update.assert_not_called()
+    assert result == _EDIT_CURRENCY
+
+
+async def test_settings_timezone_valid_updates_profile():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="UTC")
+    context = MagicMock()
+    context.user_data = {"user_id": "tg:12345"}
+    result = await handlers._handle_timezone_input(update, context)
+    handlers.profile_repo.update.assert_called_once_with("tg:12345", timezone="UTC")
+    assert result == _MENU
+
+
+async def test_settings_timezone_invalid_stays_in_state():
+    handlers = _make_handlers()
+    update = _make_update(text="Not/A/Real/Zone")
+    context = MagicMock()
+    context.user_data = {"user_id": "tg:12345"}
+    result = await handlers._handle_timezone_input(update, context)
+    handlers.profile_repo.update.assert_not_called()
+    assert result == _EDIT_TIMEZONE
+
+
+async def test_settings_username_valid_updates_profile():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="new-name")
+    context = MagicMock()
+    context.user_data = {"user_id": "tg:12345"}
+    result = await handlers._handle_username_input(update, context)
+    handlers.profile_repo.update.assert_called_once_with("tg:12345", username="new-name")
+    assert result == _MENU
+
+
+async def test_settings_username_too_short_stays_in_state():
+    handlers = _make_handlers()
+    update = _make_update(text="ab")
+    context = MagicMock()
+    context.user_data = {"user_id": "tg:12345"}
+    result = await handlers._handle_username_input(update, context)
+    handlers.profile_repo.update.assert_not_called()
+    assert result == _EDIT_USERNAME
+
+
+async def test_settings_username_taken_stays_in_state():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    handlers.profile_repo.update.side_effect = ValueError("username already taken")
+    update = _make_update(text="taken-name")
+    context = MagicMock()
+    context.user_data = {"user_id": "tg:12345"}
+    result = await handlers._handle_username_input(update, context)
+    assert result == _EDIT_USERNAME
+    assert "taken" in update.message.reply_text.call_args[0][0].lower()
+
+
+async def test_settings_menu_done_ends_conversation():
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers()
+    update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.data = "done"
+    result = await handlers._settings_menu_callback(update, MagicMock())
+    assert result == ConversationHandler.END
+
+
+async def test_settings_menu_currency_advances_to_edit_state():
+    handlers = _make_handlers()
+    update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.data = "currency"
+    result = await handlers._settings_menu_callback(update, MagicMock())
+    assert result == _EDIT_CURRENCY
+
+
+async def test_settings_menu_timezone_advances_to_edit_state():
+    handlers = _make_handlers()
+    update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.data = "timezone"
+    result = await handlers._settings_menu_callback(update, MagicMock())
+    assert result == _EDIT_TIMEZONE
+
+
+async def test_settings_menu_username_advances_to_edit_state():
+    handlers = _make_handlers()
+    update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.data = "username"
+    result = await handlers._settings_menu_callback(update, MagicMock())
+    assert result == _EDIT_USERNAME
+
+
+async def test_settings_conversation_handler_is_configured():
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers()
+    conv = handlers.settings_conversation()
+    assert isinstance(conv, ConversationHandler)
