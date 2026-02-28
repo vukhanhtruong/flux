@@ -77,9 +77,10 @@ class TelegramChannel(Channel):
             task_repo=self.task_repo,
         )
 
-        # /settings ConversationHandler in group -1 so its text-reply states
+        # ConversationHandlers in group -1 so their text-reply states
         # take priority over the regular message handler (group 0)
         self._app.add_handler(cmds.settings_conversation(), group=-1)
+        self._app.add_handler(cmds.onboard_conversation(), group=-1)
 
         # Simple one-shot command handlers
         self._app.add_handler(TelegramCommandHandler("help", cmds.cmd_help))

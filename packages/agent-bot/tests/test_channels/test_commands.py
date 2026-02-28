@@ -2,9 +2,50 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
-from flux_bot.channels.commands import CommandHandlers, HELP_TEXT, _MENU, _EDIT_CURRENCY, _EDIT_TIMEZONE, _EDIT_USERNAME  # noqa: E501
+from flux_bot.channels.commands import (  # noqa: E501
+    CommandHandlers,
+    HELP_TEXT,
+    _MENU,
+    _EDIT_CURRENCY,
+    _EDIT_TIMEZONE,
+    _EDIT_USERNAME,
+    _OB_CURRENCY,
+    _OB_TIMEZONE,
+    _OB_USERNAME,
+    _validate_currency,
+    _validate_timezone,
+)
 from flux_core.models.user_profile import UserProfile
 
+
+# ---------------------------------------------------------------------------
+# Pure validator helpers
+# ---------------------------------------------------------------------------
+
+def test_validate_currency_valid():
+    assert _validate_currency("usd") == "USD"
+    assert _validate_currency(" EUR ") == "EUR"
+    assert _validate_currency("VND") == "VND"
+
+
+def test_validate_currency_invalid():
+    assert _validate_currency("not-valid!!") is None
+    assert _validate_currency("TOOLONG") is None
+    assert _validate_currency("1BC") is None
+
+
+def test_validate_timezone_valid():
+    assert _validate_timezone("UTC") == "UTC"
+    assert _validate_timezone(" Asia/Ho_Chi_Minh ") == "Asia/Ho_Chi_Minh"
+
+
+def test_validate_timezone_invalid():
+    assert _validate_timezone("Not/A/Real/Zone") is None
+
+
+# ---------------------------------------------------------------------------
+# Fixtures / helpers
+# ---------------------------------------------------------------------------
 
 def _make_handlers(profile=None):
     profile_repo = AsyncMock()
@@ -217,34 +258,12 @@ async def test_settings_timezone_invalid_stays_in_state():
 async def test_settings_username_valid_updates_profile():
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
-    update = _make_update(text="new-name")
+    update = _make_update(text="My Display Name!")
     context = MagicMock()
     context.user_data = {"user_id": "tg:12345"}
     result = await handlers._handle_username_input(update, context)
-    handlers.profile_repo.update.assert_called_once_with("tg:12345", username="new-name")
+    handlers.profile_repo.update.assert_called_once_with("tg:12345", username="My Display Name!")
     assert result == _MENU
-
-
-async def test_settings_username_too_short_stays_in_state():
-    handlers = _make_handlers()
-    update = _make_update(text="ab")
-    context = MagicMock()
-    context.user_data = {"user_id": "tg:12345"}
-    result = await handlers._handle_username_input(update, context)
-    handlers.profile_repo.update.assert_not_called()
-    assert result == _EDIT_USERNAME
-
-
-async def test_settings_username_taken_stays_in_state():
-    profile = _make_profile()
-    handlers = _make_handlers(profile=profile)
-    handlers.profile_repo.update.side_effect = ValueError("username already taken")
-    update = _make_update(text="taken-name")
-    context = MagicMock()
-    context.user_data = {"user_id": "tg:12345"}
-    result = await handlers._handle_username_input(update, context)
-    assert result == _EDIT_USERNAME
-    assert "taken" in update.message.reply_text.call_args[0][0].lower()
 
 
 async def test_settings_menu_done_ends_conversation():
@@ -289,3 +308,148 @@ async def test_settings_conversation_handler_is_configured():
     handlers = _make_handlers()
     conv = handlers.settings_conversation()
     assert isinstance(conv, ConversationHandler)
+
+
+# ---------------------------------------------------------------------------
+# /onboard
+# ---------------------------------------------------------------------------
+
+def _make_callback_update(user_id=12345, callback_data="ob_skip"):
+    """Build an Update with a callback_query (simulates inline button tap)."""
+    update = MagicMock()
+    update.effective_user.id = user_id
+    update.message = None
+    cq = AsyncMock()
+    cq.data = callback_data
+    cq.answer = AsyncMock()
+    cq.message = MagicMock()
+    cq.message.reply_text = AsyncMock()
+    update.callback_query = cq
+    return update
+
+
+async def test_onboard_no_profile_ends_conversation():
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers(profile=None)
+    update = _make_update(text="/onboard")
+    result = await handlers.cmd_onboard(update, MagicMock())
+    assert result == ConversationHandler.END
+    update.message.reply_text.assert_called_once()
+    assert "setup" in update.message.reply_text.call_args[0][0].lower()
+
+
+async def test_onboard_sends_currency_prompt():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="/onboard")
+    result = await handlers.cmd_onboard(update, MagicMock())
+    assert result == _OB_CURRENCY
+    update.message.reply_text.assert_called_once()
+    text = update.message.reply_text.call_args[0][0]
+    assert "Currency" in text
+
+
+async def test_ob_handle_currency_valid():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="USD")
+    result = await handlers._ob_handle_currency(update, MagicMock())
+    handlers.profile_repo.update.assert_called_once_with("tg:12345", currency="USD")
+    assert result == _OB_TIMEZONE
+    # Should send the timezone prompt
+    text = update.message.reply_text.call_args[0][0]
+    assert "Timezone" in text
+
+
+async def test_ob_handle_currency_invalid():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="not-valid!!")
+    result = await handlers._ob_handle_currency(update, MagicMock())
+    handlers.profile_repo.update.assert_not_called()
+    assert result == _OB_CURRENCY
+    # First call is the error, second call is the re-sent prompt
+    assert update.message.reply_text.call_count == 2
+    error_text = update.message.reply_text.call_args_list[0][0][0]
+    assert "❌" in error_text
+
+
+async def test_ob_skip_currency():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_callback_update(callback_data="ob_skip")
+    result = await handlers._ob_skip_currency(update, MagicMock())
+    assert result == _OB_TIMEZONE
+    update.callback_query.answer.assert_called_once()
+    update.callback_query.message.reply_text.assert_called_once()
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "Timezone" in text
+
+
+async def test_ob_handle_timezone_valid():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="UTC")
+    result = await handlers._ob_handle_timezone(update, MagicMock())
+    handlers.profile_repo.update.assert_called_once_with("tg:12345", timezone="UTC")
+    assert result == _OB_USERNAME
+    text = update.message.reply_text.call_args[0][0]
+    assert "Username" in text
+
+
+async def test_ob_handle_timezone_invalid():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="Not/A/Real/Zone")
+    result = await handlers._ob_handle_timezone(update, MagicMock())
+    handlers.profile_repo.update.assert_not_called()
+    assert result == _OB_TIMEZONE
+    assert update.message.reply_text.call_count == 2
+    error_text = update.message.reply_text.call_args_list[0][0][0]
+    assert "❌" in error_text
+
+
+async def test_ob_skip_timezone():
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_callback_update(callback_data="ob_skip")
+    result = await handlers._ob_skip_timezone(update, MagicMock())
+    assert result == _OB_USERNAME
+    update.callback_query.answer.assert_called_once()
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "Username" in text
+
+
+async def test_ob_handle_username_valid():
+    from telegram.ext import ConversationHandler
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="My Display Name 123!")
+    result = await handlers._ob_handle_username(update, MagicMock())
+    handlers.profile_repo.update.assert_called_once_with("tg:12345", username="My Display Name 123!")
+    assert result == ConversationHandler.END
+    text = update.message.reply_text.call_args[0][0]
+    assert "✅" in text
+
+
+async def test_ob_skip_username():
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers()
+    update = _make_callback_update(callback_data="ob_skip")
+    result = await handlers._ob_skip_username(update, MagicMock())
+    assert result == ConversationHandler.END
+    update.callback_query.answer.assert_called_once()
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert HELP_TEXT in text
+    assert "✅" in text
+
+
+async def test_onboard_conversation_has_correct_structure():
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers()
+    conv = handlers.onboard_conversation()
+    assert isinstance(conv, ConversationHandler)
+    assert _OB_CURRENCY in conv.states
+    assert _OB_TIMEZONE in conv.states
+    assert _OB_USERNAME in conv.states
+    assert conv.conversation_timeout == 600

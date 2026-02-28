@@ -1,4 +1,4 @@
-"""Telegram slash command handlers: /help, /reset, /tasks, /settings."""
+"""Telegram slash command handlers: /help, /reset, /tasks, /settings, /onboard."""
 
 import logging
 import re
@@ -20,8 +20,28 @@ from flux_core.db.user_profile_repo import UserProfileRepository
 
 logger = logging.getLogger(__name__)
 
+
+def _validate_currency(text: str) -> str | None:
+    """Return normalised currency code, or None if invalid."""
+    normalised = text.strip().upper()
+    return normalised if re.match(r"^[A-Z]{2,5}$", normalised) else None
+
+
+def _validate_timezone(text: str) -> str | None:
+    """Return the timezone string if valid, or None if unrecognised."""
+    text = text.strip()
+    try:
+        zoneinfo.ZoneInfo(text)
+        return text
+    except (zoneinfo.ZoneInfoNotFoundError, KeyError):
+        return None
+
+
 # ConversationHandler states for /settings
 _MENU, _EDIT_CURRENCY, _EDIT_TIMEZONE, _EDIT_USERNAME = range(4)
+
+# ConversationHandler states for /onboard
+_OB_CURRENCY, _OB_TIMEZONE, _OB_USERNAME = range(3)
 
 HELP_TEXT = """\
 Here are some things you can ask me:
@@ -44,7 +64,8 @@ Here are some things you can ask me:
 
 ⚙️ Update preferences → /settings
 🔄 Start a new session → /reset
-📋 View scheduled tasks → /tasks\
+📋 View scheduled tasks → /tasks
+🚀 Walk through setup & see this help → /onboard\
 """
 
 
@@ -58,6 +79,11 @@ class CommandHandlers:
         self._profile_repo = profile_repo
         self._session_repo = session_repo
         self._task_repo = task_repo
+
+    async def _get_profile(self, update: Update):
+        return await self._profile_repo.get_by_platform_id(
+            "telegram", str(update.effective_user.id)
+        )
 
     # ------------------------------------------------------------------
     # /help
@@ -163,24 +189,22 @@ class CommandHandlers:
             )
             return _EDIT_TIMEZONE
         elif query.data == "username":
-            await query.edit_message_text(
-                "Enter new username (3+ chars, lowercase letters, digits, hyphens):"
-            )
+            await query.edit_message_text("Enter a new display name:")
             return _EDIT_USERNAME
         return _MENU
 
     async def _handle_currency_input(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> int:
-        text = update.message.text.strip().upper()
-        if not re.match(r"^[A-Z]{2,5}$", text):
+        code = _validate_currency(update.message.text)
+        if code is None:
             await update.message.reply_text(
                 "❌ Invalid currency code. Enter 2–5 uppercase letters (e.g. USD, EUR):"
             )
             return _EDIT_CURRENCY
         user_id = context.user_data["user_id"]
-        await self._profile_repo.update(user_id, currency=text)
-        await update.message.reply_text(f"✓ Currency updated to {text}")
+        await self._profile_repo.update(user_id, currency=code)
+        await update.message.reply_text(f"✓ Currency updated to {code}")
         profile = await self._profile_repo.get_by_user_id(user_id)
         await self._send_settings_menu(update, profile)
         return _MENU
@@ -188,18 +212,16 @@ class CommandHandlers:
     async def _handle_timezone_input(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> int:
-        text = update.message.text.strip()
-        try:
-            zoneinfo.ZoneInfo(text)
-        except (zoneinfo.ZoneInfoNotFoundError, KeyError):
+        tz = _validate_timezone(update.message.text)
+        if tz is None:
             await update.message.reply_text(
-                f"❌ Unknown timezone '{text}'. "
+                f"❌ Unknown timezone '{update.message.text.strip()}'. "
                 "Try a standard name like UTC or America/New_York:"
             )
             return _EDIT_TIMEZONE
         user_id = context.user_data["user_id"]
-        await self._profile_repo.update(user_id, timezone=text)
-        await update.message.reply_text(f"✓ Timezone updated to {text}")
+        await self._profile_repo.update(user_id, timezone=tz)
+        await update.message.reply_text(f"✓ Timezone updated to {tz}")
         profile = await self._profile_repo.get_by_user_id(user_id)
         await self._send_settings_menu(update, profile)
         return _MENU
@@ -207,18 +229,9 @@ class CommandHandlers:
     async def _handle_username_input(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> int:
-        text = update.message.text.strip().lower()
-        if not re.match(r"^[a-z0-9][a-z0-9\-]{2,}$", text):
-            await update.message.reply_text(
-                "❌ Invalid username. Must be 3+ chars, lowercase letters, digits, hyphens:"
-            )
-            return _EDIT_USERNAME
+        text = update.message.text.strip()
         user_id = context.user_data["user_id"]
-        try:
-            await self._profile_repo.update(user_id, username=text)
-        except ValueError:
-            await update.message.reply_text("❌ That username is already taken. Try another:")
-            return _EDIT_USERNAME
+        await self._profile_repo.update(user_id, username=text)
         await update.message.reply_text(f"✓ Username updated to {text}")
         profile = await self._profile_repo.get_by_user_id(user_id)
         await self._send_settings_menu(update, profile)
@@ -242,4 +255,127 @@ class CommandHandlers:
             },
             fallbacks=[CommandHandler("settings", self.cmd_settings)],
             conversation_timeout=600,  # 10 minutes
+        )
+
+    # ------------------------------------------------------------------
+    # /onboard — linear preferences walkthrough ConversationHandler
+    # ------------------------------------------------------------------
+
+    async def cmd_onboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        profile = await self._get_profile(update)
+        if profile is None:
+            await update.message.reply_text(
+                "Please send a message first to complete your initial setup."
+            )
+            return ConversationHandler.END
+        await self._send_ob_currency_prompt(update, profile)
+        return _OB_CURRENCY
+
+    async def _send_ob_currency_prompt(self, source, profile) -> None:
+        keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
+        await source.message.reply_text(
+            "🚀 Let's walk through your preferences. (1/3)\n\n"
+            "💱 Currency\n"
+            f"Current: {profile.currency}\n\n"
+            "Type a new currency code (e.g. USD, VND, EUR), or tap Skip.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    async def _send_ob_timezone_prompt(self, source, profile) -> None:
+        keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
+        await source.message.reply_text(
+            "🕐 Timezone (2/3)\n\n"
+            f"Current: {profile.timezone}\n\n"
+            "Type your timezone (e.g. UTC, America/New_York, Asia/Ho_Chi_Minh), or tap Skip.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    async def _send_ob_username_prompt(self, source, profile) -> None:
+        keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
+        await source.message.reply_text(
+            "👤 Username (3/3)\n\n"
+            f"Current: {profile.username}\n\n"
+            "Type a new display name, or tap Skip.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    async def _ob_skip_currency(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        await update.callback_query.answer()
+        profile = await self._get_profile(update)
+        await self._send_ob_timezone_prompt(update.callback_query, profile)
+        return _OB_TIMEZONE
+
+    async def _ob_skip_timezone(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        await update.callback_query.answer()
+        profile = await self._get_profile(update)
+        await self._send_ob_username_prompt(update.callback_query, profile)
+        return _OB_USERNAME
+
+    async def _ob_skip_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text(
+            "✅ Preferences saved!"
+        )
+        return ConversationHandler.END
+
+    async def _ob_handle_currency(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        code = _validate_currency(update.message.text)
+        if code is None:
+            await update.message.reply_text(
+                "❌ Invalid currency code. Enter 2–5 uppercase letters (e.g. USD, EUR):"
+            )
+            profile = await self._get_profile(update)
+            await self._send_ob_currency_prompt(update, profile)
+            return _OB_CURRENCY
+        profile = await self._get_profile(update)
+        await self._profile_repo.update(profile.user_id, currency=code)
+        profile = await self._profile_repo.get_by_user_id(profile.user_id)
+        await self._send_ob_timezone_prompt(update, profile)
+        return _OB_TIMEZONE
+
+    async def _ob_handle_timezone(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        tz = _validate_timezone(update.message.text)
+        if tz is None:
+            await update.message.reply_text(
+                f"❌ Unknown timezone '{update.message.text.strip()}'. "
+                "Try a standard name like UTC or America/New_York:"
+            )
+            profile = await self._get_profile(update)
+            await self._send_ob_timezone_prompt(update, profile)
+            return _OB_TIMEZONE
+        profile = await self._get_profile(update)
+        await self._profile_repo.update(profile.user_id, timezone=tz)
+        profile = await self._profile_repo.get_by_user_id(profile.user_id)
+        await self._send_ob_username_prompt(update, profile)
+        return _OB_USERNAME
+
+    async def _ob_handle_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        text = update.message.text.strip()
+        profile = await self._get_profile(update)
+        await self._profile_repo.update(profile.user_id, username=text)
+        await update.message.reply_text(
+            "✅ Preferences saved!"
+        )
+        return ConversationHandler.END
+
+    def onboard_conversation(self) -> ConversationHandler:
+        """Return a configured ConversationHandler for /onboard."""
+        return ConversationHandler(
+            entry_points=[CommandHandler("onboard", self.cmd_onboard)],
+            states={
+                _OB_CURRENCY: [
+                    CallbackQueryHandler(self._ob_skip_currency, pattern="^ob_skip$"),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._ob_handle_currency),
+                ],
+                _OB_TIMEZONE: [
+                    CallbackQueryHandler(self._ob_skip_timezone, pattern="^ob_skip$"),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._ob_handle_timezone),
+                ],
+                _OB_USERNAME: [
+                    CallbackQueryHandler(self._ob_skip_username, pattern="^ob_skip$"),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._ob_handle_username),
+                ],
+            },
+            fallbacks=[CommandHandler("onboard", self.cmd_onboard)],
+            conversation_timeout=600,
         )
