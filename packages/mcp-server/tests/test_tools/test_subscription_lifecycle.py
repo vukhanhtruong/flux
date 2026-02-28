@@ -1,7 +1,7 @@
 """Unit tests for subscription tool lifecycle hooks (scheduler side effects)."""
-from datetime import date, datetime, timezone
+from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from uuid import UUID
 import pytest
 

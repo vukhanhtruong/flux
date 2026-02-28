@@ -1,6 +1,6 @@
 """Tests for server.py module-level functions."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import flux_mcp.server as server_module
 from flux_mcp.server import get_session_user_id, get_db, get_embedding_service

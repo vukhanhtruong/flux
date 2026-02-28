@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from typing import Callable, Awaitable
 
@@ -8,6 +9,7 @@ from flux_core.db.goal_repo import GoalRepository
 from flux_core.db.subscription_repo import SubscriptionRepository
 from flux_core.db.transaction_repo import TransactionRepository
 from flux_core.embeddings.service import EmbeddingProvider
+from flux_core.models.subscription import BillingCycle
 from flux_core.tools import financial_tools as biz
 from flux_mcp.db.subscription_scheduler_repo import (
     SubscriptionSchedulerRepo, _derive_cron, _to_utc_midnight,
@@ -29,9 +31,7 @@ async def _create_subscription_with_scheduler(
     result = await biz.create_subscription(
         user_id, name, amount, billing_cycle, next_date, category, sub_repo,
     )
-    from flux_core.models.subscription import BillingCycle
-    from datetime import date as _date
-    nd = _date.fromisoformat(result["next_date"])
+    nd = date.fromisoformat(result["next_date"])
     cycle = BillingCycle(result["billing_cycle"])
     prompt = f"Process subscription billing for {result['name']} (id: {result['id']})"
     try:
@@ -43,7 +43,6 @@ async def _create_subscription_with_scheduler(
             next_run_at=_to_utc_midnight(nd),
         )
     except Exception as exc:
-        import logging
         logging.getLogger(__name__).error(
             "Failed to create scheduler for subscription %s: %s", result["id"], exc
         )
@@ -58,8 +57,7 @@ async def _toggle_subscription_with_scheduler(
 ) -> dict:
     result = await biz.toggle_subscription(subscription_id, user_id, sub_repo)
     if result["active"]:
-        from datetime import date as _date
-        nd = _date.fromisoformat(result["next_date"])
+        nd = date.fromisoformat(result["next_date"])
         await scheduler_repo.resume(subscription_id, _to_utc_midnight(nd))
     else:
         await scheduler_repo.pause(subscription_id)
