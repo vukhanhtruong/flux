@@ -14,6 +14,7 @@ from flux_bot.channels.commands import (  # noqa: E501
     _OB_USERNAME,
     _validate_currency,
     _validate_timezone,
+    _lookup_timezone_for_location,
 )
 from flux_core.models.user_profile import UserProfile
 
@@ -528,3 +529,154 @@ async def test_onboard_conversation_has_correct_structure():
     assert _OB_TIMEZONE in conv.states
     assert _OB_USERNAME in conv.states
     assert conv.conversation_timeout == 600
+
+
+# ---------------------------------------------------------------------------
+# _lookup_timezone_for_location — pure function tests
+# ---------------------------------------------------------------------------
+
+def test_lookup_timezone_for_location_alias():
+    """Abbreviation 'ict' → list containing Asia/Ho_Chi_Minh."""
+    results = _lookup_timezone_for_location("ict")
+    assert "Asia/Ho_Chi_Minh" in results
+
+
+def test_lookup_timezone_for_location_country():
+    """Country name 'vietnam' → exactly ['Asia/Ho_Chi_Minh']."""
+    results = _lookup_timezone_for_location("vietnam")
+    assert results == ["Asia/Ho_Chi_Minh"]
+
+
+def test_lookup_timezone_for_location_utc_offset():
+    """UTC offset string 'gmt+7' → list containing Asia/Ho_Chi_Minh."""
+    results = _lookup_timezone_for_location("gmt+7")
+    assert "Asia/Ho_Chi_Minh" in results
+
+
+def test_lookup_timezone_for_location_substring():
+    """Substring fallback: 'Ho_Chi' (mixed case) → contains Asia/Ho_Chi_Minh."""
+    results = _lookup_timezone_for_location("Ho_Chi")
+    assert "Asia/Ho_Chi_Minh" in results
+
+
+def test_lookup_timezone_for_location_no_match():
+    """Completely unknown string → empty list."""
+    results = _lookup_timezone_for_location("nonsense123xyz")
+    assert results == []
+
+
+# ---------------------------------------------------------------------------
+# /onboard location-based timezone handler tests
+# ---------------------------------------------------------------------------
+
+async def test_ob_handle_timezone_location_single_result():
+    """Typing 'vietnam' (single candidate) → sends ob_tz: button, stays in _OB_TIMEZONE."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="vietnam")
+    context = _make_context()
+    result = await handlers._ob_handle_timezone(update, context)
+    assert result == _OB_TIMEZONE
+    handlers.profile_repo.update.assert_not_called()
+    update.message.reply_text.assert_called_once()
+    call_kwargs = update.message.reply_text.call_args[1]
+    assert "reply_markup" in call_kwargs
+    markup = call_kwargs["reply_markup"]
+    # Check that at least one button has callback_data starting with "ob_tz:"
+    all_buttons = [btn for row in markup.inline_keyboard for btn in row]
+    assert any(btn.callback_data.startswith("ob_tz:") for btn in all_buttons)
+
+
+async def test_ob_handle_timezone_location_multi_result():
+    """Typing 'ict' (multiple candidates) → sends multiple ob_tz: buttons, stays in _OB_TIMEZONE."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="ict")
+    context = _make_context()
+    result = await handlers._ob_handle_timezone(update, context)
+    assert result == _OB_TIMEZONE
+    handlers.profile_repo.update.assert_not_called()
+    update.message.reply_text.assert_called_once()
+    call_kwargs = update.message.reply_text.call_args[1]
+    assert "reply_markup" in call_kwargs
+    markup = call_kwargs["reply_markup"]
+    tz_buttons = [
+        btn for row in markup.inline_keyboard for btn in row
+        if btn.callback_data.startswith("ob_tz:")
+    ]
+    assert len(tz_buttons) > 1
+
+
+async def test_ob_handle_timezone_location_no_match():
+    """Typing 'nonsense123xyz' → error reply + re-prompt, stays in _OB_TIMEZONE."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="nonsense123xyz")
+    context = _make_context()
+    result = await handlers._ob_handle_timezone(update, context)
+    assert result == _OB_TIMEZONE
+    handlers.profile_repo.update.assert_not_called()
+    assert update.message.reply_text.call_count == 2
+    error_text = update.message.reply_text.call_args_list[0][0][0]
+    assert "❌" in error_text
+
+
+# ---------------------------------------------------------------------------
+# /settings _settings_timezone_button handler
+# ---------------------------------------------------------------------------
+
+async def test_settings_timezone_button():
+    """Callback 'settings_tz:UTC' → updates profile timezone to UTC, returns _MENU."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.data = "settings_tz:UTC"
+    update.callback_query.answer = AsyncMock()
+    update.callback_query.message = MagicMock()
+    update.callback_query.message.reply_text = AsyncMock()
+    context = _make_context({"user_id": "tg:12345"})
+    result = await handlers._settings_timezone_button(update, context)
+    handlers.profile_repo.update.assert_called_once_with("tg:12345", timezone="UTC")
+    assert result == _MENU
+
+
+async def test_ob_tz_button_new_user_stores_in_context():
+    """Tapping ob_tz: button as new user → stores tz in user_data, advances to _OB_USERNAME."""
+    handlers = _make_handlers(profile=None)
+    update = _make_callback_update(callback_data="ob_tz:Asia/Ho_Chi_Minh")
+    context = _make_context({"ob_is_new_user": True, "ob_platform_id": "12345"})
+    result = await handlers._ob_tz_button(update, context)
+    assert context.user_data["ob_timezone"] == "Asia/Ho_Chi_Minh"
+    handlers.profile_repo.update.assert_not_called()
+    assert result == _OB_USERNAME
+    update.callback_query.message.reply_text.assert_called_once()
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "Username" in text
+
+
+async def test_ob_tz_button_existing_user_updates_profile():
+    """Tapping ob_tz: button as existing user → updates DB, advances to _OB_USERNAME."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_callback_update(callback_data="ob_tz:Asia/Tokyo")
+    context = _make_context({"ob_is_new_user": False})
+    result = await handlers._ob_tz_button(update, context)
+    handlers.profile_repo.update.assert_called_once_with("tg:12345", timezone="Asia/Tokyo")
+    assert result == _OB_USERNAME
+
+
+async def test_onboard_conversation_handles_ob_tz_callbacks():
+    """_OB_TIMEZONE state must include a CallbackQueryHandler for ob_tz: pattern."""
+    from telegram.ext import CallbackQueryHandler as CQH, ConversationHandler
+    handlers = _make_handlers()
+    conv = handlers.onboard_conversation()
+    tz_state_handlers = conv.states[_OB_TIMEZONE]
+    patterns = [
+        h.pattern.pattern
+        for h in tz_state_handlers
+        if isinstance(h, CQH) and h.pattern is not None
+    ]
+    assert any("ob_tz" in p for p in patterns), (
+        f"No ob_tz: CallbackQueryHandler found in _OB_TIMEZONE state. Got patterns: {patterns}"
+    )

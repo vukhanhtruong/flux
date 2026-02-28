@@ -3,6 +3,7 @@
 import logging
 import re
 import zoneinfo
+from datetime import datetime
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -36,6 +37,83 @@ def _validate_timezone(text: str) -> str | None:
         return text
     except (zoneinfo.ZoneInfoNotFoundError, KeyError):
         return None
+
+
+_LOCATION_TZ_MAP: dict[str, list[str]] = {
+    # Abbreviations / UTC offsets
+    "ict": ["Asia/Ho_Chi_Minh", "Asia/Bangkok", "Asia/Jakarta"],
+    "gmt+7": ["Asia/Ho_Chi_Minh", "Asia/Bangkok"],
+    "utc+7": ["Asia/Ho_Chi_Minh", "Asia/Bangkok"],
+    "jst": ["Asia/Tokyo"],
+    "sgt": ["Asia/Singapore"],
+    "wib": ["Asia/Jakarta"],
+    "est": ["America/New_York"],
+    "edt": ["America/New_York"],
+    "pst": ["America/Los_Angeles"],
+    "pdt": ["America/Los_Angeles"],
+    "cst": ["America/Chicago"],
+    "gmt": ["UTC", "Europe/London"],
+    "bst": ["Europe/London"],
+    "cet": ["Europe/Paris", "Europe/Berlin"],
+    "aest": ["Australia/Sydney"],
+    "ist": ["Asia/Kolkata"],
+    # Country / city names (lowercase)
+    "vietnam": ["Asia/Ho_Chi_Minh"],
+    "viet nam": ["Asia/Ho_Chi_Minh"],
+    "ho chi minh": ["Asia/Ho_Chi_Minh"],
+    "hanoi": ["Asia/Ho_Chi_Minh"],
+    "japan": ["Asia/Tokyo"],
+    "tokyo": ["Asia/Tokyo"],
+    "singapore": ["Asia/Singapore"],
+    "thailand": ["Asia/Bangkok"],
+    "bangkok": ["Asia/Bangkok"],
+    "indonesia": ["Asia/Jakarta", "Asia/Makassar", "Asia/Jayapura"],
+    "jakarta": ["Asia/Jakarta"],
+    "india": ["Asia/Kolkata"],
+    "china": ["Asia/Shanghai"],
+    "beijing": ["Asia/Shanghai"],
+    "korea": ["Asia/Seoul"],
+    "south korea": ["Asia/Seoul"],
+    "seoul": ["Asia/Seoul"],
+    "uk": ["Europe/London"],
+    "united kingdom": ["Europe/London"],
+    "london": ["Europe/London"],
+    "germany": ["Europe/Berlin"],
+    "berlin": ["Europe/Berlin"],
+    "france": ["Europe/Paris"],
+    "paris": ["Europe/Paris"],
+    "australia": ["Australia/Sydney", "Australia/Melbourne", "Australia/Perth"],
+    "sydney": ["Australia/Sydney"],
+    "united states": [
+        "America/New_York",
+        "America/Chicago",
+        "America/Los_Angeles",
+        "America/Denver",
+    ],
+    "usa": ["America/New_York", "America/Chicago", "America/Los_Angeles", "America/Denver"],
+    "us": ["America/New_York", "America/Chicago", "America/Los_Angeles", "America/Denver"],
+    "new york": ["America/New_York"],
+    "los angeles": ["America/Los_Angeles"],
+    "chicago": ["America/Chicago"],
+    "canada": ["America/Toronto", "America/Vancouver"],
+    "brazil": ["America/Sao_Paulo"],
+}
+
+
+def _lookup_timezone_for_location(text: str) -> list[str]:
+    """Return up to 4 IANA timezone IDs for a country/city/abbreviation string."""
+    key = text.strip().lower()
+    if key in _LOCATION_TZ_MAP:
+        return _LOCATION_TZ_MAP[key][:4]
+    lower = key
+    return [tz for tz in sorted(zoneinfo.available_timezones()) if lower in tz.lower()][:4]
+
+
+def _format_tz_button_label(iana_id: str) -> str:
+    """Return friendly label: 'Ho Chi Minh (14:30)'."""
+    city = iana_id.split("/")[-1].replace("_", " ")
+    local_time = datetime.now(zoneinfo.ZoneInfo(iana_id)).strftime("%H:%M")
+    return f"{city} ({local_time})"
 
 
 # ConversationHandler states for /settings
@@ -122,9 +200,7 @@ class CommandHandlers:
 
         tasks = await self._task_repo.list_by_user(profile.user_id)
         if not tasks:
-            await update.message.reply_text(
-                "You have no scheduled tasks. Ask me to set one up!"
-            )
+            await update.message.reply_text("You have no scheduled tasks. Ask me to set one up!")
             return
 
         tz = zoneinfo.ZoneInfo(profile.timezone)
@@ -169,9 +245,7 @@ class CommandHandlers:
                 text, reply_markup=InlineKeyboardMarkup(keyboard)
             )
         else:
-            await update.message.reply_text(
-                text, reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+            await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
     async def _settings_menu_callback(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -186,7 +260,7 @@ class CommandHandlers:
             return _EDIT_CURRENCY
         elif query.data == "timezone":
             await query.edit_message_text(
-                "Enter your timezone (e.g. UTC, America/New_York, Asia/Ho_Chi_Minh):"
+                "Enter your city or timezone(e.g. New York, London, UTC):"
             )
             return _EDIT_TIMEZONE
         elif query.data == "username":
@@ -214,15 +288,51 @@ class CommandHandlers:
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> int:
         tz = _validate_timezone(update.message.text)
-        if tz is None:
-            await update.message.reply_text(
-                f"❌ Unknown timezone '{update.message.text.strip()}'. "
-                "Try a standard name like UTC or America/New_York:"
-            )
+        if tz is not None:
+            user_id = context.user_data["user_id"]
+            await self._profile_repo.update(user_id, timezone=tz)
+            await update.message.reply_text(f"✓ Timezone updated to {tz}")
+            profile = await self._profile_repo.get_by_user_id(user_id)
+            await self._send_settings_menu(update, profile)
+            return _MENU
+
+        candidates = _lookup_timezone_for_location(update.message.text)
+        if candidates:
+            buttons = [
+                [InlineKeyboardButton(_format_tz_button_label(c), callback_data=f"settings_tz:{c}")]
+                for c in candidates
+            ]
+            if len(candidates) == 1:
+                await update.message.reply_text(
+                    f"🕐 Found: *{candidates[0]}*\n"
+                    f"Current time there: "
+                    f"{datetime.now(zoneinfo.ZoneInfo(candidates[0])).strftime('%H:%M, %a %b %-d')}\n\n"
+                    "Is this correct?",
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup(buttons),
+                )
+            else:
+                await update.message.reply_text(
+                    "🕐 Found multiple timezones. Pick one:",
+                    reply_markup=InlineKeyboardMarkup(buttons),
+                )
             return _EDIT_TIMEZONE
+
+        await update.message.reply_text(
+            f"❌ Unknown timezone '{update.message.text.strip()}'. "
+            "Try a standard name like UTC or America/New_York, "
+            "or type your country or city name:"
+        )
+        return _EDIT_TIMEZONE
+
+    async def _settings_timezone_button(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        await update.callback_query.answer()
+        tz = update.callback_query.data.split(":", 1)[1]
         user_id = context.user_data["user_id"]
         await self._profile_repo.update(user_id, timezone=tz)
-        await update.message.reply_text(f"✓ Timezone updated to {tz}")
+        await update.callback_query.message.reply_text(f"✓ Timezone updated to {tz}")
         profile = await self._profile_repo.get_by_user_id(user_id)
         await self._send_settings_menu(update, profile)
         return _MENU
@@ -248,7 +358,8 @@ class CommandHandlers:
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_currency_input)
                 ],
                 _EDIT_TIMEZONE: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_timezone_input)
+                    CallbackQueryHandler(self._settings_timezone_button, pattern="^settings_tz:"),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_timezone_input),
                 ],
                 _EDIT_USERNAME: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_username_input)
@@ -289,22 +400,22 @@ class CommandHandlers:
     async def _send_ob_timezone_prompt(self, source, profile) -> None:
         if profile is None:
             await source.message.reply_text(
-                "Timezone (2/3)\n\nType your timezone (e.g. UTC, America/New_York, Asia/Ho_Chi_Minh):"
+                "Timezone (2/3)\n\n"
+                "Pick one or type another (e.g. America/Chicago), "
+                "or type your country or city (e.g. Vietnam, Japan, London):"
             )
         else:
             keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
             await source.message.reply_text(
                 "🕐 Timezone (2/3)\n\n"
                 f"Current: {profile.timezone}\n\n"
-                "Type your timezone (e.g. UTC, America/New_York, Asia/Ho_Chi_Minh), or tap Skip.",
+                "Pick one, tap Skip, or type your country or city.",
                 reply_markup=InlineKeyboardMarkup(keyboard),
             )
 
     async def _send_ob_username_prompt(self, source, profile) -> None:
         if profile is None:
-            await source.message.reply_text(
-                "Username (3/3)\n\nType a display name:"
-            )
+            await source.message.reply_text("Username (3/3)\n\nType a display name:")
         else:
             keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
             await source.message.reply_text(
@@ -354,22 +465,58 @@ class CommandHandlers:
 
     async def _ob_handle_timezone(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         tz = _validate_timezone(update.message.text)
-        if tz is None:
-            await update.message.reply_text(
-                f"❌ Unknown timezone '{update.message.text.strip()}'. "
-                "Try a standard name like UTC or America/New_York:"
-            )
-            profile = await self._get_profile(update)
-            await self._send_ob_timezone_prompt(update, profile)
+        if tz is not None:
+            if context.user_data.get("ob_is_new_user"):
+                context.user_data["ob_timezone"] = tz
+                await self._send_ob_username_prompt(update, None)
+            else:
+                profile = await self._get_profile(update)
+                await self._profile_repo.update(profile.user_id, timezone=tz)
+                profile = await self._profile_repo.get_by_user_id(profile.user_id)
+                await self._send_ob_username_prompt(update, profile)
+            return _OB_USERNAME
+
+        candidates = _lookup_timezone_for_location(update.message.text)
+        if candidates:
+            buttons = [
+                [InlineKeyboardButton(_format_tz_button_label(c), callback_data=f"ob_tz:{c}")]
+                for c in candidates
+            ]
+            if len(candidates) == 1:
+                await update.message.reply_text(
+                    f"🕐 Found: *{candidates[0]}*\n"
+                    f"Current time there: "
+                    f"{datetime.now(zoneinfo.ZoneInfo(candidates[0])).strftime('%H:%M, %a %b %-d')}\n\n"
+                    "Is this correct?",
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup(buttons),
+                )
+            else:
+                await update.message.reply_text(
+                    "🕐 Found multiple timezones. Pick one:",
+                    reply_markup=InlineKeyboardMarkup(buttons),
+                )
             return _OB_TIMEZONE
+
+        await update.message.reply_text(
+            f"❌ Unknown timezone '{update.message.text.strip()}'. "
+            "Try a standard name like UTC, or type your country or city name:"
+        )
+        profile = await self._get_profile(update)
+        await self._send_ob_timezone_prompt(update, profile)
+        return _OB_TIMEZONE
+
+    async def _ob_tz_button(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        await update.callback_query.answer()
+        tz = update.callback_query.data.split(":", 1)[1]
         if context.user_data.get("ob_is_new_user"):
             context.user_data["ob_timezone"] = tz
-            await self._send_ob_username_prompt(update, None)
+            await self._send_ob_username_prompt(update.callback_query, None)
         else:
             profile = await self._get_profile(update)
             await self._profile_repo.update(profile.user_id, timezone=tz)
             profile = await self._profile_repo.get_by_user_id(profile.user_id)
-            await self._send_ob_username_prompt(update, profile)
+            await self._send_ob_username_prompt(update.callback_query, profile)
         return _OB_USERNAME
 
     async def _ob_handle_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -406,6 +553,7 @@ class CommandHandlers:
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self._ob_handle_currency),
                 ],
                 _OB_TIMEZONE: [
+                    CallbackQueryHandler(self._ob_tz_button, pattern="^ob_tz:"),
                     CallbackQueryHandler(self._ob_skip_timezone, pattern="^ob_skip$"),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self._ob_handle_timezone),
                 ],
