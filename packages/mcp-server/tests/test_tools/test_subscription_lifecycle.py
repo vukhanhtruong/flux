@@ -1,11 +1,12 @@
 """Unit tests for subscription tool lifecycle hooks (scheduler side effects)."""
-from datetime import date
+from datetime import date, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock
 from uuid import UUID
 import pytest
 
 from flux_core.models.subscription import SubscriptionOut, BillingCycle
+from flux_mcp.db.subscription_scheduler_repo import _derive_cron, _to_utc_midnight
 
 
 SUB_UUID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
@@ -110,3 +111,25 @@ async def test_delete_subscription_deletes_scheduler(sub_repo, scheduler_repo):
 
     assert result["success"] is True
     scheduler_repo.delete.assert_called_once_with(str(SUB_UUID))
+
+
+def test_derive_cron_monthly():
+    assert _derive_cron(BillingCycle.monthly, date(2026, 3, 1)) == "0 0 1 * *"
+    assert _derive_cron(BillingCycle.monthly, date(2026, 3, 15)) == "0 0 15 * *"
+    assert _derive_cron(BillingCycle.monthly, date(2026, 3, 28)) == "0 0 28 * *"
+
+
+def test_derive_cron_yearly():
+    assert _derive_cron(BillingCycle.yearly, date(2026, 3, 15)) == "0 0 15 3 *"
+    assert _derive_cron(BillingCycle.yearly, date(2026, 12, 31)) == "0 0 31 12 *"
+    assert _derive_cron(BillingCycle.yearly, date(2026, 1, 1)) == "0 0 1 1 *"
+
+
+def test_to_utc_midnight():
+    result = _to_utc_midnight(date(2026, 3, 5))
+    assert result.year == 2026
+    assert result.month == 3
+    assert result.day == 5
+    assert result.hour == 0
+    assert result.minute == 0
+    assert result.tzinfo == timezone.utc
