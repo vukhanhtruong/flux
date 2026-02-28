@@ -7,12 +7,21 @@ from pathlib import Path
 
 from telegram import Update
 from telegram.error import NetworkError, TimedOut
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    Application,
+    CommandHandler as TelegramCommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 from telegram.request import HTTPXRequest
 
 from flux_bot.channels.base import Channel
+from flux_bot.channels.commands import CommandHandlers
 from flux_bot.db.messages import MessageRepository
 from flux_bot.db.onboarding import OnboardingRepository
+from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
+from flux_bot.db.sessions import SessionRepository
 from flux_bot.onboarding.handler import OnboardingHandler
 from flux_core.db.user_profile_repo import UserProfileRepository
 from flux_core.models.user_profile import UserProfileCreate
@@ -30,6 +39,8 @@ class TelegramChannel(Channel):
         message_repo: MessageRepository,
         profile_repo: UserProfileRepository,
         onboarding_repo: OnboardingRepository,
+        session_repo: SessionRepository,
+        task_repo: ScheduledTaskRepository,
         allow_from: list[str] | None = None,
         image_dir: str = "/tmp/flux-images",
     ):
@@ -37,6 +48,8 @@ class TelegramChannel(Channel):
         self.message_repo = message_repo
         self.profile_repo = profile_repo
         self.onboarding_repo = onboarding_repo
+        self.session_repo = session_repo
+        self.task_repo = task_repo
         self.allow_from = set(allow_from) if allow_from else None
         self.image_dir = image_dir
         self._app: Application | None = None
@@ -57,12 +70,30 @@ class TelegramChannel(Channel):
             .request(request)
             .build()
         )
+
+        cmds = CommandHandlers(
+            profile_repo=self.profile_repo,
+            session_repo=self.session_repo,
+            task_repo=self.task_repo,
+        )
+
+        # /settings ConversationHandler in group -1 so its text-reply states
+        # take priority over the regular message handler (group 0)
+        self._app.add_handler(cmds.settings_conversation(), group=-1)
+
+        # Simple one-shot command handlers
+        self._app.add_handler(TelegramCommandHandler("help", cmds.cmd_help))
+        self._app.add_handler(TelegramCommandHandler("reset", cmds.cmd_reset))
+        self._app.add_handler(TelegramCommandHandler("tasks", cmds.cmd_tasks))
+
+        # Regular messages — exclude raw commands so /help etc. don't fall through
         self._app.add_handler(
             MessageHandler(
                 (filters.TEXT | filters.PHOTO) & ~filters.COMMAND,
                 self._handle_message,
             )
         )
+
         await self._app.initialize()
         await self._app.start()
         await self._app.updater.start_polling(drop_pending_updates=True)

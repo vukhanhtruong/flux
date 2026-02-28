@@ -23,6 +23,8 @@ def _make_channel(profile=None):
         message_repo=msg_repo,
         profile_repo=profile_repo,
         onboarding_repo=onboarding_repo,
+        session_repo=AsyncMock(),
+        task_repo=AsyncMock(),
         allow_from=None,
         image_dir="/tmp",
     )
@@ -94,6 +96,8 @@ async def test_allowlist_blocks_unauthorized():
         message_repo=msg_repo,
         profile_repo=profile_repo,
         onboarding_repo=onboarding_repo,
+        session_repo=AsyncMock(),
+        task_repo=AsyncMock(),
         allow_from=["99999"],
         image_dir="/tmp",
     )
@@ -210,3 +214,21 @@ async def test_send_message_raises_after_max_retries():
 
     # The assertion that it was called _MAX_SEND_RETRIES times is implicit:
     # if it raised TimedOut the loop exhausted all retries
+
+
+async def test_telegram_channel_accepts_session_and_task_repos():
+    """TelegramChannel can be constructed with session_repo and task_repo."""
+    from unittest.mock import AsyncMock
+    session_repo = AsyncMock()
+    task_repo = AsyncMock()
+    ch = TelegramChannel(
+        bot_token="123:ABC",
+        message_repo=AsyncMock(),
+        profile_repo=AsyncMock(),
+        onboarding_repo=AsyncMock(),
+        session_repo=session_repo,
+        task_repo=task_repo,
+        allow_from=None,
+        image_dir="/tmp",
+    )
+    assert ch is not None

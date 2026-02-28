@@ -48,6 +48,7 @@ async def main():
     msg_repo = MessageRepository(pool)
     session_repo = SessionRepository(pool)
     onboarding_repo = OnboardingRepository(pool)
+    task_repo = ScheduledTaskRepository(pool)
     profile_repo = UserProfileRepository(core_db)
 
     runner = ClaudeRunner(
@@ -66,6 +67,8 @@ async def main():
             message_repo=msg_repo,
             profile_repo=profile_repo,
             onboarding_repo=onboarding_repo,
+            session_repo=session_repo,
+            task_repo=task_repo,
             allow_from=config.telegram.allow_from or None,
             image_dir=config.image_dir,
         )
@@ -103,7 +106,6 @@ async def main():
         fallback_poll_interval=config.fallback_poll_interval,
     )
 
-    task_repo = ScheduledTaskRepository(pool)
     scheduler_worker = SchedulerWorker(
         task_repo=task_repo,
         message_repo=msg_repo,
