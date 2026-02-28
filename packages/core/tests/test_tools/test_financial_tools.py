@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 import pytest
 
@@ -21,6 +21,7 @@ from flux_core.tools.financial_tools import (
     advance_subscription,
     toggle_subscription,
     delete_subscription,
+    process_subscription_billing,
     # Asset tools
     create_asset,
     list_assets,
@@ -31,6 +32,7 @@ from flux_core.models.budget import BudgetOut
 from flux_core.models.goal import GoalOut
 from flux_core.models.subscription import SubscriptionOut, BillingCycle
 from flux_core.models.asset import AssetOut, AssetFrequency
+from flux_core.models.transaction import TransactionOut, TransactionType
 
 
 # Budget tests
@@ -340,13 +342,6 @@ async def test_list_assets():
     assert len(result) == 1
     assert result[0]["name"] == "Salary"
     mock_repo.list_by_user.assert_called_once_with("test_user", True)
-
-
-from datetime import date, datetime, timezone
-from unittest.mock import MagicMock
-
-from flux_core.models.transaction import TransactionOut, TransactionType
-from flux_core.tools.financial_tools import process_subscription_billing
 
 
 @pytest.mark.asyncio

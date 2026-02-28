@@ -37,7 +37,6 @@ def sub_repo():
     return mock
 
 
-@pytest.mark.asyncio
 async def test_create_subscription_creates_scheduler(sub_repo, scheduler_repo):
     from flux_mcp.tools.financial_tools import _create_subscription_with_scheduler
 
@@ -60,7 +59,6 @@ async def test_create_subscription_creates_scheduler(sub_repo, scheduler_repo):
     assert str(SUB_UUID) in call_kwargs.kwargs["subscription_id"]
 
 
-@pytest.mark.asyncio
 async def test_toggle_inactive_pauses_scheduler(sub_repo, scheduler_repo):
     from flux_mcp.tools.financial_tools import _toggle_subscription_with_scheduler
 
@@ -76,7 +74,6 @@ async def test_toggle_inactive_pauses_scheduler(sub_repo, scheduler_repo):
     scheduler_repo.resume.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_toggle_active_resumes_scheduler():
     sub_repo = AsyncMock()
     sub_repo.toggle_active.return_value = _SUB_ACTIVE  # now active
@@ -96,7 +93,6 @@ async def test_toggle_active_resumes_scheduler():
     scheduler_repo.pause.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_delete_subscription_deletes_scheduler(sub_repo, scheduler_repo):
     sub_repo.delete.return_value = True
 

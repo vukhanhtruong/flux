@@ -70,6 +70,9 @@ async def _delete_subscription_with_scheduler(
     sub_repo: SubscriptionRepository,
     scheduler_repo: SubscriptionSchedulerRepo,
 ) -> dict:
+    # Delete scheduler entry first. If no row exists (e.g., initial create failed silently),
+    # the DELETE is a no-op and subscription deletion proceeds normally.
+    # Any DB error from scheduler_repo.delete() propagates and blocks subscription deletion.
     await scheduler_repo.delete(subscription_id)
     return await biz.delete_subscription(subscription_id, user_id, sub_repo)
 
