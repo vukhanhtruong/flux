@@ -141,3 +141,35 @@ async def test_list_by_user_excludes_completed(pg_url):
         assert task_id not in ids
     finally:
         await pool.close()
+
+
+async def test_subscription_id_column_exists(pg_url):
+    """Migration 002 adds nullable subscription_id column."""
+    pool, repo = await _setup(pg_url)
+    try:
+        async with pool.acquire() as conn:
+            # Insert with subscription_id as NULL — must succeed
+            row_id = await conn.fetchval(
+                """
+                INSERT INTO bot_scheduled_tasks
+                    (user_id, prompt, schedule_type, schedule_value, next_run_at, subscription_id)
+                VALUES ('tg:99', 'test', 'once', '0 0 1 * *', NOW(), NULL)
+                RETURNING id
+                """
+            )
+            assert row_id is not None
+
+            # Insert with a UUID subscription_id — must succeed
+            sub_uuid = "12345678-1234-5678-1234-567812345678"
+            row_id2 = await conn.fetchval(
+                """
+                INSERT INTO bot_scheduled_tasks
+                    (user_id, prompt, schedule_type, schedule_value, next_run_at, subscription_id)
+                VALUES ('tg:99', 'test2', 'cron', '0 0 1 * *', NOW(), $1::uuid)
+                RETURNING id
+                """,
+                sub_uuid,
+            )
+            assert row_id2 is not None
+    finally:
+        await pool.close()
