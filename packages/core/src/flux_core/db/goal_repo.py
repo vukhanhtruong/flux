@@ -41,6 +41,30 @@ class GoalRepository:
         )
         return [GoalOut(**dict(r)) for r in rows]
 
+    async def update(self, goal_id: UUID, user_id: str, updates: GoalUpdate) -> Optional[GoalOut]:
+        fields = updates.model_dump(exclude_none=True)
+        if not fields:
+            return await self.get_by_id(goal_id, user_id)
+
+        set_clauses = []
+        params = []
+        idx = 1
+        for key, value in fields.items():
+            set_clauses.append(f"{key} = ${idx}")
+            params.append(value)
+            idx += 1
+
+        params.extend([goal_id, user_id])
+        row = await self._db.fetchrow(
+            f"""
+            UPDATE savings_goals SET {', '.join(set_clauses)}
+            WHERE id = ${idx} AND user_id = ${idx + 1}
+            RETURNING id, user_id, name, target_amount, current_amount, deadline, color
+            """,
+            *params,
+        )
+        return GoalOut(**dict(row)) if row else None
+
     async def deposit(self, goal_id: UUID, user_id: str, amount: Decimal) -> Optional[GoalOut]:
         row = await self._db.fetchrow(
             """

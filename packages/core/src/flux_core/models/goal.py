@@ -17,6 +17,7 @@ class GoalCreate(BaseModel):
 class GoalUpdate(BaseModel):
     name: Optional[str] = None
     target_amount: Optional[Decimal] = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    current_amount: Optional[Decimal] = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     deadline: Optional[date] = None
     color: Optional[str] = None
 

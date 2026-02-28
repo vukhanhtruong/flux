@@ -5,7 +5,7 @@ from decimal import Decimal
 from flux_core.db.connection import Database
 from flux_core.db.goal_repo import GoalRepository
 from flux_core.migrations.migrate import migrate
-from flux_core.models.goal import GoalCreate
+from flux_core.models.goal import GoalCreate, GoalUpdate
 
 
 @pytest.fixture
@@ -59,3 +59,22 @@ async def test_deposit_to_goal(repo, user_id):
 async def test_list_goals(repo, user_id):
     results = await repo.list_by_user(user_id)
     assert len(results) >= 2
+
+
+async def test_update_goal_current_amount(repo, user_id):
+    goal = GoalCreate(
+        user_id=user_id,
+        name="Laptop Fund",
+        target_amount=Decimal("2500"),
+    )
+    created = await repo.create(goal)
+
+    updated = await repo.update(
+        created.id,
+        user_id,
+        GoalUpdate(target_amount=Decimal("3000"), current_amount=Decimal("400")),
+    )
+
+    assert updated is not None
+    assert updated.target_amount == Decimal("3000")
+    assert updated.current_amount == Decimal("400")

@@ -1,5 +1,11 @@
+import sys
+from pathlib import Path
+
 import pytest
 from testcontainers.postgres import PostgresContainer
+
+# Ensure tests import local package code from this workspace, not another editable install.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 @pytest.fixture(scope="session")
