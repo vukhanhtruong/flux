@@ -1,4 +1,4 @@
-from flux_bot.onboarding.handler import OnboardingHandler, OnboardingResult
+from flux_bot.onboarding.handler import OnboardingHandler
 
 
 def make_handler():

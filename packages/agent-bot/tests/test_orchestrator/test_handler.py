@@ -2,7 +2,6 @@
 
 from unittest.mock import AsyncMock, call
 
-import pytest
 
 from flux_bot.orchestrator.handler import make_handle_message
 from flux_bot.runner.sdk import ClaudeResult

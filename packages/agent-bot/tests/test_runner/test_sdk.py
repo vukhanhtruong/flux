@@ -1,13 +1,11 @@
 import asyncio
 import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-import claude_agent_sdk
 from claude_agent_sdk import ResultMessage, SystemMessage
-from flux_bot.runner.sdk import ClaudeResult, ClaudeRunner
+from flux_bot.runner.sdk import ClaudeRunner
 from flux_core.models.user_profile import UserProfile
 
 

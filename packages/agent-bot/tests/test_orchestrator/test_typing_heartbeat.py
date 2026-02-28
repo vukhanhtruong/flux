@@ -1,11 +1,10 @@
 """Tests for the typing heartbeat helper."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock
 
 from flux_bot.channels.base import Channel
+from flux_bot.orchestrator.heartbeat import typing_heartbeat
 from flux_bot.runner.sdk import ClaudeResult
 
 
@@ -24,14 +23,6 @@ def _make_mock_runner(text="ok", session_id="sess-1", error=None):
     runner = AsyncMock()
     runner.run = AsyncMock(return_value=ClaudeResult(text=text, session_id=session_id, error=error))
     return runner
-
-
-# ---------------------------------------------------------------------------
-# Import the function under test
-# This is a module-level function extracted from main.py (see Task 2 step 3).
-# ---------------------------------------------------------------------------
-
-from flux_bot.orchestrator.heartbeat import typing_heartbeat
 
 
 async def test_typing_heartbeat_calls_send_typing_action():

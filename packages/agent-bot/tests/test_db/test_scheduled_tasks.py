@@ -1,6 +1,5 @@
 from datetime import UTC, datetime, timedelta
 import asyncpg
-import pytest
 
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
 from flux_bot.db.migrate import run_migrations
