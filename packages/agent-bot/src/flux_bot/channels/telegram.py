@@ -77,10 +77,11 @@ class TelegramChannel(Channel):
             task_repo=self.task_repo,
         )
 
-        # ConversationHandlers in group -1 so their text-reply states
-        # take priority over the regular message handler (group 0)
-        self._app.add_handler(cmds.settings_conversation(), group=-1)
-        self._app.add_handler(cmds.onboard_conversation(), group=-1)
+        # ConversationHandlers registered first in group 0 — within a group PTB calls only
+        # the first matching handler, so active conversations consume the message before
+        # the regular MessageHandler can enqueue it to Claude.
+        self._app.add_handler(cmds.settings_conversation())
+        self._app.add_handler(cmds.onboard_conversation())
 
         # Simple one-shot command handlers
         self._app.add_handler(TelegramCommandHandler("help", cmds.cmd_help))

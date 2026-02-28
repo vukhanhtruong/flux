@@ -429,6 +429,7 @@ async def test_ob_handle_username_valid():
     handlers.profile_repo.update.assert_called_once_with("tg:12345", username="My Display Name 123!")
     assert result == ConversationHandler.END
     text = update.message.reply_text.call_args[0][0]
+    assert HELP_TEXT in text
     assert "✅" in text
 
 

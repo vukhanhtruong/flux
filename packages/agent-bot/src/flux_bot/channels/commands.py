@@ -314,7 +314,7 @@ class CommandHandlers:
     async def _ob_skip_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await update.callback_query.answer()
         await update.callback_query.message.reply_text(
-            "✅ Preferences saved!"
+            "✅ Preferences saved!\n\n" + HELP_TEXT, parse_mode="Markdown"
         )
         return ConversationHandler.END
 
@@ -354,7 +354,7 @@ class CommandHandlers:
         profile = await self._get_profile(update)
         await self._profile_repo.update(profile.user_id, username=text)
         await update.message.reply_text(
-            "✅ Preferences saved!"
+            "✅ Preferences saved!\n\n" + HELP_TEXT, parse_mode="Markdown"
         )
         return ConversationHandler.END
 
