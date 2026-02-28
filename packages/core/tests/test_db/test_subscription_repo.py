@@ -49,3 +49,38 @@ async def test_create_subscription(repo, user_id):
 async def test_list_subscriptions(repo, user_id):
     results = await repo.list_by_user(user_id)
     assert len(results) >= 1
+
+
+async def test_get_subscription(repo, user_id):
+    sub = await repo.create(SubscriptionCreate(
+        user_id=user_id,
+        name="Spotify",
+        amount=Decimal("9.99"),
+        billing_cycle="monthly",
+        next_date=date(2026, 3, 15),
+        category="Entertainment",
+    ))
+
+    result = await repo.get(sub.id, user_id)
+    assert result is not None
+    assert result.id == sub.id
+    assert result.name == "Spotify"
+
+
+async def test_get_subscription_not_found(repo, user_id):
+    from uuid import uuid4
+    result = await repo.get(uuid4(), user_id)
+    assert result is None
+
+
+async def test_get_subscription_wrong_user(repo, user_id):
+    sub = await repo.create(SubscriptionCreate(
+        user_id=user_id,
+        name="Spotify",
+        amount=Decimal("9.99"),
+        billing_cycle="monthly",
+        next_date=date(2026, 3, 15),
+        category="Entertainment",
+    ))
+    result = await repo.get(sub.id, "other:user")
+    assert result is None

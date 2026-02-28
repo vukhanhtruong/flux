@@ -24,6 +24,13 @@ class SubscriptionRepository:
         )
         return SubscriptionOut(**dict(row))
 
+    async def get(self, sub_id: UUID, user_id: str) -> Optional[SubscriptionOut]:
+        row = await self._db.fetchrow(
+            f"SELECT {self._COLUMNS} FROM subscriptions WHERE id = $1 AND user_id = $2",
+            sub_id, user_id,
+        )
+        return SubscriptionOut(**dict(row)) if row else None
+
     async def list_by_user(self, user_id: str, active_only: bool = True) -> list[SubscriptionOut]:
         condition = "user_id = $1"
         if active_only:
