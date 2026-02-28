@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Callable, Awaitable
 
 from fastmcp import FastMCP
@@ -5,13 +6,83 @@ from flux_core.db.connection import Database
 from flux_core.db.budget_repo import BudgetRepository
 from flux_core.db.goal_repo import GoalRepository
 from flux_core.db.subscription_repo import SubscriptionRepository
+from flux_core.db.transaction_repo import TransactionRepository
+from flux_core.embeddings.service import EmbeddingProvider
 from flux_core.tools import financial_tools as biz
+from flux_mcp.db.subscription_scheduler_repo import (
+    SubscriptionSchedulerRepo, _derive_cron, _to_utc_midnight,
+)
 
+
+# ── testable helpers ────────────────────────────────────────────────────────
+
+async def _create_subscription_with_scheduler(
+    user_id: str,
+    name: str,
+    amount: float,
+    billing_cycle: str,
+    next_date: str,
+    category: str,
+    sub_repo: SubscriptionRepository,
+    scheduler_repo: SubscriptionSchedulerRepo,
+) -> dict:
+    result = await biz.create_subscription(
+        user_id, name, amount, billing_cycle, next_date, category, sub_repo,
+    )
+    from flux_core.models.subscription import BillingCycle
+    from datetime import date as _date
+    nd = _date.fromisoformat(result["next_date"])
+    cycle = BillingCycle(result["billing_cycle"])
+    prompt = f"Process subscription billing for {result['name']} (id: {result['id']})"
+    try:
+        await scheduler_repo.create(
+            user_id=user_id,
+            subscription_id=result["id"],
+            prompt=prompt,
+            cron=_derive_cron(cycle, nd),
+            next_run_at=_to_utc_midnight(nd),
+        )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(
+            "Failed to create scheduler for subscription %s: %s", result["id"], exc
+        )
+    return result
+
+
+async def _toggle_subscription_with_scheduler(
+    subscription_id: str,
+    user_id: str,
+    sub_repo: SubscriptionRepository,
+    scheduler_repo: SubscriptionSchedulerRepo,
+) -> dict:
+    result = await biz.toggle_subscription(subscription_id, user_id, sub_repo)
+    if result["active"]:
+        from datetime import date as _date
+        nd = _date.fromisoformat(result["next_date"])
+        await scheduler_repo.resume(subscription_id, _to_utc_midnight(nd))
+    else:
+        await scheduler_repo.pause(subscription_id)
+    return result
+
+
+async def _delete_subscription_with_scheduler(
+    subscription_id: str,
+    user_id: str,
+    sub_repo: SubscriptionRepository,
+    scheduler_repo: SubscriptionSchedulerRepo,
+) -> dict:
+    await scheduler_repo.delete(subscription_id)
+    return await biz.delete_subscription(subscription_id, user_id, sub_repo)
+
+
+# ── MCP tool registration ────────────────────────────────────────────────────
 
 def register_financial_tools(
     mcp: FastMCP,
     get_db: Callable[[], Awaitable[Database]],
     get_user_id: Callable[[], str],
+    get_embedding_service: Callable[[], EmbeddingProvider],
 ):
     @mcp.tool()
     async def set_budget(category: str, monthly_limit: float) -> dict:
@@ -55,9 +126,10 @@ def register_financial_tools(
         next_date is the next billing date in YYYY-MM-DD format.
         """
         db = await get_db()
-        return await biz.create_subscription(
+        return await _create_subscription_with_scheduler(
             get_user_id(), name, amount, billing_cycle, next_date, category,
             SubscriptionRepository(db),
+            SubscriptionSchedulerRepo(db),
         )
 
     @mcp.tool()
@@ -68,12 +140,34 @@ def register_financial_tools(
 
     @mcp.tool()
     async def toggle_subscription(subscription_id: str) -> dict:
-        """Toggle a subscription active/inactive."""
+        """Toggle a subscription active/inactive (archive/restore)."""
         db = await get_db()
-        return await biz.toggle_subscription(subscription_id, get_user_id(), SubscriptionRepository(db))
+        return await _toggle_subscription_with_scheduler(
+            subscription_id, get_user_id(),
+            SubscriptionRepository(db),
+            SubscriptionSchedulerRepo(db),
+        )
 
     @mcp.tool()
     async def delete_subscription(subscription_id: str) -> dict:
         """Delete a subscription permanently."""
         db = await get_db()
-        return await biz.delete_subscription(subscription_id, get_user_id(), SubscriptionRepository(db))
+        return await _delete_subscription_with_scheduler(
+            subscription_id, get_user_id(),
+            SubscriptionRepository(db),
+            SubscriptionSchedulerRepo(db),
+        )
+
+    @mcp.tool()
+    async def process_subscription_billing(subscription_id: str) -> dict:
+        """Process a subscription billing cycle: create expense transaction and advance next_date.
+        Called automatically by the scheduler on each billing date. Do not call manually.
+        """
+        db = await get_db()
+        return await biz.process_subscription_billing(
+            subscription_id,
+            get_user_id(),
+            SubscriptionRepository(db),
+            TransactionRepository(db),
+            get_embedding_service(),
+        )

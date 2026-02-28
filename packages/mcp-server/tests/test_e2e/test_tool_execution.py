@@ -31,6 +31,8 @@ def _make_transaction_mcp():
 def _make_financial_mcp():
     test_mcp = FastMCP("test-financial")
     mock_db = AsyncMock()
+    mock_embedding = MagicMock()
+    mock_embedding.embed.return_value = [0.1] * 384
 
     async def get_db():
         return mock_db
@@ -38,7 +40,10 @@ def _make_financial_mcp():
     def get_user_id():
         return "test-user"
 
-    register_financial_tools(test_mcp, get_db, get_user_id)
+    def get_embedding_service():
+        return mock_embedding
+
+    register_financial_tools(test_mcp, get_db, get_user_id, get_embedding_service)
     return test_mcp
 
 
@@ -201,8 +206,16 @@ async def test_create_subscription_tool():
     with patch(
         "flux_mcp.tools.financial_tools.biz.create_subscription",
         new_callable=AsyncMock,
-    ) as mock_biz:
-        mock_biz.return_value = {"id": "sub1", "name": "Netflix"}
+    ) as mock_biz, patch(
+        "flux_mcp.tools.financial_tools.SubscriptionSchedulerRepo",
+    ) as mock_scheduler_cls:
+        mock_scheduler_cls.return_value = AsyncMock()
+        mock_biz.return_value = {
+            "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "name": "Netflix",
+            "billing_cycle": "monthly",
+            "next_date": "2024-02-01",
+        }
         result = await test_mcp.call_tool(
             "create_subscription",
             {
@@ -234,10 +247,18 @@ async def test_toggle_subscription_tool():
     with patch(
         "flux_mcp.tools.financial_tools.biz.toggle_subscription",
         new_callable=AsyncMock,
-    ) as mock_biz:
-        mock_biz.return_value = {"id": "sub1", "is_active": False}
+    ) as mock_biz, patch(
+        "flux_mcp.tools.financial_tools.SubscriptionSchedulerRepo",
+    ) as mock_scheduler_cls:
+        mock_scheduler_cls.return_value = AsyncMock()
+        mock_biz.return_value = {
+            "id": "sub1",
+            "active": False,
+            "next_date": "2024-02-01",
+        }
         result = await test_mcp.call_tool(
-            "toggle_subscription", {"subscription_id": "sub1"}
+            "toggle_subscription",
+            {"subscription_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"},
         )
     assert result is not None
     mock_biz.assert_awaited_once()
@@ -248,10 +269,14 @@ async def test_delete_subscription_tool():
     with patch(
         "flux_mcp.tools.financial_tools.biz.delete_subscription",
         new_callable=AsyncMock,
-    ) as mock_biz:
-        mock_biz.return_value = {"deleted": True}
+    ) as mock_biz, patch(
+        "flux_mcp.tools.financial_tools.SubscriptionSchedulerRepo",
+    ) as mock_scheduler_cls:
+        mock_scheduler_cls.return_value = AsyncMock()
+        mock_biz.return_value = {"success": True}
         result = await test_mcp.call_tool(
-            "delete_subscription", {"subscription_id": "sub1"}
+            "delete_subscription",
+            {"subscription_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"},
         )
     assert result is not None
     mock_biz.assert_awaited_once()
