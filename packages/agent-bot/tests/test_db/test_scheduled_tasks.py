@@ -35,6 +35,9 @@ async def test_fetch_due_returns_past_active_tasks(pg_url):
         due = await repo.fetch_due_tasks()
         ids = [t["id"] for t in due]
         assert task_id in ids
+        task = next(t for t in due if t["id"] == task_id)
+        assert "user_timezone" in task, "fetch_due_tasks must include user_timezone"
+        assert task["user_timezone"] == "UTC", "default user_timezone must be UTC"
     finally:
         await pool.close()
 

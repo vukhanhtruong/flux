@@ -7,6 +7,7 @@ Poller → UserQueue → ClaudeRunner pipeline handles them normally.
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
@@ -71,13 +72,18 @@ class SchedulerWorker:
         if task["schedule_type"] == "once":
             await self.task_repo.mark_completed(task["id"])
         else:
-            next_run = self._compute_next_run(task["schedule_type"], task["schedule_value"])
+            next_run = self._compute_next_run(
+                task["schedule_type"], task["schedule_value"], task.get("user_timezone", "UTC")
+            )
             await self.task_repo.advance_next_run(task["id"], next_run)
         logger.info(f"Fired task {task['id']} ({task['schedule_type']}) for {task['user_id']}")
 
-    def _compute_next_run(self, schedule_type: str, schedule_value: str) -> datetime:
+    def _compute_next_run(
+        self, schedule_type: str, schedule_value: str, user_timezone: str = "UTC"
+    ) -> datetime:
         if schedule_type == "cron":
-            return croniter(schedule_value, datetime.now(UTC)).get_next(datetime).astimezone(UTC)
+            now_local = datetime.now(ZoneInfo(user_timezone))
+            return croniter(schedule_value, now_local).get_next(datetime).astimezone(UTC)
         # interval: schedule_value is milliseconds
         ms = int(schedule_value)
         return datetime.now(UTC) + timedelta(milliseconds=ms)

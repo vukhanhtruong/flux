@@ -303,6 +303,7 @@ async def test_schedule_task_once_ms_delay(mock_db):
 
     call_args = mock_db.fetchval.call_args
     next_run_at = call_args.args[5]
+    assert next_run_at.utcoffset() is not None, "next_run_at must be timezone-aware"
     expected = timedelta(milliseconds=120000)
     assert before + expected <= next_run_at <= after + expected
 
@@ -340,5 +341,6 @@ async def test_schedule_task_interval_sets_next_run_at(mock_db):
     next_run_at = call_args.args[5]  # (query, user_id, prompt, type, value, next_run_at)
 
     assert next_run_at is not None, "next_run_at must not be NULL for interval tasks"
+    assert next_run_at.utcoffset() is not None, "next_run_at must be timezone-aware"
     expected = timedelta(milliseconds=120000)
     assert before + expected <= next_run_at <= after + expected

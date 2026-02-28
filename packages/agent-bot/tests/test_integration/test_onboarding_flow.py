@@ -74,7 +74,7 @@ async def test_full_onboarding_creates_profile(pg_url):
     await onboarding_repo.delete(platform_id, channel)
 
     # Verify profile
-    assert profile.user_id == "tg:test-user"
+    assert profile.user_id == f"tg:{platform_id}"
     assert profile.currency == "VND"
     assert profile.timezone == "Asia/Ho_Chi_Minh"
     assert profile.platform_id == platform_id
@@ -82,7 +82,7 @@ async def test_full_onboarding_creates_profile(pg_url):
     # Verify lookup by platform_id works
     fetched = await profile_repo.get_by_platform_id(channel, platform_id)
     assert fetched is not None
-    assert fetched.user_id == "tg:test-user"
+    assert fetched.user_id == f"tg:{platform_id}"
 
     # Verify onboarding row cleaned up
     row = await onboarding_repo.get(platform_id, channel)

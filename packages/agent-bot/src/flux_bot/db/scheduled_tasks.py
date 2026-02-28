@@ -13,10 +13,12 @@ class ScheduledTaskRepository:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, user_id, prompt, schedule_type, schedule_value
-                FROM bot_scheduled_tasks
-                WHERE status = 'active' AND next_run_at <= NOW()
-                ORDER BY next_run_at
+                SELECT t.id, t.user_id, t.prompt, t.schedule_type, t.schedule_value,
+                       COALESCE(u.timezone, 'UTC') AS user_timezone
+                FROM bot_scheduled_tasks t
+                LEFT JOIN users u ON u.id = t.user_id
+                WHERE t.status = 'active' AND t.next_run_at <= NOW()
+                ORDER BY t.next_run_at
                 """
             )
             return [dict(r) for r in rows]
