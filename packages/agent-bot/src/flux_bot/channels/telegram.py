@@ -19,16 +19,12 @@ from telegram.request import HTTPXRequest
 from flux_bot.channels.base import Channel
 from flux_bot.channels.commands import CommandHandlers
 from flux_bot.db.messages import MessageRepository
-from flux_bot.db.onboarding import OnboardingRepository
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
 from flux_bot.db.sessions import SessionRepository
-from flux_bot.onboarding.handler import OnboardingHandler
 from flux_core.db.user_profile_repo import UserProfileRepository
-from flux_core.models.user_profile import UserProfileCreate
 
 logger = logging.getLogger(__name__)
 
-_ONBOARDING_HANDLER = OnboardingHandler()
 _MAX_SEND_RETRIES = 3
 
 
@@ -38,7 +34,6 @@ class TelegramChannel(Channel):
         bot_token: str,
         message_repo: MessageRepository,
         profile_repo: UserProfileRepository,
-        onboarding_repo: OnboardingRepository,
         session_repo: SessionRepository,
         task_repo: ScheduledTaskRepository,
         allow_from: list[str] | None = None,
@@ -47,7 +42,6 @@ class TelegramChannel(Channel):
         self.bot_token = bot_token
         self.message_repo = message_repo
         self.profile_repo = profile_repo
-        self.onboarding_repo = onboarding_repo
         self.session_repo = session_repo
         self.task_repo = task_repo
         self.allow_from = set(allow_from) if allow_from else None
@@ -197,47 +191,7 @@ class TelegramChannel(Channel):
     async def _handle_onboarding(
         self, update: Update, platform_id: str, text: str
     ) -> None:
-        """Run one step of the onboarding state machine."""
-        row = await self.onboarding_repo.get(platform_id, "telegram")
-
-        if row is None:
-            # First contact — start onboarding
-            result = _ONBOARDING_HANDLER.start()
-            await self.onboarding_repo.upsert(platform_id, "telegram", result.next_step)
-            await update.message.reply_text(result.reply)
-            return
-
-        # Check username availability for the username step
-        username_exists = False
-        if row["step"] == "username":
-            username_exists = await self.profile_repo.username_exists("telegram", text.lower())
-
-        result = _ONBOARDING_HANDLER.handle(
-            step=row["step"],
-            text=text,
-            fields={k: row[k] for k in ("currency", "timezone") if row.get(k)},
-            username_exists=username_exists,
+        """Guide new users to the /onboard command."""
+        await update.message.reply_text(
+            "Welcome to flux!\n\nTo get started, please type /onboard to set up your profile."
         )
-
-        if result.next_step is None:
-            # Onboarding complete — create user profile
-            f = result.fields
-            create = UserProfileCreate(
-                username=f["username"],
-                channel="telegram",
-                platform_id=platform_id,
-                currency=f.get("currency", "VND"),
-                timezone=f.get("timezone", "Asia/Ho_Chi_Minh"),
-            )
-            await self.profile_repo.create(create)
-            await self.onboarding_repo.delete(platform_id, "telegram")
-            logger.info(f"Onboarding complete for tg:{f['username']}")
-        else:
-            # Advance to next step
-            await self.onboarding_repo.upsert(
-                platform_id, "telegram", result.next_step,
-                currency=result.fields.get("currency"),
-                timezone=result.fields.get("timezone"),
-            )
-
-        await update.message.reply_text(result.reply)

@@ -52,6 +52,7 @@ def _make_handlers(profile=None):
     profile_repo.get_by_platform_id.return_value = profile
     profile_repo.get_by_user_id.return_value = profile
     profile_repo.update = AsyncMock(return_value=profile)
+    profile_repo.create = AsyncMock()
 
     session_repo = AsyncMock()
     session_repo.delete = AsyncMock()
@@ -314,6 +315,13 @@ async def test_settings_conversation_handler_is_configured():
 # /onboard
 # ---------------------------------------------------------------------------
 
+def _make_context(user_data=None):
+    """Build a context mock with a real dict for user_data."""
+    ctx = MagicMock()
+    ctx.user_data = user_data if user_data is not None else {}
+    return ctx
+
+
 def _make_callback_update(user_id=12345, callback_data="ob_skip"):
     """Build an Update with a callback_query (simulates inline button tap)."""
     update = MagicMock()
@@ -328,14 +336,20 @@ def _make_callback_update(user_id=12345, callback_data="ob_skip"):
     return update
 
 
-async def test_onboard_no_profile_ends_conversation():
-    from telegram.ext import ConversationHandler
+async def test_onboard_new_user_starts_currency_prompt():
+    """New user (no profile) → /onboard sends currency prompt without Skip button."""
     handlers = _make_handlers(profile=None)
     update = _make_update(text="/onboard")
-    result = await handlers.cmd_onboard(update, MagicMock())
-    assert result == ConversationHandler.END
+    context = _make_context()
+    result = await handlers.cmd_onboard(update, context)
+    assert result == _OB_CURRENCY
+    assert context.user_data["ob_is_new_user"] is True
     update.message.reply_text.assert_called_once()
-    assert "setup" in update.message.reply_text.call_args[0][0].lower()
+    text = update.message.reply_text.call_args[0][0]
+    assert "Currency" in text
+    # No Skip button — reply_markup should not be in kwargs
+    kwargs = update.message.reply_text.call_args[1]
+    assert "reply_markup" not in kwargs
 
 
 async def test_onboard_sends_currency_prompt():
@@ -353,7 +367,7 @@ async def test_ob_handle_currency_valid():
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     update = _make_update(text="USD")
-    result = await handlers._ob_handle_currency(update, MagicMock())
+    result = await handlers._ob_handle_currency(update, _make_context())
     handlers.profile_repo.update.assert_called_once_with("tg:12345", currency="USD")
     assert result == _OB_TIMEZONE
     # Should send the timezone prompt
@@ -365,7 +379,7 @@ async def test_ob_handle_currency_invalid():
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     update = _make_update(text="not-valid!!")
-    result = await handlers._ob_handle_currency(update, MagicMock())
+    result = await handlers._ob_handle_currency(update, _make_context())
     handlers.profile_repo.update.assert_not_called()
     assert result == _OB_CURRENCY
     # First call is the error, second call is the re-sent prompt
@@ -390,7 +404,7 @@ async def test_ob_handle_timezone_valid():
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     update = _make_update(text="UTC")
-    result = await handlers._ob_handle_timezone(update, MagicMock())
+    result = await handlers._ob_handle_timezone(update, _make_context())
     handlers.profile_repo.update.assert_called_once_with("tg:12345", timezone="UTC")
     assert result == _OB_USERNAME
     text = update.message.reply_text.call_args[0][0]
@@ -401,7 +415,7 @@ async def test_ob_handle_timezone_invalid():
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     update = _make_update(text="Not/A/Real/Zone")
-    result = await handlers._ob_handle_timezone(update, MagicMock())
+    result = await handlers._ob_handle_timezone(update, _make_context())
     handlers.profile_repo.update.assert_not_called()
     assert result == _OB_TIMEZONE
     assert update.message.reply_text.call_count == 2
@@ -425,7 +439,7 @@ async def test_ob_handle_username_valid():
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     update = _make_update(text="My Display Name 123!")
-    result = await handlers._ob_handle_username(update, MagicMock())
+    result = await handlers._ob_handle_username(update, _make_context())
     handlers.profile_repo.update.assert_called_once_with("tg:12345", username="My Display Name 123!")
     assert result == ConversationHandler.END
     text = update.message.reply_text.call_args[0][0]
@@ -443,6 +457,66 @@ async def test_ob_skip_username():
     text = update.callback_query.message.reply_text.call_args[0][0]
     assert HELP_TEXT in text
     assert "✅" in text
+
+
+async def test_ob_new_user_handle_currency_stores_in_context():
+    """New user valid currency is stored in user_data, DB not updated."""
+    handlers = _make_handlers(profile=None)
+    update = _make_update(text="USD")
+    context = _make_context({"ob_is_new_user": True, "ob_platform_id": "12345"})
+    result = await handlers._ob_handle_currency(update, context)
+    assert result == _OB_TIMEZONE
+    assert context.user_data["ob_currency"] == "USD"
+    handlers.profile_repo.update.assert_not_called()
+    # Prompt sent without Skip button
+    text = update.message.reply_text.call_args[0][0]
+    assert "Timezone" in text
+    kwargs = update.message.reply_text.call_args[1]
+    assert "reply_markup" not in kwargs
+
+
+async def test_ob_new_user_handle_timezone_stores_in_context():
+    """New user valid timezone is stored in user_data, DB not updated."""
+    handlers = _make_handlers(profile=None)
+    update = _make_update(text="UTC")
+    context = _make_context({"ob_is_new_user": True, "ob_platform_id": "12345"})
+    result = await handlers._ob_handle_timezone(update, context)
+    assert result == _OB_USERNAME
+    assert context.user_data["ob_timezone"] == "UTC"
+    handlers.profile_repo.update.assert_not_called()
+    text = update.message.reply_text.call_args[0][0]
+    assert "Username" in text
+    kwargs = update.message.reply_text.call_args[1]
+    assert "reply_markup" not in kwargs
+
+
+async def test_ob_new_user_completes_creates_profile():
+    """New user completing all 3 steps calls profile_repo.create with correct data."""
+    from telegram.ext import ConversationHandler
+    from flux_core.models.user_profile import UserProfileCreate
+
+    handlers = _make_handlers(profile=None)
+    update = _make_update(text="alice-new")
+    context = _make_context({
+        "ob_is_new_user": True,
+        "ob_platform_id": "99999",
+        "ob_currency": "USD",
+        "ob_timezone": "UTC",
+    })
+    result = await handlers._ob_handle_username(update, context)
+    assert result == ConversationHandler.END
+    handlers.profile_repo.create.assert_called_once()
+    call_arg = handlers.profile_repo.create.call_args[0][0]
+    assert isinstance(call_arg, UserProfileCreate)
+    assert call_arg.username == "alice-new"
+    assert call_arg.platform_id == "99999"
+    assert call_arg.currency == "USD"
+    assert call_arg.timezone == "UTC"
+    assert call_arg.channel == "telegram"
+    handlers.profile_repo.update.assert_not_called()
+    text = update.message.reply_text.call_args[0][0]
+    assert HELP_TEXT in text
+    assert "alice-new" in text
 
 
 async def test_onboard_conversation_has_correct_structure():

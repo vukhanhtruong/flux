@@ -11,7 +11,6 @@ from flux_bot.db.migrate import run_migrations
 from flux_core.migrations.migrate import migrate as run_core_migrations
 from flux_bot.db.messages import MessageRepository
 from flux_bot.db.sessions import SessionRepository
-from flux_bot.db.onboarding import OnboardingRepository
 from flux_bot.channels.telegram import TelegramChannel
 from flux_bot.orchestrator.handler import make_handle_message
 from flux_bot.db.outbound import OutboundRepository
@@ -47,7 +46,6 @@ async def main():
 
     msg_repo = MessageRepository(pool)
     session_repo = SessionRepository(pool)
-    onboarding_repo = OnboardingRepository(pool)
     task_repo = ScheduledTaskRepository(pool)
     profile_repo = UserProfileRepository(core_db)
 
@@ -66,7 +64,6 @@ async def main():
             bot_token=config.telegram.bot_token,
             message_repo=msg_repo,
             profile_repo=profile_repo,
-            onboarding_repo=onboarding_repo,
             session_repo=session_repo,
             task_repo=task_repo,
             allow_from=config.telegram.allow_from or None,

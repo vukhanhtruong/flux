@@ -1,4 +1,2 @@
-- Bank savings
-- Onboarding tips
-- Schedule to retry error message
-- slash command
+- Bank savings auto income based on start date, duration and interest.
+- Subscription auto create transaction monthly

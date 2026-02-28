@@ -7,13 +7,7 @@ from flux_core.models.user_profile import UserProfile
 def _make_channel(profile=None):
     profile_repo = AsyncMock()
     profile_repo.get_by_platform_id.return_value = profile
-    profile_repo.username_exists = AsyncMock(return_value=False)
     profile_repo.create = AsyncMock()
-
-    onboarding_repo = AsyncMock()
-    onboarding_repo.get.return_value = None
-    onboarding_repo.upsert = AsyncMock()
-    onboarding_repo.delete = AsyncMock()
 
     msg_repo = AsyncMock()
     msg_repo.insert = AsyncMock(return_value=1)
@@ -22,7 +16,6 @@ def _make_channel(profile=None):
         bot_token="123:ABC",
         message_repo=msg_repo,
         profile_repo=profile_repo,
-        onboarding_repo=onboarding_repo,
         session_repo=AsyncMock(),
         task_repo=AsyncMock(),
         allow_from=None,
@@ -30,7 +23,7 @@ def _make_channel(profile=None):
     )
     ch._app = MagicMock()
     ch._app.bot.send_message = AsyncMock()
-    return ch, msg_repo, profile_repo, onboarding_repo
+    return ch, msg_repo, profile_repo
 
 
 def _make_update(user_id=12345, text="hello"):
@@ -52,7 +45,7 @@ async def test_known_user_stores_message():
         currency="VND", timezone="Asia/Ho_Chi_Minh",
         locale="vi-VN",
     )
-    ch, msg_repo, _, _ = _make_channel(profile=profile)
+    ch, msg_repo, _ = _make_channel(profile=profile)
     update = _make_update(user_id=12345, text="spent 20k lunch")
 
     await ch._handle_message(update, MagicMock())
@@ -67,20 +60,21 @@ async def test_known_user_stores_message():
 
 
 async def test_new_user_starts_onboarding():
-    """New user (no profile) triggers onboarding, no message stored."""
-    ch, msg_repo, _, onboarding_repo = _make_channel(profile=None)
+    """New user (no profile) receives guide message, no message stored."""
+    ch, msg_repo, _ = _make_channel(profile=None)
     update = _make_update(user_id=99999, text="hello")
 
     await ch._handle_message(update, MagicMock())
 
     msg_repo.insert.assert_not_called()
-    onboarding_repo.upsert.assert_called_once()
     update.message.reply_text.assert_called_once()
+    text = update.message.reply_text.call_args[0][0]
+    assert "/onboard" in text
 
 
 async def test_send_message_uses_platform_id():
     """send_message routes via numeric platform_id as chat_id."""
-    ch, _, _, _ = _make_channel()
+    ch, _, _ = _make_channel()
     await ch.send_message(platform_id="12345", text="Hello!")
     ch._app.bot.send_message.assert_called_once_with(chat_id=12345, text="Hello!")
 
@@ -88,14 +82,12 @@ async def test_send_message_uses_platform_id():
 async def test_allowlist_blocks_unauthorized():
     """Messages from users not in allowlist are rejected."""
     profile_repo = AsyncMock()
-    onboarding_repo = AsyncMock()
     msg_repo = AsyncMock()
 
     ch = TelegramChannel(
         bot_token="123:ABC",
         message_repo=msg_repo,
         profile_repo=profile_repo,
-        onboarding_repo=onboarding_repo,
         session_repo=AsyncMock(),
         task_repo=AsyncMock(),
         allow_from=["99999"],
@@ -117,7 +109,7 @@ async def test_handle_photo_message_stores_image_path():
         currency="VND", timezone="Asia/Ho_Chi_Minh",
         locale="vi-VN",
     )
-    ch, msg_repo, _, _ = _make_channel(profile=profile)
+    ch, msg_repo, _ = _make_channel(profile=profile)
 
     mock_file = AsyncMock()
     mock_file.download_to_drive = AsyncMock()
@@ -141,7 +133,7 @@ async def test_handle_photo_message_stores_image_path():
 
 async def test_send_typing_action_calls_send_chat_action():
     """send_typing_action calls Telegram sendChatAction with action=typing."""
-    ch, _, _, _ = _make_channel()
+    ch, _, _ = _make_channel()
     ch._app.bot.send_chat_action = AsyncMock()
 
     await ch.send_typing_action(platform_id="12345")
@@ -151,14 +143,14 @@ async def test_send_typing_action_calls_send_chat_action():
 
 async def test_send_outbound_no_sender():
     """send_outbound delivers plain text when sender is None (no parse_mode kwarg)."""
-    ch, _, _, _ = _make_channel()
+    ch, _, _ = _make_channel()
     await ch.send_outbound("12345", "Hello from agent!", None)
     ch._app.bot.send_message.assert_called_once_with(chat_id=12345, text="Hello from agent!")
 
 
 async def test_send_outbound_with_sender():
     """send_outbound prepends sender name in Markdown bold when provided."""
-    ch, _, _, _ = _make_channel()
+    ch, _, _ = _make_channel()
     await ch.send_outbound("12345", "Update!", "Researcher")
     ch._app.bot.send_message.assert_called_once_with(
         chat_id=12345, text="*Researcher*: Update!", parse_mode="Markdown"
@@ -167,7 +159,7 @@ async def test_send_outbound_with_sender():
 
 async def test_send_outbound_raises_if_not_started():
     """send_outbound raises RuntimeError when bot is not initialized."""
-    ch, _, _, _ = _make_channel()
+    ch, _, _ = _make_channel()
     ch._app = None
     import pytest
     with pytest.raises(RuntimeError, match="not initialized"):
@@ -176,10 +168,9 @@ async def test_send_outbound_raises_if_not_started():
 
 async def test_send_message_retries_on_timeout():
     """send_message retries on TimedOut and eventually succeeds."""
-    import pytest
     from telegram.error import TimedOut
 
-    ch, _, _, _ = _make_channel()
+    ch, _, _ = _make_channel()
     call_count = 0
 
     async def flaky_send(**kwargs):
@@ -198,9 +189,8 @@ async def test_send_message_raises_after_max_retries():
     """send_message propagates TimedOut after _MAX_SEND_RETRIES exhausted."""
     import pytest
     from telegram.error import TimedOut
-    from flux_bot.channels.telegram import _MAX_SEND_RETRIES
 
-    ch, _, _, _ = _make_channel()
+    ch, _, _ = _make_channel()
 
     async def always_fail(**kwargs):
         raise TimedOut()
@@ -223,7 +213,6 @@ async def test_telegram_channel_accepts_session_and_task_repos():
         bot_token="123:ABC",
         message_repo=AsyncMock(),
         profile_repo=AsyncMock(),
-        onboarding_repo=AsyncMock(),
         session_repo=session_repo,
         task_repo=task_repo,
         allow_from=None,

@@ -17,6 +17,7 @@ from telegram.ext import (
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
 from flux_bot.db.sessions import SessionRepository
 from flux_core.db.user_profile_repo import UserProfileRepository
+from flux_core.models.user_profile import UserProfileCreate
 
 logger = logging.getLogger(__name__)
 
@@ -262,42 +263,56 @@ class CommandHandlers:
     # ------------------------------------------------------------------
 
     async def cmd_onboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        platform_id = str(update.effective_user.id)
         profile = await self._get_profile(update)
-        if profile is None:
-            await update.message.reply_text(
-                "Please send a message first to complete your initial setup."
-            )
-            return ConversationHandler.END
+        is_new_user = profile is None
+        context.user_data["ob_is_new_user"] = is_new_user
+        context.user_data["ob_platform_id"] = platform_id
         await self._send_ob_currency_prompt(update, profile)
         return _OB_CURRENCY
 
     async def _send_ob_currency_prompt(self, source, profile) -> None:
-        keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
-        await source.message.reply_text(
-            "🚀 Let's walk through your preferences. (1/3)\n\n"
-            "💱 Currency\n"
-            f"Current: {profile.currency}\n\n"
-            "Type a new currency code (e.g. USD, VND, EUR), or tap Skip.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
+        if profile is None:
+            await source.message.reply_text(
+                "Let's set up your profile. (1/3)\n\nCurrency — type a code (e.g. USD, VND, EUR):"
+            )
+        else:
+            keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
+            await source.message.reply_text(
+                "🚀 Let's walk through your preferences. (1/3)\n\n"
+                "💱 Currency\n"
+                f"Current: {profile.currency}\n\n"
+                "Type a new currency code (e.g. USD, VND, EUR), or tap Skip.",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
 
     async def _send_ob_timezone_prompt(self, source, profile) -> None:
-        keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
-        await source.message.reply_text(
-            "🕐 Timezone (2/3)\n\n"
-            f"Current: {profile.timezone}\n\n"
-            "Type your timezone (e.g. UTC, America/New_York, Asia/Ho_Chi_Minh), or tap Skip.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
+        if profile is None:
+            await source.message.reply_text(
+                "Timezone (2/3)\n\nType your timezone (e.g. UTC, America/New_York, Asia/Ho_Chi_Minh):"
+            )
+        else:
+            keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
+            await source.message.reply_text(
+                "🕐 Timezone (2/3)\n\n"
+                f"Current: {profile.timezone}\n\n"
+                "Type your timezone (e.g. UTC, America/New_York, Asia/Ho_Chi_Minh), or tap Skip.",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
 
     async def _send_ob_username_prompt(self, source, profile) -> None:
-        keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
-        await source.message.reply_text(
-            "👤 Username (3/3)\n\n"
-            f"Current: {profile.username}\n\n"
-            "Type a new display name, or tap Skip.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
+        if profile is None:
+            await source.message.reply_text(
+                "Username (3/3)\n\nType a display name:"
+            )
+        else:
+            keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
+            await source.message.reply_text(
+                "👤 Username (3/3)\n\n"
+                f"Current: {profile.username}\n\n"
+                "Type a new display name, or tap Skip.",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
 
     async def _ob_skip_currency(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await update.callback_query.answer()
@@ -327,10 +342,14 @@ class CommandHandlers:
             profile = await self._get_profile(update)
             await self._send_ob_currency_prompt(update, profile)
             return _OB_CURRENCY
-        profile = await self._get_profile(update)
-        await self._profile_repo.update(profile.user_id, currency=code)
-        profile = await self._profile_repo.get_by_user_id(profile.user_id)
-        await self._send_ob_timezone_prompt(update, profile)
+        if context.user_data.get("ob_is_new_user"):
+            context.user_data["ob_currency"] = code
+            await self._send_ob_timezone_prompt(update, None)
+        else:
+            profile = await self._get_profile(update)
+            await self._profile_repo.update(profile.user_id, currency=code)
+            profile = await self._profile_repo.get_by_user_id(profile.user_id)
+            await self._send_ob_timezone_prompt(update, profile)
         return _OB_TIMEZONE
 
     async def _ob_handle_timezone(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -343,19 +362,38 @@ class CommandHandlers:
             profile = await self._get_profile(update)
             await self._send_ob_timezone_prompt(update, profile)
             return _OB_TIMEZONE
-        profile = await self._get_profile(update)
-        await self._profile_repo.update(profile.user_id, timezone=tz)
-        profile = await self._profile_repo.get_by_user_id(profile.user_id)
-        await self._send_ob_username_prompt(update, profile)
+        if context.user_data.get("ob_is_new_user"):
+            context.user_data["ob_timezone"] = tz
+            await self._send_ob_username_prompt(update, None)
+        else:
+            profile = await self._get_profile(update)
+            await self._profile_repo.update(profile.user_id, timezone=tz)
+            profile = await self._profile_repo.get_by_user_id(profile.user_id)
+            await self._send_ob_username_prompt(update, profile)
         return _OB_USERNAME
 
     async def _ob_handle_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         text = update.message.text.strip()
-        profile = await self._get_profile(update)
-        await self._profile_repo.update(profile.user_id, username=text)
-        await update.message.reply_text(
-            "✅ Preferences saved!\n\n" + HELP_TEXT, parse_mode="Markdown"
-        )
+        if context.user_data.get("ob_is_new_user"):
+            platform_id = context.user_data["ob_platform_id"]
+            create = UserProfileCreate(
+                username=text,
+                channel="telegram",
+                platform_id=platform_id,
+                currency=context.user_data.get("ob_currency", "VND"),
+                timezone=context.user_data.get("ob_timezone", "Asia/Ho_Chi_Minh"),
+            )
+            await self._profile_repo.create(create)
+            await update.message.reply_text(
+                f"All set, {text}! You're ready to track your finances.\n\n" + HELP_TEXT,
+                parse_mode="Markdown",
+            )
+        else:
+            profile = await self._get_profile(update)
+            await self._profile_repo.update(profile.user_id, username=text)
+            await update.message.reply_text(
+                "✅ Preferences saved!\n\n" + HELP_TEXT, parse_mode="Markdown"
+            )
         return ConversationHandler.END
 
     def onboard_conversation(self) -> ConversationHandler:
