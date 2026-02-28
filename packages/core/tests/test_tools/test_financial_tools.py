@@ -340,3 +340,112 @@ async def test_list_assets():
     assert len(result) == 1
     assert result[0]["name"] == "Salary"
     mock_repo.list_by_user.assert_called_once_with("test_user", True)
+
+
+from datetime import date, datetime, timezone
+from unittest.mock import MagicMock
+
+from flux_core.models.transaction import TransactionOut, TransactionType
+from flux_core.tools.financial_tools import process_subscription_billing
+
+
+@pytest.mark.asyncio
+async def test_process_subscription_billing_creates_transaction_and_advances():
+    sub_id = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    txn_id = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    user_id = "tg:123"
+
+    mock_sub_repo = AsyncMock()
+    mock_sub_repo.get.return_value = SubscriptionOut(
+        id=sub_id,
+        user_id=user_id,
+        name="Google One",
+        amount=Decimal("30000"),
+        billing_cycle=BillingCycle.monthly,
+        next_date=date(2026, 3, 1),
+        category="utilities",
+        active=True,
+    )
+    mock_sub_repo.advance_next_date.return_value = SubscriptionOut(
+        id=sub_id,
+        user_id=user_id,
+        name="Google One",
+        amount=Decimal("30000"),
+        billing_cycle=BillingCycle.monthly,
+        next_date=date(2026, 4, 1),
+        category="utilities",
+        active=True,
+    )
+
+    mock_txn_repo = AsyncMock()
+    mock_txn_repo.create.return_value = TransactionOut(
+        id=txn_id,
+        user_id=user_id,
+        date=date(2026, 3, 1),
+        amount=Decimal("30000"),
+        category="utilities",
+        description="Google One subscription",
+        type=TransactionType.expense,
+        is_recurring=True,
+        tags=[],
+        created_at=datetime(2026, 3, 1, tzinfo=timezone.utc),
+    )
+
+    mock_embedding = MagicMock()
+    mock_embedding.embed.return_value = [0.1] * 384
+
+    result = await process_subscription_billing(
+        subscription_id=str(sub_id),
+        user_id=user_id,
+        sub_repo=mock_sub_repo,
+        txn_repo=mock_txn_repo,
+        embedding_service=mock_embedding,
+    )
+
+    assert result["transaction"]["amount"] == "30000"
+    assert result["transaction"]["type"] == "expense"
+    assert result["transaction"]["is_recurring"] is True
+    assert result["transaction"]["description"] == "Google One subscription"
+    assert result["subscription"]["next_date"] == "2026-04-01"
+    mock_txn_repo.create.assert_called_once()
+    mock_sub_repo.advance_next_date.assert_called_once_with(sub_id, user_id)
+
+
+@pytest.mark.asyncio
+async def test_process_subscription_billing_rejects_inactive():
+    sub_id = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    mock_sub_repo = AsyncMock()
+    mock_sub_repo.get.return_value = SubscriptionOut(
+        id=sub_id,
+        user_id="tg:123",
+        name="Google One",
+        amount=Decimal("30000"),
+        billing_cycle=BillingCycle.monthly,
+        next_date=date(2026, 3, 1),
+        category="utilities",
+        active=False,
+    )
+
+    with pytest.raises(ValueError, match="not active"):
+        await process_subscription_billing(
+            subscription_id=str(sub_id),
+            user_id="tg:123",
+            sub_repo=mock_sub_repo,
+            txn_repo=AsyncMock(),
+            embedding_service=MagicMock(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_process_subscription_billing_not_found():
+    mock_sub_repo = AsyncMock()
+    mock_sub_repo.get.return_value = None
+
+    with pytest.raises(ValueError, match="not found"):
+        await process_subscription_billing(
+            subscription_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            user_id="tg:123",
+            sub_repo=mock_sub_repo,
+            txn_repo=AsyncMock(),
+            embedding_service=MagicMock(),
+        )

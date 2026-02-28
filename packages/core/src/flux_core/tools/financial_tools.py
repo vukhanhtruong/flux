@@ -1,3 +1,4 @@
+from datetime import date as _date
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
@@ -6,10 +7,13 @@ from flux_core.db.budget_repo import BudgetRepository
 from flux_core.db.goal_repo import GoalRepository
 from flux_core.db.subscription_repo import SubscriptionRepository
 from flux_core.db.asset_repo import AssetRepository
+from flux_core.db.transaction_repo import TransactionRepository
+from flux_core.embeddings.service import EmbeddingProvider
 from flux_core.models.budget import BudgetSet
 from flux_core.models.goal import GoalCreate, GoalUpdate
 from flux_core.models.subscription import SubscriptionCreate, BillingCycle
 from flux_core.models.asset import AssetCreate, AssetFrequency
+from flux_core.models.transaction import TransactionCreate, TransactionType
 
 
 # Budget tools
@@ -270,6 +274,59 @@ async def delete_subscription(
     """Delete a subscription."""
     success = await repo.delete(UUID(subscription_id), user_id)
     return {"success": success}
+
+
+async def process_subscription_billing(
+    subscription_id: str,
+    user_id: str,
+    sub_repo: SubscriptionRepository,
+    txn_repo: TransactionRepository,
+    embedding_service: EmbeddingProvider,
+) -> dict:
+    """Create the expense transaction for a due subscription and advance next_date.
+
+    Called by the scheduler on each billing date. Raises ValueError if the
+    subscription is not found or is inactive.
+    """
+    sub = await sub_repo.get(UUID(subscription_id), user_id)
+    if sub is None:
+        raise ValueError(f"Subscription {subscription_id} not found")
+    if not sub.active:
+        raise ValueError(f"Subscription {subscription_id} is not active")
+
+    transaction = TransactionCreate(
+        user_id=user_id,
+        date=_date.today(),
+        amount=sub.amount,
+        category=sub.category,
+        description=f"{sub.name} subscription",
+        type=TransactionType.expense,
+        is_recurring=True,
+        tags=[],
+    )
+    embedding = embedding_service.embed(f"{sub.category} {sub.name} subscription")
+    txn_result = await txn_repo.create(transaction, embedding)
+
+    updated_sub = await sub_repo.advance_next_date(UUID(subscription_id), user_id)
+
+    return {
+        "transaction": {
+            "id": str(txn_result.id),
+            "user_id": txn_result.user_id,
+            "date": str(txn_result.date),
+            "amount": str(txn_result.amount),
+            "category": txn_result.category,
+            "description": txn_result.description,
+            "type": txn_result.type.value,
+            "is_recurring": txn_result.is_recurring,
+        },
+        "subscription": {
+            "id": str(updated_sub.id),
+            "name": updated_sub.name,
+            "next_date": str(updated_sub.next_date),
+            "billing_cycle": updated_sub.billing_cycle.value,
+        },
+    }
 
 
 # Asset tools
