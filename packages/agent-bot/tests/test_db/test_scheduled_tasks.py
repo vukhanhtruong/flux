@@ -144,7 +144,7 @@ async def test_list_by_user_excludes_completed(pg_url):
 
 
 async def test_subscription_id_column_exists(pg_url):
-    """Migration 002 adds nullable subscription_id column."""
+    """Migration 005 adds nullable subscription_id column."""
     pool, repo = await _setup(pg_url)
     try:
         async with pool.acquire() as conn:
@@ -153,7 +153,7 @@ async def test_subscription_id_column_exists(pg_url):
                 """
                 INSERT INTO bot_scheduled_tasks
                     (user_id, prompt, schedule_type, schedule_value, next_run_at, subscription_id)
-                VALUES ('tg:99', 'test', 'once', '0 0 1 * *', NOW(), NULL)
+                VALUES ('tg:99', 'test', 'cron', '0 0 1 * *', NOW(), NULL)
                 RETURNING id
                 """
             )
