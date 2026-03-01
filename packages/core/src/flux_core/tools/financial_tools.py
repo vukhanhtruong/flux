@@ -10,9 +10,9 @@ from flux_core.db.asset_repo import AssetRepository
 from flux_core.db.transaction_repo import TransactionRepository
 from flux_core.embeddings.service import EmbeddingProvider
 from flux_core.models.budget import BudgetSet
-from flux_core.models.goal import GoalCreate, GoalUpdate
+from flux_core.models.goal import GoalCreate
 from flux_core.models.subscription import SubscriptionCreate, BillingCycle
-from flux_core.models.asset import AssetCreate, AssetFrequency
+from flux_core.models.asset import AssetCreate, AssetFrequency, AssetOut, AssetType
 from flux_core.models.transaction import TransactionCreate, TransactionType
 
 
@@ -418,3 +418,148 @@ async def delete_asset(
     """Delete an asset."""
     success = await repo.delete(UUID(asset_id), user_id)
     return {"success": success}
+
+
+# Savings tools
+
+COMPOUND_PERIODS = {"monthly": 12, "quarterly": 4, "yearly": 1}
+
+_NEXT_DATE_OFFSETS = {"monthly": (0, 1), "quarterly": (0, 3), "yearly": (1, 0)}
+
+
+def _savings_to_dict(asset: AssetOut) -> dict:
+    """Convert an AssetOut (savings type) to a response dict."""
+    return {
+        "id": str(asset.id),
+        "user_id": asset.user_id,
+        "name": asset.name,
+        "amount": str(asset.amount),
+        "interest_rate": str(asset.interest_rate),
+        "frequency": asset.frequency.value,
+        "next_date": str(asset.next_date),
+        "category": asset.category,
+        "active": asset.active,
+        "asset_type": asset.asset_type.value,
+        "principal_amount": str(asset.principal_amount) if asset.principal_amount else None,
+        "compound_frequency": asset.compound_frequency,
+        "maturity_date": str(asset.maturity_date) if asset.maturity_date else None,
+        "start_date": str(asset.start_date) if asset.start_date else None,
+    }
+
+
+def _compute_next_date(start: _date, compound_frequency: str) -> _date:
+    """Compute first interest application date (one period after start)."""
+    years, months = _NEXT_DATE_OFFSETS[compound_frequency]
+    new_month = start.month + months
+    new_year = start.year + years + (new_month - 1) // 12
+    new_month = (new_month - 1) % 12 + 1
+    return start.replace(year=new_year, month=new_month)
+
+
+async def create_savings_deposit(
+    user_id: str,
+    name: str,
+    amount: float,
+    interest_rate: float,
+    compound_frequency: str,
+    start_date: str,
+    maturity_date: str,
+    category: str,
+    repo: AssetRepository,
+) -> dict:
+    """Create a new savings deposit with compound interest."""
+    start = _date.fromisoformat(start_date)
+    next_date = _compute_next_date(start, compound_frequency)
+
+    asset = AssetCreate(
+        user_id=user_id,
+        name=name,
+        amount=Decimal(str(amount)),
+        interest_rate=Decimal(str(interest_rate)),
+        frequency=AssetFrequency(compound_frequency),
+        next_date=next_date,
+        category=category,
+        asset_type=AssetType.savings,
+        principal_amount=Decimal(str(amount)),
+        compound_frequency=compound_frequency,
+        maturity_date=_date.fromisoformat(maturity_date),
+        start_date=start,
+    )
+    result = await repo.create(asset)
+    return _savings_to_dict(result)
+
+
+async def process_savings_interest(
+    asset_id: str,
+    user_id: str,
+    repo: AssetRepository,
+) -> dict:
+    """Calculate and apply compound interest for a savings deposit."""
+    aid = UUID(asset_id)
+    asset = await repo.get(aid, user_id)
+    if asset is None:
+        raise ValueError(f"Savings deposit {asset_id} not found")
+    if not asset.active:
+        raise ValueError(f"Savings deposit {asset_id} is not active")
+
+    freq = asset.compound_frequency or asset.frequency.value
+    periods = COMPOUND_PERIODS[freq]
+    interest = (asset.amount * (asset.interest_rate / 100 / periods)).quantize(
+        Decimal("0.01")
+    )
+    new_balance = asset.amount + interest
+
+    await repo.update_amount(aid, user_id, new_balance)
+    advanced = await repo.advance_next_date(aid, user_id)
+
+    matured = False
+    maturity_message = None
+    if asset.maturity_date and advanced and advanced.next_date >= asset.maturity_date:
+        matured = True
+        maturity_message = (
+            f"Savings deposit '{asset.name}' has matured. "
+            f"Final balance: {new_balance}"
+        )
+        await repo.deactivate(aid, user_id)
+
+    result: dict = {
+        "interest_applied": str(interest),
+        "new_balance": str(new_balance),
+        "matured": matured,
+    }
+    if maturity_message:
+        result["maturity_message"] = maturity_message
+    return result
+
+
+async def list_savings(
+    user_id: str,
+    repo: AssetRepository,
+    active_only: bool = True,
+) -> list[dict]:
+    """List savings deposits for a user, including interest earned."""
+    assets = await repo.list_by_user(user_id, active_only, asset_type="savings")
+    results = []
+    for a in assets:
+        d = _savings_to_dict(a)
+        earned = a.amount - (a.principal_amount or a.amount)
+        d["interest_earned"] = str(earned)
+        results.append(d)
+    return results
+
+
+async def close_savings_early(
+    asset_id: str,
+    user_id: str,
+    repo: AssetRepository,
+) -> dict:
+    """Close a savings deposit before maturity."""
+    aid = UUID(asset_id)
+    asset = await repo.get(aid, user_id)
+    if asset is None:
+        raise ValueError(f"Savings deposit {asset_id} not found")
+    if not asset.active:
+        raise ValueError(f"Savings deposit {asset_id} is not active")
+
+    result = await repo.deactivate(aid, user_id)
+    return _savings_to_dict(result)

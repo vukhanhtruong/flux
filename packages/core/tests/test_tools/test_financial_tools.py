@@ -27,11 +27,16 @@ from flux_core.tools.financial_tools import (
     list_assets,
     advance_asset,
     delete_asset,
+    # Savings tools
+    create_savings_deposit,
+    process_savings_interest,
+    list_savings,
+    close_savings_early,
 )
 from flux_core.models.budget import BudgetOut
 from flux_core.models.goal import GoalOut
 from flux_core.models.subscription import SubscriptionOut, BillingCycle
-from flux_core.models.asset import AssetOut, AssetFrequency
+from flux_core.models.asset import AssetCreate, AssetOut, AssetFrequency, AssetType
 from flux_core.models.transaction import TransactionOut, TransactionType
 
 
@@ -444,3 +449,319 @@ async def test_process_subscription_billing_not_found():
             txn_repo=AsyncMock(),
             embedding_service=MagicMock(),
         )
+
+
+# Savings tools tests
+async def test_create_savings_deposit():
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    mock_repo.create.return_value = AssetOut(
+        id=test_uuid,
+        user_id="tg:123",
+        name="Bank Deposit",
+        amount=Decimal("100000000"),
+        interest_rate=Decimal("5"),
+        frequency=AssetFrequency.yearly,
+        next_date=date(2027, 1, 1),
+        category="savings",
+        active=True,
+        asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"),
+        compound_frequency="yearly",
+        maturity_date=date(2028, 1, 1),
+        start_date=date(2026, 1, 1),
+    )
+
+    result = await create_savings_deposit(
+        user_id="tg:123",
+        name="Bank Deposit",
+        amount=100000000,
+        interest_rate=5.0,
+        compound_frequency="yearly",
+        start_date="2026-01-01",
+        maturity_date="2028-01-01",
+        category="savings",
+        repo=mock_repo,
+    )
+
+    assert result["asset_type"] == "savings"
+    assert result["principal_amount"] == "100000000"
+    assert result["compound_frequency"] == "yearly"
+    mock_repo.create.assert_called_once()
+    created = mock_repo.create.call_args[0][0]
+    assert isinstance(created, AssetCreate)
+    assert created.asset_type == AssetType.savings
+    assert created.principal_amount == Decimal("100000000")
+    assert created.frequency == AssetFrequency.yearly
+    assert created.next_date == date(2027, 1, 1)
+
+
+async def test_create_savings_deposit_monthly():
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    mock_repo.create.return_value = AssetOut(
+        id=test_uuid,
+        user_id="tg:123",
+        name="Monthly Deposit",
+        amount=Decimal("100000000"),
+        interest_rate=Decimal("5"),
+        frequency=AssetFrequency.monthly,
+        next_date=date(2026, 2, 1),
+        category="savings",
+        active=True,
+        asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"),
+        compound_frequency="monthly",
+        maturity_date=date(2027, 1, 1),
+        start_date=date(2026, 1, 1),
+    )
+
+    await create_savings_deposit(
+        user_id="tg:123",
+        name="Monthly Deposit",
+        amount=100000000,
+        interest_rate=5.0,
+        compound_frequency="monthly",
+        start_date="2026-01-01",
+        maturity_date="2027-01-01",
+        category="savings",
+        repo=mock_repo,
+    )
+
+    created = mock_repo.create.call_args[0][0]
+    assert created.next_date == date(2026, 2, 1)
+    assert created.frequency == AssetFrequency.monthly
+
+
+async def test_process_savings_interest_annual():
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    asset = AssetOut(
+        id=test_uuid,
+        user_id="tg:123",
+        name="Bank Deposit",
+        amount=Decimal("100000000"),
+        interest_rate=Decimal("5"),
+        frequency=AssetFrequency.yearly,
+        next_date=date(2027, 1, 1),
+        category="savings",
+        active=True,
+        asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"),
+        compound_frequency="yearly",
+        maturity_date=date(2028, 1, 1),
+        start_date=date(2026, 1, 1),
+    )
+    mock_repo.get.return_value = asset
+    mock_repo.update_amount.return_value = AssetOut(
+        **{**asset.model_dump(), "amount": Decimal("105000000")}
+    )
+    mock_repo.advance_next_date.return_value = AssetOut(
+        **{**asset.model_dump(), "amount": Decimal("105000000"),
+           "next_date": date(2027, 7, 1)}
+    )
+
+    result = await process_savings_interest(
+        asset_id=str(test_uuid),
+        user_id="tg:123",
+        repo=mock_repo,
+    )
+
+    assert result["interest_applied"] == "5000000.00"
+    assert result["new_balance"] == "105000000.00"
+    assert result["matured"] is False
+    mock_repo.update_amount.assert_called_once()
+    mock_repo.advance_next_date.assert_called_once()
+
+
+async def test_process_savings_interest_monthly():
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    asset = AssetOut(
+        id=test_uuid,
+        user_id="tg:123",
+        name="Bank Deposit",
+        amount=Decimal("100000000"),
+        interest_rate=Decimal("5"),
+        frequency=AssetFrequency.monthly,
+        next_date=date(2026, 2, 1),
+        category="savings",
+        active=True,
+        asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"),
+        compound_frequency="monthly",
+        maturity_date=date(2027, 1, 1),
+        start_date=date(2026, 1, 1),
+    )
+    mock_repo.get.return_value = asset
+    # 100M * (5/100/12) = 416666.67
+    new_amount = Decimal("100000000") + Decimal("416666.67")
+    mock_repo.update_amount.return_value = AssetOut(
+        **{**asset.model_dump(), "amount": new_amount}
+    )
+    mock_repo.advance_next_date.return_value = AssetOut(
+        **{**asset.model_dump(), "amount": new_amount,
+           "next_date": date(2026, 3, 1)}
+    )
+
+    result = await process_savings_interest(
+        asset_id=str(test_uuid),
+        user_id="tg:123",
+        repo=mock_repo,
+    )
+
+    assert result["interest_applied"] == "416666.67"
+    assert result["matured"] is False
+
+
+async def test_process_savings_interest_maturity():
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    asset = AssetOut(
+        id=test_uuid,
+        user_id="tg:123",
+        name="Bank Deposit",
+        amount=Decimal("100000000"),
+        interest_rate=Decimal("5"),
+        frequency=AssetFrequency.yearly,
+        next_date=date(2027, 12, 1),
+        category="savings",
+        active=True,
+        asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"),
+        compound_frequency="yearly",
+        maturity_date=date(2028, 1, 1),
+        start_date=date(2026, 1, 1),
+    )
+    mock_repo.get.return_value = asset
+    new_amount = Decimal("105000000")
+    mock_repo.update_amount.return_value = AssetOut(
+        **{**asset.model_dump(), "amount": new_amount}
+    )
+    # After advance, next_date >= maturity_date
+    mock_repo.advance_next_date.return_value = AssetOut(
+        **{**asset.model_dump(), "amount": new_amount,
+           "next_date": date(2028, 12, 1)}
+    )
+    mock_repo.deactivate.return_value = AssetOut(
+        **{**asset.model_dump(), "amount": new_amount,
+           "next_date": date(2028, 12, 1), "active": False}
+    )
+
+    result = await process_savings_interest(
+        asset_id=str(test_uuid),
+        user_id="tg:123",
+        repo=mock_repo,
+    )
+
+    assert result["matured"] is True
+    assert "maturity_message" in result
+    mock_repo.deactivate.assert_called_once()
+
+
+async def test_process_savings_interest_inactive_raises():
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    mock_repo.get.return_value = AssetOut(
+        id=test_uuid,
+        user_id="tg:123",
+        name="Bank Deposit",
+        amount=Decimal("100000000"),
+        interest_rate=Decimal("5"),
+        frequency=AssetFrequency.yearly,
+        next_date=date(2027, 1, 1),
+        category="savings",
+        active=False,
+        asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"),
+        compound_frequency="yearly",
+        maturity_date=date(2028, 1, 1),
+        start_date=date(2026, 1, 1),
+    )
+
+    with pytest.raises(ValueError, match="not active"):
+        await process_savings_interest(
+            asset_id=str(test_uuid),
+            user_id="tg:123",
+            repo=mock_repo,
+        )
+
+
+async def test_process_savings_interest_not_found_raises():
+    mock_repo = AsyncMock()
+    mock_repo.get.return_value = None
+
+    with pytest.raises(ValueError, match="not found"):
+        await process_savings_interest(
+            asset_id="12345678-1234-5678-1234-567812345678",
+            user_id="tg:123",
+            repo=mock_repo,
+        )
+
+
+async def test_list_savings():
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    mock_repo.list_by_user.return_value = [
+        AssetOut(
+            id=test_uuid,
+            user_id="tg:123",
+            name="Bank Deposit",
+            amount=Decimal("105000000"),
+            interest_rate=Decimal("5"),
+            frequency=AssetFrequency.yearly,
+            next_date=date(2027, 1, 1),
+            category="savings",
+            active=True,
+            asset_type=AssetType.savings,
+            principal_amount=Decimal("100000000"),
+            compound_frequency="yearly",
+            maturity_date=date(2028, 1, 1),
+            start_date=date(2026, 1, 1),
+        )
+    ]
+
+    result = await list_savings(
+        user_id="tg:123",
+        repo=mock_repo,
+    )
+
+    assert len(result) == 1
+    assert result[0]["interest_earned"] == "5000000"
+    mock_repo.list_by_user.assert_called_once_with(
+        "tg:123", True, asset_type="savings"
+    )
+
+
+async def test_close_savings_early():
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    asset = AssetOut(
+        id=test_uuid,
+        user_id="tg:123",
+        name="Bank Deposit",
+        amount=Decimal("105000000"),
+        interest_rate=Decimal("5"),
+        frequency=AssetFrequency.yearly,
+        next_date=date(2027, 1, 1),
+        category="savings",
+        active=True,
+        asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"),
+        compound_frequency="yearly",
+        maturity_date=date(2028, 1, 1),
+        start_date=date(2026, 1, 1),
+    )
+    mock_repo.get.return_value = asset
+    mock_repo.deactivate.return_value = AssetOut(
+        **{**asset.model_dump(), "active": False}
+    )
+
+    result = await close_savings_early(
+        asset_id=str(test_uuid),
+        user_id="tg:123",
+        repo=mock_repo,
+    )
+
+    assert result["active"] is False
+    mock_repo.deactivate.assert_called_once()
