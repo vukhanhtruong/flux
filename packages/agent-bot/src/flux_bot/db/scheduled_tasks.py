@@ -1,6 +1,6 @@
 """Repository for bot_scheduled_tasks table."""
 
-from datetime import datetime
+from datetime import UTC, date, datetime
 import asyncpg
 
 
@@ -14,6 +14,7 @@ class ScheduledTaskRepository:
             rows = await conn.fetch(
                 """
                 SELECT t.id, t.user_id, t.prompt, t.schedule_type, t.schedule_value,
+                       t.subscription_id,
                        COALESCE(u.timezone, 'UTC') AS user_timezone
                 FROM bot_scheduled_tasks t
                 LEFT JOIN users u ON u.id = t.user_id
@@ -22,6 +23,25 @@ class ScheduledTaskRepository:
                 """
             )
             return [dict(r) for r in rows]
+
+    async def get_subscription_next_run(self, task_id: int) -> datetime | None:
+        """Return UTC midnight derived from the paired subscription.next_date."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT s.next_date
+                FROM bot_scheduled_tasks t
+                JOIN subscriptions s
+                  ON s.id = t.subscription_id
+                 AND s.user_id = t.user_id
+                WHERE t.id = $1
+                """,
+                task_id,
+            )
+            if row is None:
+                return None
+            next_date: date = row["next_date"]
+            return datetime(next_date.year, next_date.month, next_date.day, tzinfo=UTC)
 
     async def mark_completed(self, task_id: int) -> None:
         """Mark a once task as completed after firing."""

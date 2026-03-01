@@ -15,6 +15,12 @@ _CRON_TASK = {
     "prompt": "Daily summary",
     "schedule_type": "cron", "schedule_value": "0 9 * * *",
 }
+_SUB_CRON_TASK = {
+    "id": 5, "user_id": "tg:12345",
+    "prompt": "Process subscription billing for Netflix (id: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa)",
+    "schedule_type": "cron", "schedule_value": "0 0 1 * *",
+    "subscription_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+}
 _INTERVAL_TASK = {
     "id": 3, "user_id": "tg:12345",
     "prompt": "Poll status",
@@ -62,6 +68,20 @@ async def test_cron_task_injects_message_and_advances(worker, mock_task_repo, mo
     task_id, next_run = mock_task_repo.advance_next_run.call_args.args
     assert task_id == 2
     assert next_run > datetime.now(UTC)
+
+
+async def test_subscription_cron_uses_subscription_next_date(
+    worker, mock_task_repo, mock_msg_repo,
+):
+    expected = datetime(2026, 4, 1, 0, 0, tzinfo=UTC)
+    mock_task_repo.fetch_due_tasks.return_value = [_SUB_CRON_TASK]
+    mock_task_repo.get_subscription_next_run.return_value = expected
+    mock_msg_repo.insert.return_value = 15
+
+    await worker._fire_once()
+
+    mock_task_repo.get_subscription_next_run.assert_called_once_with(5)
+    mock_task_repo.advance_next_run.assert_called_once_with(5, expected)
 
 
 async def test_interval_task_injects_message_and_advances(worker, mock_task_repo, mock_msg_repo):
@@ -117,3 +137,18 @@ async def test_cron_task_uses_user_timezone(worker, mock_task_repo, mock_msg_rep
     # 8 PM Bangkok (UTC+7) = 1 PM UTC
     assert next_run_utc.hour == 13
     assert next_run_utc.minute == 0
+
+
+async def test_subscription_cron_falls_back_to_croniter_when_lookup_missing(
+    worker, mock_task_repo, mock_msg_repo,
+):
+    task = {**_SUB_CRON_TASK, "user_timezone": "Asia/Bangkok"}
+    mock_task_repo.fetch_due_tasks.return_value = [task]
+    mock_task_repo.get_subscription_next_run.return_value = None
+    mock_msg_repo.insert.return_value = 16
+
+    await worker._fire_once()
+
+    mock_task_repo.get_subscription_next_run.assert_called_once_with(5)
+    _, next_run = mock_task_repo.advance_next_run.call_args.args
+    assert next_run > datetime.now(UTC)

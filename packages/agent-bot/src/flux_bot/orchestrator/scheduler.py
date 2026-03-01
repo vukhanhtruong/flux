@@ -72,9 +72,14 @@ class SchedulerWorker:
         if task["schedule_type"] == "once":
             await self.task_repo.mark_completed(task["id"])
         else:
-            next_run = self._compute_next_run(
-                task["schedule_type"], task["schedule_value"], task.get("user_timezone", "UTC")
-            )
+            next_run = None
+            if task.get("subscription_id"):
+                # Keep subscription schedule in sync with subscriptions.next_date.
+                next_run = await self.task_repo.get_subscription_next_run(task["id"])
+            if next_run is None:
+                next_run = self._compute_next_run(
+                    task["schedule_type"], task["schedule_value"], task.get("user_timezone", "UTC")
+                )
             await self.task_repo.advance_next_run(task["id"], next_run)
         logger.info(f"Fired task {task['id']} ({task['schedule_type']}) for {task['user_id']}")
 
