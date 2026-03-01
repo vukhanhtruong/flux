@@ -43,6 +43,7 @@ from flux_mcp.tools.memory_tools import register_memory_tools
 from flux_mcp.tools.analytics_tools import register_analytics_tools
 from flux_mcp.tools.profile_tools import register_profile_tools
 from flux_mcp.tools.ipc_tools import register_ipc_tools
+from flux_mcp.tools.savings_tools import register_savings_tools
 
 register_transaction_tools(mcp, get_db, get_embedding_service, get_session_user_id)
 register_financial_tools(mcp, get_db, get_session_user_id, get_embedding_service)
@@ -50,6 +51,7 @@ register_memory_tools(mcp, get_db, get_embedding_service, get_session_user_id)
 register_analytics_tools(mcp, get_db, get_session_user_id)
 register_profile_tools(mcp, get_db, get_session_user_id)
 register_ipc_tools(mcp, get_db, get_session_user_id)
+register_savings_tools(mcp, get_db, get_session_user_id)
 
 
 if __name__ == "__main__":
