@@ -330,6 +330,24 @@ async def process_subscription_billing(
 
 
 # Asset tools
+
+
+def _asset_to_dict(a: AssetOut) -> dict:
+    """Convert an AssetOut to a base response dict (all asset types)."""
+    return {
+        "id": str(a.id),
+        "user_id": a.user_id,
+        "name": a.name,
+        "amount": str(a.amount),
+        "interest_rate": str(a.interest_rate),
+        "frequency": a.frequency.value,
+        "next_date": str(a.next_date),
+        "category": a.category,
+        "active": a.active,
+        "asset_type": a.asset_type.value,
+    }
+
+
 async def create_asset(
     user_id: str,
     name: str,
@@ -351,17 +369,7 @@ async def create_asset(
         category=category
     )
     result = await repo.create(asset)
-    return {
-        "id": str(result.id),
-        "user_id": result.user_id,
-        "name": result.name,
-        "amount": str(result.amount),
-        "interest_rate": str(result.interest_rate),
-        "frequency": result.frequency.value,
-        "next_date": str(result.next_date),
-        "category": result.category,
-        "active": result.active
-    }
+    return _asset_to_dict(result)
 
 
 async def list_assets(
@@ -371,20 +379,7 @@ async def list_assets(
 ) -> list[dict]:
     """List assets for a user."""
     assets = await repo.list_by_user(user_id, active_only)
-    return [
-        {
-            "id": str(a.id),
-            "user_id": a.user_id,
-            "name": a.name,
-            "amount": str(a.amount),
-            "interest_rate": str(a.interest_rate),
-            "frequency": a.frequency.value,
-            "next_date": str(a.next_date),
-            "category": a.category,
-            "active": a.active
-        }
-        for a in assets
-    ]
+    return [_asset_to_dict(a) for a in assets]
 
 
 async def advance_asset(
@@ -397,17 +392,7 @@ async def advance_asset(
     if not result:
         raise ValueError(f"Asset {asset_id} not found")
 
-    return {
-        "id": str(result.id),
-        "user_id": result.user_id,
-        "name": result.name,
-        "amount": str(result.amount),
-        "interest_rate": str(result.interest_rate),
-        "frequency": result.frequency.value,
-        "next_date": str(result.next_date),
-        "category": result.category,
-        "active": result.active
-    }
+    return _asset_to_dict(result)
 
 
 async def delete_asset(
@@ -428,23 +413,15 @@ _NEXT_DATE_OFFSETS = {"monthly": (0, 1), "quarterly": (0, 3), "yearly": (1, 0)}
 
 
 def _savings_to_dict(asset: AssetOut) -> dict:
-    """Convert an AssetOut (savings type) to a response dict."""
-    return {
-        "id": str(asset.id),
-        "user_id": asset.user_id,
-        "name": asset.name,
-        "amount": str(asset.amount),
-        "interest_rate": str(asset.interest_rate),
-        "frequency": asset.frequency.value,
-        "next_date": str(asset.next_date),
-        "category": asset.category,
-        "active": asset.active,
-        "asset_type": asset.asset_type.value,
+    """Convert an AssetOut (savings type) to a response dict with savings-specific fields."""
+    d = _asset_to_dict(asset)
+    d.update({
         "principal_amount": str(asset.principal_amount) if asset.principal_amount else None,
         "compound_frequency": asset.compound_frequency,
         "maturity_date": str(asset.maturity_date) if asset.maturity_date else None,
         "start_date": str(asset.start_date) if asset.start_date else None,
-    }
+    })
+    return d
 
 
 def _compute_next_date(start: _date, compound_frequency: str) -> _date:

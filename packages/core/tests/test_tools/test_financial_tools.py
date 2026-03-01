@@ -317,6 +317,7 @@ async def test_create_asset():
     assert result["id"] == str(test_uuid)
     assert result["name"] == "Salary"
     assert result["amount"] == "5000.00"
+    assert result["asset_type"] == "income"
     mock_repo.create.assert_called_once()
 
 
@@ -346,6 +347,7 @@ async def test_list_assets():
 
     assert len(result) == 1
     assert result[0]["name"] == "Salary"
+    assert result[0]["asset_type"] == "income"
     mock_repo.list_by_user.assert_called_once_with("test_user", True)
 
 
