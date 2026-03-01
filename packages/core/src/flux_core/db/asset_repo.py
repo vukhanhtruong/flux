@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
@@ -10,27 +11,51 @@ class AssetRepository:
     def __init__(self, db: Database):
         self._db = db
 
-    _COLUMNS = "id, user_id, name, amount, interest_rate, frequency, next_date, category, active"
+    _COLUMNS = (
+        "id, user_id, name, amount, interest_rate, frequency, next_date, category, active,"
+        " asset_type, principal_amount, compound_frequency, maturity_date, start_date"
+    )
 
     async def create(self, asset: AssetCreate) -> AssetOut:
         row = await self._db.fetchrow(
             f"""
-            INSERT INTO assets (user_id, name, amount, interest_rate, frequency, next_date, category)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO assets (
+                user_id, name, amount, interest_rate, frequency, next_date, category,
+                asset_type, principal_amount, compound_frequency, maturity_date, start_date
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING {self._COLUMNS}
             """,
             asset.user_id, asset.name, asset.amount, asset.interest_rate,
             asset.frequency.value, asset.next_date, asset.category,
+            asset.asset_type.value, asset.principal_amount,
+            asset.compound_frequency, asset.maturity_date, asset.start_date,
         )
         return AssetOut(**dict(row))
 
-    async def list_by_user(self, user_id: str, active_only: bool = True) -> list[AssetOut]:
+    async def get(self, asset_id: UUID, user_id: str) -> Optional[AssetOut]:
+        row = await self._db.fetchrow(
+            f"SELECT {self._COLUMNS} FROM assets WHERE id = $1 AND user_id = $2",
+            asset_id, user_id,
+        )
+        return AssetOut(**dict(row)) if row else None
+
+    async def list_by_user(
+        self,
+        user_id: str,
+        active_only: bool = True,
+        asset_type: Optional[str] = None,
+    ) -> list[AssetOut]:
         condition = "user_id = $1"
+        params: list = [user_id]
         if active_only:
             condition += " AND active = TRUE"
+        if asset_type is not None:
+            params.append(asset_type)
+            condition += f" AND asset_type = ${len(params)}"
         rows = await self._db.fetch(
             f"SELECT {self._COLUMNS} FROM assets WHERE {condition} ORDER BY next_date",
-            user_id,
+            *params,
         )
         return [AssetOut(**dict(r)) for r in rows]
 
@@ -50,8 +75,33 @@ class AssetRepository:
             f"""
             UPDATE assets SET next_date = CASE
                 WHEN frequency = 'monthly' THEN next_date + INTERVAL '1 month'
+                WHEN frequency = 'quarterly' THEN next_date + INTERVAL '3 months'
                 WHEN frequency = 'yearly' THEN next_date + INTERVAL '1 year'
             END
+            WHERE id = $1 AND user_id = $2
+            RETURNING {self._COLUMNS}
+            """,
+            asset_id, user_id,
+        )
+        return AssetOut(**dict(row)) if row else None
+
+    async def update_amount(
+        self, asset_id: UUID, user_id: str, new_amount: Decimal
+    ) -> Optional[AssetOut]:
+        row = await self._db.fetchrow(
+            f"""
+            UPDATE assets SET amount = $3
+            WHERE id = $1 AND user_id = $2
+            RETURNING {self._COLUMNS}
+            """,
+            asset_id, user_id, new_amount,
+        )
+        return AssetOut(**dict(row)) if row else None
+
+    async def deactivate(self, asset_id: UUID, user_id: str) -> Optional[AssetOut]:
+        row = await self._db.fetchrow(
+            f"""
+            UPDATE assets SET active = FALSE
             WHERE id = $1 AND user_id = $2
             RETURNING {self._COLUMNS}
             """,
