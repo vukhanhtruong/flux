@@ -40,7 +40,7 @@ async def test_create_scheduler(repo, db):
         asset_id=str(ASSET_UUID),
         prompt="Process savings interest for Bank Deposit"
         f" (id: {ASSET_UUID})",
-        cron="0 0 1 3 *",
+        schedule_date="2026-03-01",
         next_run_at=next_run,
     )
     assert task_id is not None
@@ -51,14 +51,14 @@ async def test_create_scheduler(repo, db):
     assert len(rows) == 1
     row = dict(rows[0])
     assert row["asset_id"] == ASSET_UUID
-    assert row["schedule_type"] == "cron"
-    assert row["schedule_value"] == "0 0 1 3 *"
+    assert row["schedule_type"] == "once"
+    assert row["schedule_value"] == "2026-03-01"
     assert row["status"] == "active"
 
 
 async def test_pause_and_resume(repo, db):
     next_run = datetime(2026, 3, 1, tzinfo=timezone.utc)
-    await repo.create(USER_ID, str(ASSET_UUID), "prompt", "0 0 1 3 *", next_run)
+    await repo.create(USER_ID, str(ASSET_UUID), "prompt", "2026-03-01", next_run)
 
     await repo.pause(str(ASSET_UUID))
     rows = await db.fetch(
@@ -77,7 +77,7 @@ async def test_pause_and_resume(repo, db):
 
 async def test_delete(repo, db):
     next_run = datetime(2026, 3, 1, tzinfo=timezone.utc)
-    await repo.create(USER_ID, str(ASSET_UUID), "prompt", "0 0 1 3 *", next_run)
+    await repo.create(USER_ID, str(ASSET_UUID), "prompt", "2026-03-01", next_run)
 
     await repo.delete(str(ASSET_UUID))
     rows = await db.fetch(

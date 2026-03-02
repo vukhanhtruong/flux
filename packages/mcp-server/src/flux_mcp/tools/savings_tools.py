@@ -6,9 +6,20 @@ from fastmcp import FastMCP
 from flux_core.db.connection import Database
 from flux_core.db.asset_repo import AssetRepository
 from flux_core.tools import financial_tools as biz
-from flux_mcp.db.savings_scheduler_repo import (
-    SavingsSchedulerRepo, _derive_savings_cron, _to_utc_midnight,
-)
+from flux_mcp.db.savings_scheduler_repo import SavingsSchedulerRepo, _to_utc_midnight
+
+
+def _derive_savings_cron(compound_frequency: str, next_date: date) -> str:
+    """Derive a cron expression from a savings deposit's compound frequency and next_date."""
+    day = next_date.day
+    if compound_frequency == "monthly":
+        return f"0 0 {day} * *"
+    if compound_frequency == "quarterly":
+        start_month = next_date.month
+        months = ",".join(str((start_month - 1 + i * 3) % 12 + 1) for i in range(4))
+        return f"0 0 {day} {months} *"
+    # yearly
+    return f"0 0 {day} {next_date.month} *"
 
 
 # ── testable helpers ────────────────────────────────────────────────────────

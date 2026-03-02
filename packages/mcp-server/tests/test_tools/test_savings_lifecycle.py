@@ -37,23 +37,23 @@ def asset_repo():
 
 
 def test_derive_savings_cron_yearly():
-    from flux_mcp.db.savings_scheduler_repo import _derive_savings_cron
+    from flux_mcp.tools.savings_tools import _derive_savings_cron
     assert _derive_savings_cron("yearly", date(2026, 3, 1)) == "0 0 1 3 *"
 
 
 def test_derive_savings_cron_monthly():
-    from flux_mcp.db.savings_scheduler_repo import _derive_savings_cron
+    from flux_mcp.tools.savings_tools import _derive_savings_cron
     assert _derive_savings_cron("monthly", date(2026, 6, 15)) == "0 0 15 * *"
 
 
 def test_derive_savings_cron_quarterly():
-    from flux_mcp.db.savings_scheduler_repo import _derive_savings_cron
+    from flux_mcp.tools.savings_tools import _derive_savings_cron
     result = _derive_savings_cron("quarterly", date(2026, 3, 1))
     assert result == "0 0 1 3,6,9,12 *"
 
 
 def test_derive_savings_cron_quarterly_start_month_2():
-    from flux_mcp.db.savings_scheduler_repo import _derive_savings_cron
+    from flux_mcp.tools.savings_tools import _derive_savings_cron
     result = _derive_savings_cron("quarterly", date(2026, 2, 10))
     assert result == "0 0 10 2,5,8,11 *"
 
