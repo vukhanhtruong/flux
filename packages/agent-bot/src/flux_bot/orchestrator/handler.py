@@ -9,6 +9,39 @@ logger = logging.getLogger(__name__)
 
 _THINKING_SIGNATURE_ERROR = "Invalid `signature` in `thinking` block"
 _DELIVERY_ERROR_MSG = "⚠️ I got a response but couldn't send it due to a network issue. Please try again."
+_USAGE_LIMIT_ERROR_MSG = (
+    "⚠️ I hit an AI usage/context limit and could not finish that request. "
+    "Please try a shorter message or try again later."
+)
+_SDK_UPSTREAM_ERROR_MSG = (
+    "⚠️ I couldn't complete that request due to an upstream AI service error "
+    "(sometimes caused by usage limits). Please try again."
+)
+_USAGE_LIMIT_ERROR_PATTERNS = (
+    "max_tokens",
+    "context window",
+    "token limit",
+    "rate limit",
+    "quota",
+    "credit balance",
+    "insufficient credits",
+)
+
+
+def _should_notify_usage_limit(error: str) -> bool:
+    err = error.lower()
+    return any(pattern in err for pattern in _USAGE_LIMIT_ERROR_PATTERNS)
+
+
+def _error_notification_for_user(error: str) -> str | None:
+    err = error.lower()
+    if _should_notify_usage_limit(error):
+        return _USAGE_LIMIT_ERROR_MSG
+
+    if "command failed with exit code 1" in err and "check stderr output for details" in err:
+        return _SDK_UPSTREAM_ERROR_MSG
+
+    return None
 
 
 def make_handle_message(*, runner, msg_repo, session_repo, profile_repo, channels):
@@ -64,6 +97,12 @@ def make_handle_message(*, runner, msg_repo, session_repo, profile_repo, channel
         if result.error is not None:
             await msg_repo.mark_failed(msg["id"], result.error)
             logger.error(f"Message {msg['id']} failed: {result.error}")
+            user_msg = _error_notification_for_user(result.error)
+            if channel and platform_id and user_msg:
+                try:
+                    await channel.send_message(platform_id, user_msg)
+                except Exception as e:
+                    logger.error(f"Could not deliver usage-limit notification to {user_id}: {e}")
             return
 
         if result.session_id:

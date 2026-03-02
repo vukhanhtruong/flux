@@ -61,6 +61,15 @@ class ClaudeRunner:
 
         mcp_servers = self._build_mcp_servers(profile)
         system_prompt_text = self._build_system_prompt(profile) or self._load_system_prompt_text()
+        stderr_lines: list[str] = []
+
+        def _capture_stderr(line: str) -> None:
+            # Keep only the latest lines to avoid unbounded memory on noisy stderr streams.
+            if not line:
+                return
+            stderr_lines.append(line)
+            if len(stderr_lines) > 50:
+                del stderr_lines[:-50]
 
         options = ClaudeAgentOptions(
             resume=session_id,
@@ -69,10 +78,12 @@ class ClaudeRunner:
             permission_mode="bypassPermissions",
             max_turns=self.max_turns,
             model=self.model,
+            stderr=_capture_stderr,
         )
 
         new_session_id = session_id
         result_text = None
+        result_error = None
 
         logger.info(f"Running Claude SDK for user={user_id}")
         try:
@@ -83,17 +94,37 @@ class ClaudeRunner:
                     elif isinstance(message, ResultMessage):
                         new_session_id = message.session_id
                         if message.is_error:
-                            err = message.result or "SDK returned an error result"
-                            return ClaudeResult(text=None, session_id=new_session_id, error=err)
-                        result_text = message.result
+                            result_error = message.result or "SDK returned an error result"
+                        else:
+                            result_text = message.result
         except asyncio.TimeoutError:
             logger.error(f"Claude SDK timed out for user={user_id}")
             return ClaudeResult(text=None, session_id=session_id, error="Timeout")
         except Exception as e:
             logger.error(f"Claude SDK error for user={user_id}: {e}")
-            return ClaudeResult(text=None, session_id=session_id, error=str(e))
+            return ClaudeResult(
+                text=None,
+                session_id=session_id,
+                error=self._build_error_with_stderr(e, stderr_lines),
+            )
 
+        if result_error is not None:
+            return ClaudeResult(text=None, session_id=new_session_id, error=result_error)
         return ClaudeResult(text=result_text, session_id=new_session_id)
+
+    def _build_error_with_stderr(self, error: Exception, stderr_lines: list[str]) -> str:
+        """Attach captured stderr details when SDK exception text only includes a placeholder."""
+        message = str(error)
+        if not stderr_lines:
+            return message
+
+        details = "\n".join(line.strip() for line in stderr_lines if line.strip()).strip()
+        if not details:
+            return message
+
+        if "check stderr output for details" in message.lower():
+            return f"{message}\nStderr details: {details}"
+        return message
 
     def _build_mcp_servers(self, profile: "UserProfile | None") -> dict:
         """Build MCP servers dict from config file, injecting user_id into args."""

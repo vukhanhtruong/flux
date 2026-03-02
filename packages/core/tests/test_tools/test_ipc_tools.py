@@ -108,7 +108,7 @@ async def test_schedule_task_once(mock_db):
         user_id="tg:123",
         prompt="Reminder",
         schedule_type="once",
-        schedule_value="2026-03-01T15:30:00",
+        schedule_value="2099-03-01T15:30:00",
         db=mock_db,
     )
     assert result["status"] == "scheduled"
@@ -211,7 +211,7 @@ async def test_schedule_task_once_converts_to_utc(mock_db):
         user_id="tg:123",
         prompt="Reminder",
         schedule_type="once",
-        schedule_value="2026-03-01T10:00:00",
+        schedule_value="2099-03-01T10:00:00",
         db=mock_db,
     )
     assert result["status"] == "scheduled"
@@ -272,7 +272,7 @@ async def test_schedule_task_once_no_profile_falls_back_to_utc(mock_db):
         user_id="tg:123",
         prompt="Reminder",
         schedule_type="once",
-        schedule_value="2026-03-01T10:00:00",
+        schedule_value="2099-03-01T10:00:00",
         db=mock_db,
     )
     assert result["status"] == "scheduled"

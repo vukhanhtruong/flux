@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from claude_agent_sdk import ResultMessage, SystemMessage
+from claude_agent_sdk._errors import ProcessError
 from flux_bot.runner.sdk import ClaudeRunner
 from flux_core.models.user_profile import UserProfile
 
@@ -93,6 +94,25 @@ async def test_run_error_result_returns_error(mcp_config):
     assert result.error == "Something went wrong"
 
 
+async def test_run_error_result_drains_stream_before_returning(mcp_config):
+    """Runner should not exit the SDK stream early when an error result is seen."""
+    result_msg = _make_result_message("Something went wrong", "sess-1", is_error=True)
+    stream_drained = False
+
+    async def fake_query(prompt, options):
+        nonlocal stream_drained
+        yield result_msg
+        stream_drained = True
+
+    runner = ClaudeRunner(mcp_config_path=mcp_config, system_prompt=None)
+    with patch("flux_bot.runner.sdk.query", fake_query):
+        result = await runner.run(prompt="hello", user_id="tg:1")
+
+    assert result.text is None
+    assert result.error == "Something went wrong"
+    assert stream_drained is True
+
+
 async def test_run_exception_returns_error(mcp_config):
     async def fake_query(prompt, options):
         raise RuntimeError("Connection refused")
@@ -104,6 +124,26 @@ async def test_run_exception_returns_error(mcp_config):
 
     assert result.text is None
     assert "Connection refused" in result.error
+
+
+async def test_run_process_error_includes_stderr_details(mcp_config):
+    async def fake_query(prompt, options):
+        assert options.stderr is not None
+        options.stderr("API Error: context window exceeded max_tokens limit")
+        raise ProcessError(
+            "Command failed with exit code 1",
+            exit_code=1,
+            stderr="Check stderr output for details",
+        )
+        yield  # make it a generator
+
+    runner = ClaudeRunner(mcp_config_path=mcp_config, system_prompt=None)
+    with patch("flux_bot.runner.sdk.query", fake_query):
+        result = await runner.run(prompt="hello", user_id="tg:1")
+
+    assert result.text is None
+    assert "Command failed with exit code 1" in result.error
+    assert "context window exceeded max_tokens limit" in result.error
 
 
 async def test_run_timeout_returns_error(mcp_config):

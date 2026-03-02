@@ -142,3 +142,45 @@ async def test_delivery_failure_notification_also_fails_still_marks_failed():
 
     deps["msg_repo"].mark_failed.assert_awaited_once()
     deps["msg_repo"].mark_processed.assert_not_awaited()
+
+
+async def test_token_limit_error_notifies_user_and_marks_failed():
+    """Token/quota style errors are surfaced to the user with a friendly message."""
+    channel = AsyncMock()
+
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(
+        text=None,
+        session_id=None,
+        error="API Error: context window exceeded max_tokens limit",
+    )
+
+    handler = make_handle_message(**deps)
+    await handler(_MSG)
+
+    deps["msg_repo"].mark_failed.assert_awaited_once_with(
+        70, "API Error: context window exceeded max_tokens limit"
+    )
+    channel.send_message.assert_awaited_once()
+    sent_args = channel.send_message.await_args.args
+    assert sent_args[0] == "42"
+    assert "limit" in sent_args[1].lower()
+    assert "try" in sent_args[1].lower()
+
+
+async def test_sdk_exit_code_error_notifies_user_with_generic_hint():
+    """Opaque SDK failures should still notify users with a retry hint."""
+    channel = AsyncMock()
+    err = "Command failed with exit code 1 (exit code: 1)\nError output: Check stderr output for details"
+
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(text=None, session_id=None, error=err)
+
+    handler = make_handle_message(**deps)
+    await handler(_MSG)
+
+    deps["msg_repo"].mark_failed.assert_awaited_once_with(70, err)
+    channel.send_message.assert_awaited_once()
+    sent_args = channel.send_message.await_args.args
+    assert sent_args[0] == "42"
+    assert "try again" in sent_args[1].lower()
