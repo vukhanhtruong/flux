@@ -9,17 +9,16 @@ from flux_core.tools import financial_tools as biz
 from flux_mcp.db.savings_scheduler_repo import SavingsSchedulerRepo, _to_utc_midnight
 
 
-def _derive_savings_cron(compound_frequency: str, next_date: date) -> str:
-    """Derive a cron expression from a savings deposit's compound frequency and next_date."""
-    day = next_date.day
-    if compound_frequency == "monthly":
-        return f"0 0 {day} * *"
-    if compound_frequency == "quarterly":
-        start_month = next_date.month
-        months = ",".join(str((start_month - 1 + i * 3) % 12 + 1) for i in range(4))
-        return f"0 0 {day} {months} *"
-    # yearly
-    return f"0 0 {day} {next_date.month} *"
+def _build_savings_prompt(name: str, asset_id: str, is_maturity: bool) -> str:
+    """Build the scheduler prompt, with maturity language if this is the final event."""
+    base = f"Process savings interest for {name} (id: {asset_id})"
+    if is_maturity:
+        return (
+            f"{base}. This deposit matures today. "
+            "After processing, inform the user about the final balance "
+            "and ask if they'd like to withdraw."
+        )
+    return base
 
 
 # ── testable helpers ────────────────────────────────────────────────────────
@@ -41,9 +40,9 @@ async def _create_savings_with_scheduler(
         start_date, maturity_date, category, asset_repo,
     )
     nd = date.fromisoformat(result["next_date"])
-    prompt = (
-        f"Process savings interest for {result['name']} (id: {result['id']})"
-    )
+    mat = date.fromisoformat(result["maturity_date"]) if result.get("maturity_date") else None
+    is_maturity = mat is not None and nd >= mat
+    prompt = _build_savings_prompt(result["name"], result["id"], is_maturity)
     try:
         await scheduler_repo.create(
             user_id=user_id,

@@ -73,6 +73,7 @@ async def test_pause_and_resume(repo, db):
         ASSET_UUID,
     )
     assert rows[0]["status"] == "active"
+    assert rows[0]["next_run_at"].replace(tzinfo=timezone.utc) == new_next_run
 
 
 async def test_delete(repo, db):

@@ -1,4 +1,5 @@
 """Manages bot_scheduled_tasks rows that are paired to savings deposits."""
+
 from datetime import date, datetime, timezone
 from uuid import UUID
 
