@@ -18,4 +18,4 @@ ALTER TABLE assets DROP CONSTRAINT IF EXISTS assets_frequency_check;
 ALTER TABLE assets ADD CONSTRAINT assets_frequency_check
     CHECK (frequency IN ('monthly', 'quarterly', 'yearly'));
 
-INSERT INTO schema_migrations (version) VALUES (5);
+INSERT INTO schema_migrations (version) VALUES (6);
