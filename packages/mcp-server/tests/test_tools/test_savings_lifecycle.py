@@ -80,7 +80,7 @@ async def test_create_savings_with_scheduler(asset_repo, scheduler_repo):
     assert result["asset_type"] == "savings"
     scheduler_repo.create.assert_called_once()
     call_kwargs = scheduler_repo.create.call_args
-    assert call_kwargs.kwargs["cron"] == "0 0 1 3 *"
+    assert call_kwargs.kwargs["schedule_date"] == "2027-03-01"
     assert call_kwargs.kwargs["user_id"] == USER_ID
 
 

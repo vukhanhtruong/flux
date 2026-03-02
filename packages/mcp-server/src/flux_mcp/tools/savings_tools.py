@@ -41,7 +41,6 @@ async def _create_savings_with_scheduler(
         start_date, maturity_date, category, asset_repo,
     )
     nd = date.fromisoformat(result["next_date"])
-    freq = result.get("compound_frequency", compound_frequency)
     prompt = (
         f"Process savings interest for {result['name']} (id: {result['id']})"
     )
@@ -50,7 +49,7 @@ async def _create_savings_with_scheduler(
             user_id=user_id,
             asset_id=result["id"],
             prompt=prompt,
-            cron=_derive_savings_cron(freq, nd),
+            schedule_date=result["next_date"],
             next_run_at=_to_utc_midnight(nd),
         )
     except Exception as exc:
