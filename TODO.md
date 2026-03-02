@@ -1,2 +1,3 @@
 - Bank savings auto income based on start date, duration and interest.
 - Subscription auto create transaction monthly
+- Report bugs to Github Issues

@@ -1,4 +1,5 @@
 """Manages bot_scheduled_tasks rows that are paired to savings deposits."""
+
 from datetime import date, datetime, timezone
 from uuid import UUID
 
@@ -12,9 +13,7 @@ def _derive_savings_cron(compound_frequency: str, next_date: date) -> str:
         return f"0 0 {day} * *"
     if compound_frequency == "quarterly":
         start_month = next_date.month
-        months = ",".join(
-            str((start_month - 1 + i * 3) % 12 + 1) for i in range(4)
-        )
+        months = ",".join(str((start_month - 1 + i * 3) % 12 + 1) for i in range(4))
         return f"0 0 {day} {months} *"
     # yearly
     return f"0 0 {day} {next_date.month} *"
@@ -45,7 +44,11 @@ class SavingsSchedulerRepo:
             VALUES ($1, $2, 'cron', $3, 'active', $4, $5)
             RETURNING id
             """,
-            user_id, prompt, cron, next_run_at, UUID(asset_id),
+            user_id,
+            prompt,
+            cron,
+            next_run_at,
+            UUID(asset_id),
         )
         return row["id"]
 
@@ -64,7 +67,8 @@ class SavingsSchedulerRepo:
             SET status = 'active', next_run_at = $2
             WHERE asset_id = $1
             """,
-            UUID(asset_id), next_run_at,
+            UUID(asset_id),
+            next_run_at,
         )
 
     async def delete(self, asset_id: str) -> None:

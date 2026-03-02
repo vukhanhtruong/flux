@@ -767,3 +767,67 @@ async def test_close_savings_early():
 
     assert result["active"] is False
     mock_repo.deactivate.assert_called_once()
+
+
+async def test_create_savings_short_term_schedules_at_maturity():
+    """When maturity < first compound date, next_date should be set to maturity_date.
+
+    Example: 6-month savings with yearly compounding — schedule interest
+    at maturity (2026-09-01) instead of the first yearly date (2027-03-01).
+    """
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    mock_repo.create.return_value = AssetOut(
+        id=test_uuid, user_id="tg:123", name="Short Deposit",
+        amount=Decimal("100000000.00"), interest_rate=Decimal("5.00"),
+        frequency=AssetFrequency.yearly, next_date=date(2026, 9, 1),
+        category="Savings", active=True, asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000.00"), compound_frequency="yearly",
+        maturity_date=date(2026, 9, 1), start_date=date(2026, 3, 1),
+    )
+
+    result = await create_savings_deposit(
+        user_id="tg:123",
+        name="Short Deposit",
+        amount=100_000_000,
+        interest_rate=5.0,
+        compound_frequency="yearly",
+        start_date="2026-03-01",
+        maturity_date="2026-09-01",  # 6 months — shorter than yearly
+        category="Savings",
+        repo=mock_repo,
+    )
+
+    assert result["next_date"] == "2026-09-01"
+    created_asset = mock_repo.create.call_args[0][0]
+    assert created_asset.next_date == date(2026, 9, 1)
+
+
+async def test_create_savings_short_term_quarterly_schedules_at_maturity():
+    """2-month savings with quarterly compounding schedules at maturity."""
+    mock_repo = AsyncMock()
+    test_uuid = UUID("12345678-1234-5678-1234-567812345678")
+    mock_repo.create.return_value = AssetOut(
+        id=test_uuid, user_id="tg:123", name="Too Short",
+        amount=Decimal("50000000.00"), interest_rate=Decimal("4.00"),
+        frequency=AssetFrequency.quarterly, next_date=date(2026, 5, 1),
+        category="Savings", active=True, asset_type=AssetType.savings,
+        principal_amount=Decimal("50000000.00"), compound_frequency="quarterly",
+        maturity_date=date(2026, 5, 1), start_date=date(2026, 3, 1),
+    )
+
+    result = await create_savings_deposit(
+        user_id="tg:123",
+        name="Too Short",
+        amount=50_000_000,
+        interest_rate=4.0,
+        compound_frequency="quarterly",
+        start_date="2026-03-01",
+        maturity_date="2026-05-01",  # 2 months — shorter than quarterly
+        category="Savings",
+        repo=mock_repo,
+    )
+
+    assert result["next_date"] == "2026-05-01"
+    created_asset = mock_repo.create.call_args[0][0]
+    assert created_asset.next_date == date(2026, 5, 1)

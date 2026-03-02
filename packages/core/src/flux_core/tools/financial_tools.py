@@ -446,7 +446,11 @@ async def create_savings_deposit(
 ) -> dict:
     """Create a new savings deposit with compound interest."""
     start = _date.fromisoformat(start_date)
+    maturity = _date.fromisoformat(maturity_date)
     next_date = _compute_next_date(start, compound_frequency)
+
+    if next_date > maturity:
+        next_date = maturity
 
     asset = AssetCreate(
         user_id=user_id,
