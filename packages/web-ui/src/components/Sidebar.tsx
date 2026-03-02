@@ -5,6 +5,7 @@ import {
   Wallet,
   Target,
   CalendarRange,
+  Landmark,
   BarChart3,
   Settings,
   Flame,
@@ -19,6 +20,7 @@ const navigation = [
   { name: "Budgets", href: "/budgets", icon: Wallet },
   { name: "Goals", href: "/goals", icon: Target },
   { name: "Subscriptions", href: "/subscriptions", icon: CalendarRange },
+  { name: "Assets", href: "/assets", icon: Landmark },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Settings", href: "/settings", icon: Settings },
 ];

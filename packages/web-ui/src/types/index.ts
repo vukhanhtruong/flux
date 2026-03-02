@@ -90,9 +90,15 @@ export interface Asset {
   id: string;
   user_id: string;
   name: string;
-  value: string;
+  value?: string;
+  amount?: string;
+  interest_rate?: string;
+  frequency?: string;
+  next_date?: string;
+  category?: string;
+  active?: boolean;
   asset_type: string;
-  created_at: string;
+  created_at?: string;
 }
 
 export interface AssetCreate {

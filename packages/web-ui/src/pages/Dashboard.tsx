@@ -13,6 +13,7 @@ import {
   Plus,
   ShieldCheck,
   TrendingUp,
+  Landmark,
   Wallet,
   Target,
   ArrowDownRight,
@@ -23,13 +24,22 @@ import { api } from "../lib/api";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
 import { formatCurrency, formatDate } from "../lib/format";
-import type { Transaction, FinancialHealth } from "../types";
+import {
+  computePerformance,
+  computePortfolioTotal,
+  filterSnapshotsForRange,
+  recordSnapshot,
+  type PortfolioSnapshot,
+} from "../lib/assetsPerformance";
+import type { Transaction, FinancialHealth, Asset } from "../types";
 
 export function Dashboard() {
   const navigate = useNavigate();
   const { profile } = useProfile();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [health, setHealth] = useState<FinancialHealth | null>(null);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [assetSnapshots, setAssetSnapshots] = useState<PortfolioSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<"7d" | "30d">("7d");
   const [chartData, setChartData] = useState<{ name: string; expense: number; income: number; fullDate: string }[]>([]);
@@ -44,13 +54,16 @@ export function Dashboard() {
           .split("T")[0];
         const endDate = new Date().toISOString().split("T")[0];
 
-        const [allTxns, healthData] = await Promise.all([
+        const [allTxns, healthData, assetsData] = await Promise.all([
           api.listTransactions(USER_ID, 200),
           api.getFinancialHealth(USER_ID, startDate, endDate),
+          api.listAssets(USER_ID),
         ]);
 
         setTransactions(allTxns.slice(0, 5));
         setHealth(healthData);
+        setAssets(assetsData);
+        setAssetSnapshots(recordSnapshot(computePortfolioTotal(assetsData)));
 
         const dataMap: Record<string, { expense: number; income: number }> = {};
         for (let i = days - 1; i >= 0; i--) {
@@ -160,6 +173,8 @@ export function Dashboard() {
           />
         </div>
       )}
+
+      <AssetOverviewCard assets={assets} snapshots={assetSnapshots} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 glass-card p-8">
@@ -296,6 +311,112 @@ export function Dashboard() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssetOverviewCard({
+  assets,
+  snapshots,
+}: {
+  assets: Asset[];
+  snapshots: PortfolioSnapshot[];
+}) {
+  const navigate = useNavigate();
+  const { profile } = useProfile();
+  const totalValue = computePortfolioTotal(assets);
+  const weekly = computePerformance(snapshots, { now: Date.now(), range: "7d" });
+  const sparkline = filterSnapshotsForRange(snapshots, { now: Date.now(), range: "30d" }).map((point) => ({
+    value: point.totalValue,
+    name: new Date(point.timestamp).toLocaleDateString(profile.locale, {
+      month: "short",
+      day: "numeric",
+    }),
+  }));
+
+  const topAssets = [...assets]
+    .sort((a, b) => Number(b.value ?? b.amount ?? 0) - Number(a.value ?? a.amount ?? 0))
+    .slice(0, 3);
+
+  return (
+    <div className="glass-card p-6 md:p-8">
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white">Assets Overview</h2>
+          <p className="text-slate-400 text-sm">Read-only portfolio snapshot and 7-day momentum.</p>
+        </div>
+        <button
+          onClick={() => navigate("/assets")}
+          className="btn-primary text-sm px-4 py-2"
+        >
+          View all assets
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="glass-card p-5 border-white/5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Portfolio Value</h3>
+            <div className="rounded-lg bg-primary/10 p-2 text-primary">
+              <Landmark className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-white">
+            {formatCurrency(totalValue, profile.currency, profile.locale)}
+          </p>
+          <p className="mt-2 text-xs text-slate-400">
+            {weekly
+              ? `${weekly.delta >= 0 ? "+" : ""}${formatCurrency(weekly.delta, profile.currency, profile.locale)} in 7d`
+              : "Collecting 7d history"}
+          </p>
+        </div>
+
+        <div className="glass-card p-5 border-white/5 lg:col-span-2">
+          {sparkline.length < 2 ? (
+            <div className="h-[130px] flex items-center justify-center text-slate-500 italic">
+              Collecting performance history...
+            </div>
+          ) : (
+            <div className="h-[130px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={sparkline}>
+                  <defs>
+                    <linearGradient id="assetSparkline" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#F59E0B"
+                    strokeWidth={2}
+                    fill="url(#assetSparkline)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {topAssets.length === 0 ? (
+              <p className="text-slate-500 italic text-sm">No assets tracked yet.</p>
+            ) : (
+              topAssets.map((asset) => (
+                <div key={asset.id} className="rounded-lg bg-white/5 p-3">
+                  <p className="text-xs uppercase tracking-wider text-slate-400">{asset.name}</p>
+                  <p className="text-sm font-semibold text-white">
+                    {formatCurrency(
+                      Number(asset.value ?? asset.amount ?? 0),
+                      profile.currency,
+                      profile.locale,
+                    )}
+                  </p>
+                </div>
+              ))
             )}
           </div>
         </div>

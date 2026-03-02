@@ -5,6 +5,7 @@ import { Transactions } from "./pages/Transactions";
 import { Budgets } from "./pages/Budgets";
 import { Goals } from "./pages/Goals";
 import { Subscriptions } from "./pages/Subscriptions";
+import { Assets } from "./pages/Assets";
 import { Reports } from "./pages/Reports";
 import { Settings } from "./pages/Settings";
 import { ProfileProvider } from "./context/ProfileContext";
@@ -20,6 +21,7 @@ function App() {
             <Route path="budgets" element={<Budgets />} />
             <Route path="goals" element={<Goals />} />
             <Route path="subscriptions" element={<Subscriptions />} />
+            <Route path="assets" element={<Assets />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
           </Route>
