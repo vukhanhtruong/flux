@@ -180,3 +180,7 @@ All async tests use `pytest-asyncio` with `asyncio_mode = "auto"` — no `@pytes
 - **MCP server has no AI provider dependency** — it's purely tools/data; the agent orchestrator owns AI reasoning
 - **Agent Bot uses Claude CLI as subprocess** — spawns `claude -p` with `--mcp-config` for MCP tools, `--resume` for session continuity
 - **Agent Bot tables prefixed with `bot_`** — `bot_messages`, `bot_sessions`, `bot_scheduled_tasks` to avoid collisions with core tables
+
+## Reference Documentation
+
+- **[State Machine Diagrams](STATE-MACHINES.md)** — Mermaid diagrams with input/output schema contracts and dataflow for all backend stateful components: message pipeline, outbound delivery, scheduled tasks, subscription/savings lifecycles, DB pool, and session management. **Keep this file in sync** — update `STATE-MACHINES.md` whenever stateful logic changes (new states, transitions, schema contracts, or dataflow modifications).
