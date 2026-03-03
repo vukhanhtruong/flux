@@ -544,3 +544,37 @@ async def close_savings_early(
 
     result = await repo.deactivate(aid, user_id)
     return _savings_to_dict(result)
+
+
+async def withdraw_savings(
+    asset_id: str,
+    user_id: str,
+    asset_repo: AssetRepository,
+    txn_repo: TransactionRepository,
+) -> dict:
+    """Withdraw a savings deposit: create income transaction + deactivate asset."""
+    aid = UUID(asset_id)
+    asset = await asset_repo.get(aid, user_id)
+    if asset is None:
+        raise ValueError(f"Savings deposit {asset_id} not found")
+    if not asset.active:
+        raise ValueError(f"Savings deposit {asset_id} is not active")
+
+    txn = TransactionCreate(
+        user_id=user_id,
+        date=_date.today(),
+        amount=asset.amount,
+        category=asset.category,
+        description=f"Withdrawal from savings: {asset.name}",
+        type=TransactionType.income,
+        is_recurring=False,
+    )
+    txn_out = await txn_repo.create(txn)
+    await asset_repo.deactivate(aid, user_id)
+
+    return {
+        "withdrawn_amount": str(asset.amount),
+        "transaction_id": str(txn_out.id),
+        "asset_name": asset.name,
+        "asset_id": asset_id,
+    }

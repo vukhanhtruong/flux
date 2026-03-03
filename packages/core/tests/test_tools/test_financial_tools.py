@@ -858,3 +858,78 @@ async def test_create_savings_short_term_quarterly_schedules_at_maturity():
     assert result["next_date"] == "2026-05-01"
     created_asset = mock_repo.create.call_args[0][0]
     assert created_asset.next_date == date(2026, 5, 1)
+
+
+async def test_withdraw_savings():
+    from flux_core.tools.financial_tools import withdraw_savings
+
+    asset_uuid = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    asset = AssetOut(
+        id=asset_uuid, user_id="tg:456", name="Bank Deposit",
+        amount=Decimal("105000000"), interest_rate=Decimal("5"),
+        frequency=AssetFrequency.yearly, next_date=date(2027, 3, 1),
+        category="savings", active=True, asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"), compound_frequency="yearly",
+        maturity_date=date(2027, 3, 1), start_date=date(2026, 3, 1),
+    )
+    asset_repo = AsyncMock()
+    asset_repo.get.return_value = asset
+    asset_repo.deactivate.return_value = AssetOut(
+        **{**asset.model_dump(), "active": False}
+    )
+
+    txn_repo = AsyncMock()
+    txn_out = TransactionOut(
+        id=UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+        user_id="tg:456", date=date(2027, 3, 1),
+        amount=Decimal("105000000"), category="savings",
+        description="Withdrawal from savings: Bank Deposit",
+        type=TransactionType.income, is_recurring=False, tags=[],
+        created_at=datetime(2027, 3, 1, tzinfo=timezone.utc),
+    )
+    txn_repo.create.return_value = txn_out
+
+    result = await withdraw_savings(str(asset_uuid), "tg:456", asset_repo, txn_repo)
+
+    assert result["withdrawn_amount"] == "105000000"
+    assert result["transaction_id"] == str(txn_out.id)
+    assert result["asset_name"] == "Bank Deposit"
+    assert result["asset_id"] == str(asset_uuid)
+    asset_repo.deactivate.assert_called_once_with(asset_uuid, "tg:456")
+    txn_repo.create.assert_called_once()
+    txn_arg = txn_repo.create.call_args[0][0]
+    assert txn_arg.type == TransactionType.income
+    assert txn_arg.amount == Decimal("105000000")
+    assert txn_arg.category == "savings"
+    assert "Bank Deposit" in txn_arg.description
+
+
+async def test_withdraw_savings_not_found():
+    from flux_core.tools.financial_tools import withdraw_savings
+
+    asset_repo = AsyncMock()
+    asset_repo.get.return_value = None
+    txn_repo = AsyncMock()
+
+    with pytest.raises(ValueError, match="not found"):
+        await withdraw_savings("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "tg:456", asset_repo, txn_repo)
+
+
+async def test_withdraw_savings_inactive():
+    from flux_core.tools.financial_tools import withdraw_savings
+
+    asset_uuid = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    inactive = AssetOut(
+        id=asset_uuid, user_id="tg:456", name="Bank Deposit",
+        amount=Decimal("105000000"), interest_rate=Decimal("5"),
+        frequency=AssetFrequency.yearly, next_date=date(2027, 3, 1),
+        category="savings", active=False, asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"), compound_frequency="yearly",
+        maturity_date=date(2027, 3, 1), start_date=date(2026, 3, 1),
+    )
+    asset_repo = AsyncMock()
+    asset_repo.get.return_value = inactive
+    txn_repo = AsyncMock()
+
+    with pytest.raises(ValueError, match="not active"):
+        await withdraw_savings(str(asset_uuid), "tg:456", asset_repo, txn_repo)
