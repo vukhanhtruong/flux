@@ -6,6 +6,7 @@ from uuid import UUID
 from fastmcp import FastMCP
 from flux_core.db.connection import Database
 from flux_core.db.asset_repo import AssetRepository
+from flux_core.db.transaction_repo import TransactionRepository
 from flux_core.tools import financial_tools as biz
 from flux_mcp.db.savings_scheduler_repo import SavingsSchedulerRepo, _to_utc_midnight
 
@@ -110,6 +111,17 @@ async def _process_interest_with_scheduler(
     return result
 
 
+async def _withdraw_savings_with_scheduler(
+    asset_id: str,
+    user_id: str,
+    asset_repo: AssetRepository,
+    txn_repo: TransactionRepository,
+    scheduler_repo: SavingsSchedulerRepo,
+) -> dict:
+    await scheduler_repo.delete(asset_id)
+    return await biz.withdraw_savings(asset_id, user_id, asset_repo, txn_repo)
+
+
 # ── MCP tool registration ────────────────────────────────────────────────────
 
 def register_savings_tools(
@@ -165,5 +177,19 @@ def register_savings_tools(
         return await _process_interest_with_scheduler(
             asset_id, get_user_id(),
             AssetRepository(db),
+            SavingsSchedulerRepo(db),
+        )
+
+    @mcp.tool()
+    async def withdraw_savings(asset_id: str) -> dict:
+        """Withdraw a matured (or early-closed) savings deposit.
+        Creates an income transaction for the full balance and deactivates the asset.
+        Money moves from 'asset balance' to 'cash (transactions)'.
+        """
+        db = await get_db()
+        return await _withdraw_savings_with_scheduler(
+            asset_id, get_user_id(),
+            AssetRepository(db),
+            TransactionRepository(db),
             SavingsSchedulerRepo(db),
         )

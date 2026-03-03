@@ -169,6 +169,38 @@ async def test_process_interest_reschedules_next(asset_repo, scheduler_repo):
     assert "matures today" in call_kwargs["prompt"]
 
 
+async def test_withdraw_savings_deletes_scheduler(asset_repo, scheduler_repo):
+    from flux_mcp.tools.savings_tools import _withdraw_savings_with_scheduler
+    from flux_core.models.transaction import TransactionOut, TransactionType
+    from datetime import datetime, timezone
+
+    asset_repo.get.return_value = _SAVINGS_ACTIVE
+    asset_repo.deactivate.return_value = AssetOut(
+        **{**_SAVINGS_ACTIVE.model_dump(), "active": False}
+    )
+    txn_repo = AsyncMock()
+    txn_repo.create.return_value = TransactionOut(
+        id=UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+        user_id=USER_ID, date=date(2027, 3, 1),
+        amount=Decimal("100000000"), category="savings",
+        description="Withdrawal from savings: Bank Deposit",
+        type=TransactionType.income, is_recurring=False, tags=[],
+        created_at=datetime(2027, 3, 1, tzinfo=timezone.utc),
+    )
+
+    result = await _withdraw_savings_with_scheduler(
+        asset_id=str(ASSET_UUID),
+        user_id=USER_ID,
+        asset_repo=asset_repo,
+        txn_repo=txn_repo,
+        scheduler_repo=scheduler_repo,
+    )
+
+    assert result["withdrawn_amount"] == "100000000"
+    assert result["transaction_id"] is not None
+    scheduler_repo.delete.assert_called_once_with(str(ASSET_UUID))
+
+
 async def test_process_interest_no_reschedule_on_maturity(asset_repo, scheduler_repo):
     """When interest matures the deposit, no new task is scheduled."""
     from flux_mcp.tools.savings_tools import _process_interest_with_scheduler
