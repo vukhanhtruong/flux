@@ -138,3 +138,64 @@ async def test_delete_asset_deletes_savings_scheduler(asset_repo, scheduler_repo
 
     assert result["success"] is True
     scheduler_repo.delete.assert_called_once_with(str(ASSET_UUID))
+
+
+async def test_process_interest_reschedules_next(asset_repo, scheduler_repo):
+    """After interest is applied and deposit is not matured, a new once task is created."""
+    from flux_mcp.tools.savings_tools import _process_interest_with_scheduler
+
+    asset_repo.update_amount.return_value = None
+    # advance_next_date returns asset with next_date moved forward to maturity
+    advanced = AssetOut(
+        **{**_SAVINGS_ACTIVE.model_dump(), "next_date": date(2028, 3, 1)}
+    )
+    asset_repo.advance_next_date.return_value = advanced
+    # First get() is called inside biz.process_savings_interest (returns active asset);
+    # second get() is called inside _process_interest_with_scheduler to read new next_date.
+    asset_repo.get.side_effect = [_SAVINGS_ACTIVE, advanced]
+
+    result = await _process_interest_with_scheduler(
+        asset_id=str(ASSET_UUID),
+        user_id=USER_ID,
+        asset_repo=asset_repo,
+        scheduler_repo=scheduler_repo,
+    )
+
+    assert result["matured"] is False
+    scheduler_repo.create.assert_called_once()
+    call_kwargs = scheduler_repo.create.call_args.kwargs
+    assert call_kwargs["schedule_date"] == "2028-03-01"
+    # 2028-03-01 == maturity_date on _SAVINGS_ACTIVE, so prompt should be maturity prompt
+    assert "matures today" in call_kwargs["prompt"]
+
+
+async def test_process_interest_no_reschedule_on_maturity(asset_repo, scheduler_repo):
+    """When interest matures the deposit, no new task is scheduled."""
+    from flux_mcp.tools.savings_tools import _process_interest_with_scheduler
+
+    # Asset where current next_date is at maturity (final interest event)
+    at_maturity = AssetOut(
+        **{**_SAVINGS_ACTIVE.model_dump(),
+           "next_date": date(2028, 3, 1),
+           "maturity_date": date(2028, 3, 1)}
+    )
+    asset_repo.get.return_value = at_maturity
+    asset_repo.update_amount.return_value = None
+    # advance_next_date would put next_date past maturity
+    past_maturity = AssetOut(
+        **{**at_maturity.model_dump(), "next_date": date(2029, 3, 1)}
+    )
+    asset_repo.advance_next_date.return_value = past_maturity
+    asset_repo.deactivate.return_value = AssetOut(
+        **{**at_maturity.model_dump(), "active": False}
+    )
+
+    result = await _process_interest_with_scheduler(
+        asset_id=str(ASSET_UUID),
+        user_id=USER_ID,
+        asset_repo=asset_repo,
+        scheduler_repo=scheduler_repo,
+    )
+
+    assert result["matured"] is True
+    scheduler_repo.create.assert_not_called()

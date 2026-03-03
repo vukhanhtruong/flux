@@ -1,6 +1,7 @@
 import logging
 from datetime import date
 from typing import Callable, Awaitable
+from uuid import UUID
 
 from fastmcp import FastMCP
 from flux_core.db.connection import Database
@@ -79,6 +80,34 @@ async def _delete_savings_with_scheduler(
     return await biz.delete_asset(asset_id, user_id, asset_repo)
 
 
+async def _process_interest_with_scheduler(
+    asset_id: str,
+    user_id: str,
+    asset_repo: AssetRepository,
+    scheduler_repo: SavingsSchedulerRepo,
+) -> dict:
+    result = await biz.process_savings_interest(asset_id, user_id, asset_repo)
+    if not result["matured"]:
+        asset = await asset_repo.get(UUID(asset_id), user_id)
+        if asset and asset.active:
+            nd = asset.next_date
+            is_maturity = asset.maturity_date is not None and nd >= asset.maturity_date
+            prompt = _build_savings_prompt(asset.name, asset_id, is_maturity)
+            try:
+                await scheduler_repo.create(
+                    user_id=user_id,
+                    asset_id=asset_id,
+                    prompt=prompt,
+                    schedule_date=str(nd),
+                    next_run_at=_to_utc_midnight(nd),
+                )
+            except Exception as exc:
+                logging.getLogger(__name__).error(
+                    "Failed to re-schedule savings %s: %s", asset_id, exc
+                )
+    return result
+
+
 # ── MCP tool registration ────────────────────────────────────────────────────
 
 def register_savings_tools(
@@ -131,6 +160,8 @@ def register_savings_tools(
         Called automatically by the scheduler on each compounding date.
         """
         db = await get_db()
-        return await biz.process_savings_interest(
-            asset_id, get_user_id(), AssetRepository(db),
+        return await _process_interest_with_scheduler(
+            asset_id, get_user_id(),
+            AssetRepository(db),
+            SavingsSchedulerRepo(db),
         )

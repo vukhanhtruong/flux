@@ -495,7 +495,7 @@ async def process_savings_interest(
 
     matured = False
     maturity_message = None
-    if asset.maturity_date and advanced and advanced.next_date >= asset.maturity_date:
+    if asset.maturity_date and advanced and advanced.next_date > asset.maturity_date:
         matured = True
         maturity_message = (
             f"Savings deposit '{asset.name}' has matured. "
