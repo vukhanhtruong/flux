@@ -12,6 +12,7 @@ def register_transaction_tools(
     get_db: Callable[[], Awaitable[Database]],
     get_embedding_service: Callable[[], EmbeddingProvider],
     get_user_id: Callable[[], str],
+    get_user_timezone: Callable[[], Awaitable[str]],
 ):
     @mcp.tool()
     async def add_transaction(
@@ -25,6 +26,7 @@ def register_transaction_tools(
             get_user_id(), date, amount, category, description,
             transaction_type, TransactionRepository(db), get_embedding_service(),
             is_recurring, tags,
+            user_timezone=await get_user_timezone(),
         )
 
     @mcp.tool()

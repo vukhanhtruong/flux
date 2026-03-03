@@ -44,12 +44,14 @@ async def forecast_budget(
     days_in_month: int,
     txn_repo: TransactionRepository,
     budget_repo: BudgetRepository,
+    user_timezone: str = "UTC",
 ) -> dict:
     """Forecast budget usage based on current spending rate."""
     from datetime import datetime
+    from zoneinfo import ZoneInfo
 
     # Get current month's spending
-    today = datetime.now().date()
+    today = datetime.now(ZoneInfo(user_timezone)).date()
     start_of_month = today.replace(day=1)
 
     breakdown = await txn_repo.get_category_breakdown(user_id, start_of_month, today)

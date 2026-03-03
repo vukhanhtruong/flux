@@ -1,7 +1,8 @@
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Callable, Awaitable
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastmcp import FastMCP
 from flux_core.db.connection import Database
@@ -117,6 +118,7 @@ async def _withdraw_savings_with_scheduler(
     asset_repo: AssetRepository,
     txn_repo: TransactionRepository,
     scheduler_repo: SavingsSchedulerRepo,
+    user_timezone: str = "UTC",
 ) -> dict:
     try:
         await scheduler_repo.delete(asset_id)
@@ -124,7 +126,7 @@ async def _withdraw_savings_with_scheduler(
         logging.getLogger(__name__).error(
             "Failed to delete scheduler for savings %s: %s", asset_id, exc
         )
-    return await biz.withdraw_savings(asset_id, user_id, asset_repo, txn_repo)
+    return await biz.withdraw_savings(asset_id, user_id, asset_repo, txn_repo, user_timezone)
 
 
 # ── MCP tool registration ────────────────────────────────────────────────────
@@ -133,6 +135,7 @@ def register_savings_tools(
     mcp: FastMCP,
     get_db: Callable[[], Awaitable[Database]],
     get_user_id: Callable[[], str],
+    get_user_timezone: Callable[[], Awaitable[str]],
 ):
     @mcp.tool()
     async def create_savings_deposit(
@@ -140,19 +143,23 @@ def register_savings_tools(
         amount: float,
         interest_rate: float,
         compound_frequency: str,
-        start_date: str,
         maturity_date: str,
         category: str,
+        start_date: str | None = None,
     ) -> dict:
         """Create a new savings deposit with compound interest.
         compound_frequency must be 'monthly', 'quarterly', or 'yearly'.
-        start_date and maturity_date are in YYYY-MM-DD format.
+        maturity_date is in YYYY-MM-DD format.
+        start_date is optional — defaults to today in the user's timezone.
         interest_rate is annual percentage (e.g. 5.0 for 5%).
+        Scheduling is handled automatically — do NOT call schedule_task separately.
         """
         db = await get_db()
+        tz = await get_user_timezone()
+        resolved_start = start_date or datetime.now(ZoneInfo(tz)).date().isoformat()
         return await _create_savings_with_scheduler(
             get_user_id(), name, amount, interest_rate, compound_frequency,
-            start_date, maturity_date, category,
+            resolved_start, maturity_date, category,
             AssetRepository(db),
             SavingsSchedulerRepo(db),
         )
@@ -197,4 +204,5 @@ def register_savings_tools(
             AssetRepository(db),
             TransactionRepository(db),
             SavingsSchedulerRepo(db),
+            user_timezone=await get_user_timezone(),
         )

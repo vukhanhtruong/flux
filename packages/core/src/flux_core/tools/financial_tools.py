@@ -1,7 +1,8 @@
-from datetime import date as _date
+from datetime import date as _date, datetime
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from flux_core.db.budget_repo import BudgetRepository
 from flux_core.db.goal_repo import GoalRepository
@@ -282,6 +283,7 @@ async def process_subscription_billing(
     sub_repo: SubscriptionRepository,
     txn_repo: TransactionRepository,
     embedding_service: EmbeddingProvider,
+    user_timezone: str = "UTC",
 ) -> dict:
     """Create the expense transaction for a due subscription and advance next_date.
 
@@ -296,7 +298,7 @@ async def process_subscription_billing(
 
     transaction = TransactionCreate(
         user_id=user_id,
-        date=_date.today(),
+        date=datetime.now(ZoneInfo(user_timezone)).date(),
         amount=sub.amount,
         category=sub.category,
         description=f"{sub.name} subscription",
@@ -551,6 +553,7 @@ async def withdraw_savings(
     user_id: str,
     asset_repo: AssetRepository,
     txn_repo: TransactionRepository,
+    user_timezone: str = "UTC",
 ) -> dict:
     """Withdraw a savings deposit: create income transaction + deactivate asset."""
     aid = UUID(asset_id)
@@ -562,7 +565,7 @@ async def withdraw_savings(
 
     txn = TransactionCreate(
         user_id=user_id,
-        date=_date.today(),
+        date=datetime.now(ZoneInfo(user_timezone)).date(),
         amount=asset.amount,
         category=asset.category,
         description=f"Withdrawal from savings: {asset.name}",

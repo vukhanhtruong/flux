@@ -1,16 +1,17 @@
-from datetime import date as _date, timedelta
+from datetime import date as _date, timedelta, datetime
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
+from zoneinfo import ZoneInfo
 from flux_core.db.transaction_repo import TransactionRepository
 from flux_core.embeddings.service import EmbeddingProvider
 from flux_core.models.transaction import TransactionCreate, TransactionUpdate, TransactionType
 
 
-def _resolve_date(date_str: str) -> str:
+def _resolve_date(date_str: str, user_timezone: str = "UTC") -> str:
     """Normalize natural-language date strings to ISO format (YYYY-MM-DD)."""
     s = date_str.strip().lower()
-    today = _date.today()
+    today = datetime.now(ZoneInfo(user_timezone)).date()
     if s in ("today", "hom nay"):
         return today.isoformat()
     if s in ("yesterday", "hom qua"):
@@ -28,12 +29,13 @@ async def add_transaction(
     repo: TransactionRepository,
     embedding_service: EmbeddingProvider,
     is_recurring: bool = False,
-    tags: Optional[list[str]] = None
+    tags: Optional[list[str]] = None,
+    user_timezone: str = "UTC",
 ) -> dict:
     """Add a new transaction with semantic embedding."""
     transaction = TransactionCreate(
         user_id=user_id,
-        date=_resolve_date(date),
+        date=_resolve_date(date, user_timezone),
         amount=Decimal(str(amount)),
         category=category,
         description=description,

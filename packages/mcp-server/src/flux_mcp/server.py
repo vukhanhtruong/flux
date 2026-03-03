@@ -28,6 +28,19 @@ async def get_db() -> Database:
     return _db
 
 
+_user_timezone: str | None = None
+
+
+async def get_user_timezone() -> str:
+    global _user_timezone
+    if _user_timezone is None:
+        db = await get_db()
+        user_id = get_session_user_id()
+        row = await db.fetchrow("SELECT timezone FROM users WHERE id = $1", user_id)
+        _user_timezone = (row["timezone"] if row and row["timezone"] else "UTC")
+    return _user_timezone
+
+
 def get_embedding_service() -> EmbeddingService:
     global _embedding_service
     if _embedding_service is None:
@@ -45,13 +58,13 @@ from flux_mcp.tools.profile_tools import register_profile_tools
 from flux_mcp.tools.ipc_tools import register_ipc_tools
 from flux_mcp.tools.savings_tools import register_savings_tools
 
-register_transaction_tools(mcp, get_db, get_embedding_service, get_session_user_id)
-register_financial_tools(mcp, get_db, get_session_user_id, get_embedding_service)
+register_transaction_tools(mcp, get_db, get_embedding_service, get_session_user_id, get_user_timezone)
+register_financial_tools(mcp, get_db, get_session_user_id, get_embedding_service, get_user_timezone)
 register_memory_tools(mcp, get_db, get_embedding_service, get_session_user_id)
 register_analytics_tools(mcp, get_db, get_session_user_id)
 register_profile_tools(mcp, get_db, get_session_user_id)
 register_ipc_tools(mcp, get_db, get_session_user_id)
-register_savings_tools(mcp, get_db, get_session_user_id)
+register_savings_tools(mcp, get_db, get_session_user_id, get_user_timezone)
 
 
 if __name__ == "__main__":

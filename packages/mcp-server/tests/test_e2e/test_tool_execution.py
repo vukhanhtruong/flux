@@ -24,7 +24,10 @@ def _make_transaction_mcp():
     def get_user_id():
         return "test-user"
 
-    register_transaction_tools(test_mcp, get_db, get_embedding, get_user_id)
+    async def get_user_timezone():
+        return "UTC"
+
+    register_transaction_tools(test_mcp, get_db, get_embedding, get_user_id, get_user_timezone)
     return test_mcp
 
 
@@ -43,7 +46,10 @@ def _make_financial_mcp():
     def get_embedding_service():
         return mock_embedding
 
-    register_financial_tools(test_mcp, get_db, get_user_id, get_embedding_service)
+    async def get_user_timezone():
+        return "UTC"
+
+    register_financial_tools(test_mcp, get_db, get_user_id, get_embedding_service, get_user_timezone)
     return test_mcp
 
 

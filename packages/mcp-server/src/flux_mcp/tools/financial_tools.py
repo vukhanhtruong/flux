@@ -84,6 +84,7 @@ def register_financial_tools(
     get_db: Callable[[], Awaitable[Database]],
     get_user_id: Callable[[], str],
     get_embedding_service: Callable[[], EmbeddingProvider],
+    get_user_timezone: Callable[[], Awaitable[str]],
 ):
     @mcp.tool()
     async def set_budget(category: str, monthly_limit: float) -> dict:
@@ -171,4 +172,5 @@ def register_financial_tools(
             SubscriptionRepository(db),
             TransactionRepository(db),
             get_embedding_service(),
+            user_timezone=await get_user_timezone(),
         )
