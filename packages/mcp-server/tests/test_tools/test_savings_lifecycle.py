@@ -231,3 +231,36 @@ async def test_process_interest_no_reschedule_on_maturity(asset_repo, scheduler_
 
     assert result["matured"] is True
     scheduler_repo.create.assert_not_called()
+
+
+async def test_withdraw_savings_proceeds_even_if_scheduler_delete_fails(asset_repo, scheduler_repo):
+    """If scheduler_repo.delete raises, the withdrawal still completes."""
+    from flux_mcp.tools.savings_tools import _withdraw_savings_with_scheduler
+    from flux_core.models.transaction import TransactionOut, TransactionType
+    from datetime import datetime, timezone
+
+    scheduler_repo.delete.side_effect = Exception("DB error")
+    asset_repo.get.return_value = _SAVINGS_ACTIVE
+    asset_repo.deactivate.return_value = AssetOut(
+        **{**_SAVINGS_ACTIVE.model_dump(), "active": False}
+    )
+    txn_repo = AsyncMock()
+    txn_repo.create.return_value = TransactionOut(
+        id=UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+        user_id=USER_ID, date=date(2027, 3, 1),
+        amount=Decimal("100000000"), category="savings",
+        description="Withdrawal from savings: Bank Deposit",
+        type=TransactionType.income, is_recurring=False, tags=[],
+        created_at=datetime(2027, 3, 1, tzinfo=timezone.utc),
+    )
+
+    result = await _withdraw_savings_with_scheduler(
+        asset_id=str(ASSET_UUID),
+        user_id=USER_ID,
+        asset_repo=asset_repo,
+        txn_repo=txn_repo,
+        scheduler_repo=scheduler_repo,
+    )
+
+    assert result["withdrawn_amount"] == "100000000"
+    assert result["transaction_id"] is not None

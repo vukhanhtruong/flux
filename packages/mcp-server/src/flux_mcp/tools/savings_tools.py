@@ -118,7 +118,12 @@ async def _withdraw_savings_with_scheduler(
     txn_repo: TransactionRepository,
     scheduler_repo: SavingsSchedulerRepo,
 ) -> dict:
-    await scheduler_repo.delete(asset_id)
+    try:
+        await scheduler_repo.delete(asset_id)
+    except Exception as exc:
+        logging.getLogger(__name__).error(
+            "Failed to delete scheduler for savings %s: %s", asset_id, exc
+        )
     return await biz.withdraw_savings(asset_id, user_id, asset_repo, txn_repo)
 
 
