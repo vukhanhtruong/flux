@@ -1,29 +1,20 @@
-import { useEffect, useState } from "react";
-import { User, Send, Smartphone, Cpu, Database, Save, Globe, Clock, Coins } from "lucide-react";
+import { useState } from "react";
+import { User, Send, Smartphone, Cpu, Database, Globe, Clock, Coins } from "lucide-react";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
 
 type Tab = "general" | "messaging" | "system";
 
 export function Settings() {
-  const { profile, loading, error, saveProfile } = useProfile();
+  const { profile, loading, error } = useProfile();
   const [activeTab, setActiveTab] = useState<Tab>("general");
   const [healthStatus, setHealthStatus] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
+
+  const formData = {
     currency: profile.currency,
     timezone: profile.timezone,
     locale: profile.locale,
-  });
-
-  useEffect(() => {
-    setFormData({
-      currency: profile.currency,
-      timezone: profile.timezone,
-      locale: profile.locale,
-    });
-  }, [profile.currency, profile.timezone, profile.locale]);
+  };
 
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -38,24 +29,6 @@ export function Settings() {
       }
     } catch (err) {
       setHealthStatus(`Unreachable - ${err}`);
-    }
-  }
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setSaveStatus(null);
-    setSaving(true);
-    try {
-      await saveProfile({
-        currency: formData.currency.trim(),
-        timezone: formData.timezone.trim(),
-        locale: formData.locale,
-      });
-      setSaveStatus("Saved");
-    } catch {
-      setSaveStatus("Failed to save");
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -80,8 +53,8 @@ export function Settings() {
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`rounded-lg px-6 py-2 text-sm font-bold transition-all ${activeTab === tab.key
-                ? "bg-primary text-dark"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
+              ? "bg-primary text-dark"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
           >
             {tab.label}
@@ -91,21 +64,13 @@ export function Settings() {
 
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
         {activeTab === "general" && (
-          <form onSubmit={handleSave} className="space-y-8">
+          <div className="space-y-8">
             <div className="glass-card p-10 space-y-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <User className="w-5 h-5 text-primary" />
                   <h2 className="text-xl font-bold text-white tracking-tight">Account Information</h2>
                 </div>
-                {saveStatus && (
-                  <p
-                    className={`text-xs font-bold uppercase tracking-widest ${saveStatus === "Saved" ? "text-emerald-400" : "text-red-400"
-                      }`}
-                  >
-                    {saveStatus}
-                  </p>
-                )}
               </div>
 
               {loading && <p className="text-sm text-slate-500 italic">Loading profile...</p>}
@@ -133,12 +98,9 @@ export function Settings() {
                     <input
                       type="text"
                       value={formData.currency}
-                      onChange={(e) =>
-                        setFormData({ ...formData, currency: e.target.value.toUpperCase() })
-                      }
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:border-primary/50 transition-colors h-12"
+                      readOnly
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:border-primary/50 transition-colors h-12 opacity-70 cursor-not-allowed"
                       placeholder="e.g. USD, VND, EUR"
-                      required
                     />
                   </div>
                 </div>
@@ -152,10 +114,9 @@ export function Settings() {
                     <input
                       type="text"
                       value={formData.timezone}
-                      onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:border-primary/50 transition-colors h-12"
+                      readOnly
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:border-primary/50 transition-colors h-12 opacity-70 cursor-not-allowed"
                       placeholder="Asia/Ho_Chi_Minh"
-                      required
                     />
                   </div>
                 </div>
@@ -168,8 +129,8 @@ export function Settings() {
                     <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                     <select
                       value={formData.locale}
-                      onChange={(e) => setFormData({ ...formData, locale: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:border-primary/50 transition-colors h-12 appearance-none"
+                      disabled
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:border-primary/50 transition-colors h-12 appearance-none opacity-70 cursor-not-allowed"
                     >
                       <option value="vi-VN" className="bg-dark">
                         Vietnamese (vi-VN)
@@ -182,18 +143,8 @@ export function Settings() {
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-white/5 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="btn-primary min-w-[160px] flex items-center justify-center gap-2"
-                >
-                  <Save size={18} />
-                  {saving ? "Deploying Changes..." : "Apply Settings"}
-                </button>
-              </div>
             </div>
-          </form>
+          </div>
         )}
 
         {activeTab === "messaging" && (
@@ -234,9 +185,12 @@ export function Settings() {
               </div>
             </div>
 
-            <div className="glass-card p-8 group">
+            <div className="glass-card p-8 group relative overflow-hidden opacity-60 grayscale-[50%]">
+              <div className="absolute top-4 right-4 px-2.5 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                Coming Soon
+              </div>
               <div className="flex items-center gap-4 mb-6">
-                <div className="p-3 bg-[#25D366]/10 rounded-xl group-hover:scale-110 transition-transform">
+                <div className="p-3 bg-[#25D366]/10 rounded-xl">
                   <Smartphone className="w-6 h-6 text-[#25D366]" />
                 </div>
                 <h3 className="text-xl font-bold text-white">WhatsApp Integration</h3>
@@ -300,8 +254,8 @@ export function Settings() {
                     <div className="flex items-center gap-2">
                       <div
                         className={`w-2 h-2 rounded-full animate-pulse ${healthStatus.startsWith("Healthy")
-                            ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
-                            : "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
+                          ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                          : "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
                           }`}
                       />
                       <span

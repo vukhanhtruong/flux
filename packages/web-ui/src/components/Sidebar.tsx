@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -11,6 +12,7 @@ import {
   Flame,
   Github,
   Coffee,
+  X,
 } from "lucide-react";
 import { SHOW_PROMO_CARD } from "../lib/constants";
 
@@ -27,6 +29,7 @@ const navigation = [
 
 export function Sidebar() {
   const location = useLocation();
+  const [showPromo, setShowPromo] = useState(true);
 
   return (
     <div className="flex flex-col w-64 h-screen border-r bg-dark border-white/5">
@@ -48,11 +51,10 @@ export function Sidebar() {
             <Link
               key={item.name}
               to={item.href}
-              className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 group ${
-                isActive
+              className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 group ${isActive
                   ? "bg-primary text-dark shadow-lg shadow-primary/20"
                   : "text-slate-400 hover:bg-white/5 hover:text-white"
-              }`}
+                }`}
             >
               <Icon
                 className={`w-5 h-5 ${isActive ? "text-dark" : "text-slate-400 group-hover:text-white"}`}
@@ -62,10 +64,17 @@ export function Sidebar() {
           );
         })}
       </nav>
-      {SHOW_PROMO_CARD && (
+      {SHOW_PROMO_CARD && showPromo && (
         <div className="p-4">
-          <div className="p-4 bg-gradient-to-br to-transparent border glass-card from-primary/10 border-white/5">
-            <p className="mb-3 font-black tracking-widest uppercase text-[10px] text-primary">
+          <div className="relative p-4 bg-gradient-to-br to-transparent border glass-card from-primary/10 border-white/5">
+            <button
+              onClick={() => setShowPromo(false)}
+              className="absolute top-2 right-2 p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              title="Hide"
+            >
+              <X size={14} />
+            </button>
+            <p className="pr-4 mb-3 font-black tracking-widest uppercase text-[10px] text-primary">
               Support flux
             </p>
             <div className="space-y-2">

@@ -10,7 +10,6 @@ import {
 } from "recharts";
 import {
   Search,
-  Plus,
   ShieldCheck,
   TrendingUp,
   Landmark,
@@ -126,15 +125,9 @@ export function Dashboard() {
           <button
             onClick={() => navigate("/transactions")}
             className="p-2.5 rounded-xl glass-card text-slate-400 hover:text-white transition-colors"
+            title="View Transactions"
           >
             <Search className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => navigate("/transactions")}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add Transaction
           </button>
         </div>
       </div>
