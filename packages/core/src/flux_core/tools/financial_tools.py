@@ -569,6 +569,10 @@ async def withdraw_savings(
         type=TransactionType.income,
         is_recurring=False,
     )
+    # TODO: These two writes are not wrapped in a DB transaction. If deactivate
+    # fails after create succeeds, the asset remains active while the income
+    # transaction exists (double-count). Fix requires shared-connection support
+    # in the Database abstraction.
     txn_out = await txn_repo.create(txn)
     await asset_repo.deactivate(aid, user_id)
 

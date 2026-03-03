@@ -32,6 +32,7 @@ from flux_core.tools.financial_tools import (
     process_savings_interest,
     list_savings,
     close_savings_early,
+    withdraw_savings,
 )
 from flux_core.models.budget import BudgetOut
 from flux_core.models.goal import GoalOut
@@ -861,8 +862,6 @@ async def test_create_savings_short_term_quarterly_schedules_at_maturity():
 
 
 async def test_withdraw_savings():
-    from flux_core.tools.financial_tools import withdraw_savings
-
     asset_uuid = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
     asset = AssetOut(
         id=asset_uuid, user_id="tg:456", name="Bank Deposit",
@@ -905,19 +904,16 @@ async def test_withdraw_savings():
 
 
 async def test_withdraw_savings_not_found():
-    from flux_core.tools.financial_tools import withdraw_savings
-
+    asset_uuid = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
     asset_repo = AsyncMock()
     asset_repo.get.return_value = None
     txn_repo = AsyncMock()
 
     with pytest.raises(ValueError, match="not found"):
-        await withdraw_savings("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "tg:456", asset_repo, txn_repo)
+        await withdraw_savings(str(asset_uuid), "tg:456", asset_repo, txn_repo)
 
 
 async def test_withdraw_savings_inactive():
-    from flux_core.tools.financial_tools import withdraw_savings
-
     asset_uuid = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
     inactive = AssetOut(
         id=asset_uuid, user_id="tg:456", name="Bank Deposit",
