@@ -88,6 +88,8 @@ async def _process_interest_with_scheduler(
 ) -> dict:
     result = await biz.process_savings_interest(asset_id, user_id, asset_repo)
     if not result["matured"]:
+        # biz.process_savings_interest does not return next_date; fetch the
+        # updated asset to determine the next scheduling date.
         asset = await asset_repo.get(UUID(asset_id), user_id)
         if asset and asset.active:
             nd = asset.next_date

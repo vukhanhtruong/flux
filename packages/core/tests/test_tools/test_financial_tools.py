@@ -640,7 +640,7 @@ async def test_process_savings_interest_maturity():
     mock_repo.update_amount.return_value = AssetOut(
         **{**asset.model_dump(), "amount": new_amount}
     )
-    # After advance, next_date >= maturity_date
+    # After advance, next_date > maturity_date
     mock_repo.advance_next_date.return_value = AssetOut(
         **{**asset.model_dump(), "amount": new_amount,
            "next_date": date(2028, 12, 1)}
@@ -659,6 +659,33 @@ async def test_process_savings_interest_maturity():
     assert result["matured"] is True
     assert "maturity_message" in result
     mock_repo.deactivate.assert_called_once()
+
+
+async def test_process_savings_interest_exactly_at_maturity_not_yet_matured():
+    """When advanced next_date == maturity_date, deposit is NOT matured yet."""
+    from flux_core.tools.financial_tools import process_savings_interest
+
+    asset_uuid = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+    asset = AssetOut(
+        id=asset_uuid, user_id="tg:456", name="Bank Deposit",
+        amount=Decimal("100000000"), interest_rate=Decimal("5"),
+        frequency=AssetFrequency.yearly, next_date=date(2027, 3, 1),
+        category="savings", active=True, asset_type=AssetType.savings,
+        principal_amount=Decimal("100000000"), compound_frequency="yearly",
+        maturity_date=date(2028, 3, 1), start_date=date(2026, 3, 1),
+    )
+    mock_repo = AsyncMock()
+    mock_repo.get.return_value = asset
+    mock_repo.update_amount.return_value = None
+    # After advancing, next_date lands exactly on maturity_date (not past it)
+    mock_repo.advance_next_date.return_value = AssetOut(
+        **{**asset.model_dump(), "next_date": date(2028, 3, 1)}
+    )
+
+    result = await process_savings_interest(str(asset_uuid), "tg:456", mock_repo)
+
+    assert result["matured"] is False
+    mock_repo.deactivate.assert_not_called()
 
 
 async def test_process_savings_interest_inactive_raises():
