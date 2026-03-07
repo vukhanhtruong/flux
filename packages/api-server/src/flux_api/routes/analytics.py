@@ -1,5 +1,6 @@
 """Analytics REST routes — thin adapters over use cases."""
 from datetime import date
+from decimal import Decimal
 
 from fastapi import APIRouter
 
@@ -53,8 +54,20 @@ async def calculate_financial_health(
     breakdown_uc = GetCategoryBreakdown(repo)
     breakdown = await breakdown_uc.execute(user_id, sd, ed)
 
+    total_income = Decimal(summary.get("total_income", "0"))
+    total_expenses = Decimal(summary.get("total_expenses", "0"))
+
+    savings_rate = (
+        float((total_income - total_expenses) / total_income)
+        if total_income > 0
+        else 0.0
+    )
+    # Simple score: savings_rate weight (capped 0-100)
+    score = max(0, min(100, round(savings_rate * 100)))
+
     return {
-        "summary": summary,
-        "category_breakdown": breakdown,
-        "period": {"start": start_date, "end": end_date},
+        "score": score,
+        "savings_rate": savings_rate,
+        "budget_adherence": 0.0,
+        "goal_progress": 0.0,
     }

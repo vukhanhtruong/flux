@@ -65,6 +65,7 @@ def test_financial_health(client):
 
     assert response.status_code == 200
     data = response.json()
-    assert "summary" in data
-    assert "category_breakdown" in data
-    assert "period" in data
+    assert data["score"] == 40
+    assert data["savings_rate"] == pytest.approx(0.4)
+    assert data["budget_adherence"] == 0.0
+    assert data["goal_progress"] == 0.0

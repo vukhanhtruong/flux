@@ -3,7 +3,7 @@ import { ArrowRightLeft } from "lucide-react";
 import { api } from "../lib/api";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
-import { formatCurrency, formatDate } from "../lib/format";
+import { formatCurrency, formatDateTime } from "../lib/format";
 import type { Transaction } from "../types";
 
 export function Transactions() {
@@ -73,7 +73,7 @@ export function Transactions() {
                 {transactions.map((txn) => (
                   <tr key={txn.id} className="hover:bg-white/[0.02] transition-colors group">
                     <td className="px-8 py-5 text-sm text-slate-300">
-                      {formatDate(txn.date, profile.locale, profile.timezone)}
+                      {formatDateTime(txn.date, profile.locale, profile.timezone)}
                     </td>
                     <td className="px-8 py-5">
                       <p className="text-sm font-semibold text-white group-hover:text-primary transition-colors">

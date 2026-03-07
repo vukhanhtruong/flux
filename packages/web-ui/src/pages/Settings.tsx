@@ -63,9 +63,9 @@ export function Settings() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "general", label: "General" },
+    { key: "scheduled-tasks", label: "Scheduled Tasks" },
     { key: "messaging", label: "Messaging Platforms" },
     { key: "system", label: "System" },
-    { key: "scheduled-tasks", label: "Scheduled Tasks" },
   ];
 
   return (
