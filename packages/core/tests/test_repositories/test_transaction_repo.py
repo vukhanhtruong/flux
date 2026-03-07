@@ -179,8 +179,10 @@ class TestGetSummary:
             _make_txn(user_id, type=TransactionType.expense, amount=Decimal("200.00"))
         )
         result = repo.get_summary(user_id, date(2026, 1, 1), date(2026, 12, 31))
-        assert Decimal(str(result["total_income"])) == Decimal("1000.00")
-        assert Decimal(str(result["total_expenses"])) == Decimal("500.00")
+        assert isinstance(result["total_income"], Decimal)
+        assert isinstance(result["total_expenses"], Decimal)
+        assert result["total_income"] == Decimal("1000.00")
+        assert result["total_expenses"] == Decimal("500.00")
         assert result["count"] == 3
 
 
@@ -201,6 +203,7 @@ class TestGetCategoryBreakdown:
         assert len(result) == 2
         # ordered by total DESC
         assert result[0]["category"] == "Transport"
-        assert Decimal(str(result[0]["total"])) == Decimal("200.00")
+        assert isinstance(result[0]["total"], Decimal)
+        assert result[0]["total"] == Decimal("200.00")
         assert result[1]["category"] == "Food"
         assert result[1]["count"] == 2

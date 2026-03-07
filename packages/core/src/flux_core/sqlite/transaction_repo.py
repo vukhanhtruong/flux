@@ -173,7 +173,10 @@ class SqliteTransactionRepository:
             """,
             (user_id, start_date.isoformat(), end_date.isoformat()),
         ).fetchone()
-        return dict(row)
+        d = dict(row)
+        d["total_income"] = Decimal(str(d["total_income"]))
+        d["total_expenses"] = Decimal(str(d["total_expenses"]))
+        return d
 
     def get_category_breakdown(
         self, user_id: str, start_date: date, end_date: date
@@ -190,7 +193,12 @@ class SqliteTransactionRepository:
             """,
             (user_id, start_date.isoformat(), end_date.isoformat()),
         ).fetchall()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["total"] = Decimal(str(d["total"]))
+            result.append(d)
+        return result
 
     @staticmethod
     def _from_row(row: sqlite3.Row) -> TransactionOut:
