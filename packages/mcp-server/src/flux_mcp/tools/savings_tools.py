@@ -1,141 +1,22 @@
-import logging
-from datetime import date, datetime
-from typing import Callable, Awaitable
+from datetime import datetime
+from decimal import Decimal
+from typing import Callable
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastmcp import FastMCP
-from flux_core.db.connection import Database
-from flux_core.db.asset_repo import AssetRepository
-from flux_core.db.transaction_repo import TransactionRepository
-from flux_core.tools import financial_tools as biz
-from flux_mcp.db.savings_scheduler_repo import SavingsSchedulerRepo, _to_utc_midnight
+from flux_core.sqlite.asset_repo import SqliteAssetRepository
+from flux_core.uow.unit_of_work import UnitOfWork
+from flux_core.use_cases.savings.create_savings import CreateSavings
+from flux_core.use_cases.savings.process_interest import ProcessInterest
+from flux_core.use_cases.savings.withdraw_savings import WithdrawSavings
 
-
-def _build_savings_prompt(name: str, asset_id: str, is_maturity: bool) -> str:
-    """Build the scheduler prompt, with maturity language if this is the final event."""
-    base = f"Process savings interest for {name} (id: {asset_id})"
-    if is_maturity:
-        return (
-            f"{base}. This deposit matures today. "
-            "After processing, inform the user about the final balance "
-            "and ask if they'd like to withdraw."
-        )
-    return base
-
-
-# ── testable helpers ────────────────────────────────────────────────────────
-
-
-async def _create_savings_with_scheduler(
-    user_id: str,
-    name: str,
-    amount: float,
-    interest_rate: float,
-    compound_frequency: str,
-    start_date: str,
-    maturity_date: str,
-    category: str,
-    asset_repo: AssetRepository,
-    scheduler_repo: SavingsSchedulerRepo,
-) -> dict:
-    result = await biz.create_savings_deposit(
-        user_id, name, amount, interest_rate, compound_frequency,
-        start_date, maturity_date, category, asset_repo,
-    )
-    nd = date.fromisoformat(result["next_date"])
-    mat = date.fromisoformat(result["maturity_date"]) if result.get("maturity_date") else None
-    is_maturity = mat is not None and nd >= mat
-    prompt = _build_savings_prompt(result["name"], result["id"], is_maturity)
-    try:
-        await scheduler_repo.create(
-            user_id=user_id,
-            asset_id=result["id"],
-            prompt=prompt,
-            schedule_date=result["next_date"],
-            next_run_at=_to_utc_midnight(nd),
-        )
-    except Exception as exc:
-        logging.getLogger(__name__).error(
-            "Failed to create scheduler for savings %s: %s", result["id"], exc
-        )
-    return result
-
-
-async def _close_savings_with_scheduler(
-    asset_id: str,
-    user_id: str,
-    asset_repo: AssetRepository,
-    scheduler_repo: SavingsSchedulerRepo,
-) -> dict:
-    await scheduler_repo.delete(asset_id)
-    return await biz.close_savings_early(asset_id, user_id, asset_repo)
-
-
-async def _delete_savings_with_scheduler(
-    asset_id: str,
-    user_id: str,
-    asset_repo: AssetRepository,
-    scheduler_repo: SavingsSchedulerRepo,
-) -> dict:
-    await scheduler_repo.delete(asset_id)
-    return await biz.delete_asset(asset_id, user_id, asset_repo)
-
-
-async def _process_interest_with_scheduler(
-    asset_id: str,
-    user_id: str,
-    asset_repo: AssetRepository,
-    scheduler_repo: SavingsSchedulerRepo,
-) -> dict:
-    result = await biz.process_savings_interest(asset_id, user_id, asset_repo)
-    if not result["matured"]:
-        # biz.process_savings_interest does not return next_date; fetch the
-        # updated asset to determine the next scheduling date.
-        asset = await asset_repo.get(UUID(asset_id), user_id)
-        if asset and asset.active:
-            nd = asset.next_date
-            is_maturity = asset.maturity_date is not None and nd >= asset.maturity_date
-            prompt = _build_savings_prompt(asset.name, asset_id, is_maturity)
-            try:
-                await scheduler_repo.create(
-                    user_id=user_id,
-                    asset_id=asset_id,
-                    prompt=prompt,
-                    schedule_date=str(nd),
-                    next_run_at=_to_utc_midnight(nd),
-                )
-            except Exception as exc:
-                logging.getLogger(__name__).error(
-                    "Failed to re-schedule savings %s: %s", asset_id, exc
-                )
-    return result
-
-
-async def _withdraw_savings_with_scheduler(
-    asset_id: str,
-    user_id: str,
-    asset_repo: AssetRepository,
-    txn_repo: TransactionRepository,
-    scheduler_repo: SavingsSchedulerRepo,
-    user_timezone: str = "UTC",
-) -> dict:
-    try:
-        await scheduler_repo.delete(asset_id)
-    except Exception as exc:
-        logging.getLogger(__name__).error(
-            "Failed to delete scheduler for savings %s: %s", asset_id, exc
-        )
-    return await biz.withdraw_savings(asset_id, user_id, asset_repo, txn_repo, user_timezone)
-
-
-# ── MCP tool registration ────────────────────────────────────────────────────
 
 def register_savings_tools(
     mcp: FastMCP,
-    get_db: Callable[[], Awaitable[Database]],
+    get_uow: Callable[[], UnitOfWork],
     get_user_id: Callable[[], str],
-    get_user_timezone: Callable[[], Awaitable[str]],
+    get_user_timezone: Callable[[], str],
 ):
     @mcp.tool()
     async def create_savings_deposit(
@@ -154,43 +35,83 @@ def register_savings_tools(
         interest_rate is annual percentage (e.g. 5.0 for 5%).
         Scheduling is handled automatically — do NOT call schedule_task separately.
         """
-        db = await get_db()
-        tz = await get_user_timezone()
+        from datetime import date
+        tz = get_user_timezone()
         resolved_start = start_date or datetime.now(ZoneInfo(tz)).date().isoformat()
-        return await _create_savings_with_scheduler(
-            get_user_id(), name, amount, interest_rate, compound_frequency,
-            resolved_start, maturity_date, category,
-            AssetRepository(db),
-            SavingsSchedulerRepo(db),
+        uc = CreateSavings(get_uow())
+        result = await uc.execute(
+            get_user_id(), name, Decimal(str(amount)),
+            Decimal(str(interest_rate)), compound_frequency,
+            date.fromisoformat(resolved_start),
+            date.fromisoformat(maturity_date), category,
         )
+        return {
+            "id": str(result.id),
+            "name": result.name,
+            "amount": str(result.amount),
+            "interest_rate": str(result.interest_rate),
+            "compound_frequency": result.compound_frequency,
+            "next_date": str(result.next_date),
+            "maturity_date": str(result.maturity_date) if result.maturity_date else None,
+            "active": result.active,
+        }
 
     @mcp.tool()
     async def list_savings(active_only: bool = True) -> list[dict]:
         """List all savings deposits with interest earned."""
-        db = await get_db()
-        return await biz.list_savings(get_user_id(), AssetRepository(db), active_only)
+        from flux_mcp.server import get_db
+        db = get_db()
+        repo = SqliteAssetRepository(db.connection())
+        results = repo.list_by_user(get_user_id(), active_only, asset_type="savings")
+        return [
+            {
+                "id": str(a.id),
+                "name": a.name,
+                "amount": str(a.amount),
+                "interest_rate": str(a.interest_rate),
+                "compound_frequency": a.compound_frequency,
+                "next_date": str(a.next_date),
+                "maturity_date": str(a.maturity_date) if a.maturity_date else None,
+                "active": a.active,
+            }
+            for a in results
+        ]
 
     @mcp.tool()
     async def close_savings_early(asset_id: str) -> dict:
         """Close a savings deposit before maturity. Removes the scheduler."""
-        db = await get_db()
-        return await _close_savings_with_scheduler(
-            asset_id, get_user_id(),
-            AssetRepository(db),
-            SavingsSchedulerRepo(db),
-        )
+        from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
+
+        uow = get_uow()
+        user_id = get_user_id()
+        asset_uuid = UUID(asset_id)
+
+        async with uow:
+            asset_repo = SqliteAssetRepository(uow.conn)
+            task_repo = SqliteBotScheduledTaskRepository(uow.conn)
+
+            task_repo.delete_by_asset(asset_id)
+            result = asset_repo.deactivate(asset_uuid, user_id)
+            if result is None:
+                await uow.commit()
+                return {"error": f"Savings deposit {asset_id} not found"}
+            await uow.commit()
+
+        return {
+            "id": str(result.id),
+            "name": result.name,
+            "active": result.active,
+            "amount": str(result.amount),
+            "status": "closed_early",
+        }
 
     @mcp.tool()
     async def process_savings_interest(asset_id: str) -> dict:
         """Calculate and apply compound interest for a savings deposit.
         Called automatically by the scheduler on each compounding date.
         """
-        db = await get_db()
-        return await _process_interest_with_scheduler(
-            asset_id, get_user_id(),
-            AssetRepository(db),
-            SavingsSchedulerRepo(db),
-        )
+        uc = ProcessInterest(get_uow())
+        return await uc.execute(UUID(asset_id), get_user_id())
 
     @mcp.tool()
     async def withdraw_savings(asset_id: str) -> dict:
@@ -198,11 +119,26 @@ def register_savings_tools(
         Creates an income transaction for the full balance and deactivates the asset.
         Money moves from 'asset balance' to 'cash (transactions)'.
         """
-        db = await get_db()
-        return await _withdraw_savings_with_scheduler(
-            asset_id, get_user_id(),
-            AssetRepository(db),
-            TransactionRepository(db),
-            SavingsSchedulerRepo(db),
-            user_timezone=await get_user_timezone(),
-        )
+        tz = get_user_timezone()
+        today = datetime.now(ZoneInfo(tz)).date()
+        uc = WithdrawSavings(get_uow())
+        return await uc.execute(UUID(asset_id), get_user_id(), today=today)
+
+    @mcp.tool()
+    async def delete_savings(asset_id: str) -> dict:
+        """Delete a savings deposit permanently."""
+        from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
+
+        uow = get_uow()
+        user_id = get_user_id()
+        asset_uuid = UUID(asset_id)
+
+        async with uow:
+            task_repo = SqliteBotScheduledTaskRepository(uow.conn)
+            asset_repo = SqliteAssetRepository(uow.conn)
+
+            task_repo.delete_by_asset(asset_id)
+            success = asset_repo.delete(asset_uuid, user_id)
+            await uow.commit()
+
+        return {"deleted": success, "asset_id": asset_id}

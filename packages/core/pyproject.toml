@@ -4,12 +4,14 @@ version = "0.1.0"
 description = "flux shared business logic — models, repos, embeddings, migrations"
 requires-python = ">=3.12"
 dependencies = [
-    "zvec>=0.2.1b0",
     "pydantic>=2.0",
     "croniter>=3.0",
 ]
 
 [project.optional-dependencies]
+vector = [
+    "zvec>=0.2.1b0",
+]
 embeddings = [
     "fastembed>=0.4",
 ]

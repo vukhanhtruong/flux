@@ -3,8 +3,8 @@
 Resources are data endpoints that can be queried by MCP clients.
 """
 
-from flux_core.db.transaction_repo import TransactionRepository
-from flux_core.db.budget_repo import BudgetRepository
+from flux_core.repositories.budget_repo import BudgetRepository
+from flux_core.repositories.transaction_repo import TransactionRepository
 
 
 async def get_recent_transactions(
@@ -16,7 +16,7 @@ async def get_recent_transactions(
 
     This resource provides a snapshot of recent financial activity.
     """
-    transactions = await repo.list_by_user(user_id, limit=limit)
+    transactions = repo.list_by_user(user_id, limit=limit)
 
     return {
         "recent_transactions": [
@@ -43,7 +43,7 @@ async def get_budget_summary(
 
     This resource provides an overview of all budget limits.
     """
-    budgets = await repo.list_by_user(user_id)
+    budgets = repo.list_by_user(user_id)
 
     return {
         "budgets": [

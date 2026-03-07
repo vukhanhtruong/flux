@@ -1,14 +1,21 @@
-from typing import Callable, Awaitable
+from typing import Callable
 
 from fastmcp import FastMCP
-from flux_core.db.connection import Database
-from flux_core.tools import ipc_tools as biz
+from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
+from flux_core.uow.unit_of_work import UnitOfWork
+from flux_core.use_cases.bot.cancel_task import CancelTask
+from flux_core.use_cases.bot.list_tasks import ListTasks
+from flux_core.use_cases.bot.pause_task import PauseTask
+from flux_core.use_cases.bot.resume_task import ResumeTask
+from flux_core.use_cases.bot.schedule_task import ScheduleTask
+from flux_core.use_cases.bot.send_message import SendMessage
 
 
 def register_ipc_tools(
     mcp: FastMCP,
-    get_db: Callable[[], Awaitable[Database]],
+    get_uow: Callable[[], UnitOfWork],
     get_user_id: Callable[[], str],
+    get_user_timezone: Callable[[], str],
 ):
     @mcp.tool()
     async def send_message(text: str, sender: str | None = None) -> dict:
@@ -17,8 +24,8 @@ def register_ipc_tools(
         Your final response is always sent automatically — call this only when
         you need to deliver information before you finish, not as a substitute
         for your final reply."""
-        db = await get_db()
-        return await biz.send_message(get_user_id(), text, sender, db=db)
+        uc = SendMessage(get_uow())
+        return await uc.execute(get_user_id(), text, sender=sender)
 
     @mcp.tool()
     async def schedule_task(
@@ -35,31 +42,36 @@ def register_ipc_tools(
           - once: for relative delays ("in 5 min"), use milliseconds like "300000".
                   For absolute times, use local timestamp like "2026-02-01T15:30:00" (no Z suffix).
         """
-        db = await get_db()
-        return await biz.schedule_task(
-            get_user_id(), prompt, schedule_type, schedule_value, db,
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(get_user_timezone())
+        uc = ScheduleTask(get_uow())
+        return await uc.execute(
+            get_user_id(), prompt, schedule_type, schedule_value, user_tz=tz,
         )
 
     @mcp.tool()
     async def list_scheduled_tasks() -> dict:
         """List all your scheduled tasks."""
-        db = await get_db()
-        return await biz.list_tasks(get_user_id(), db)
+        from flux_mcp.server import get_db
+        db = get_db()
+        repo = SqliteBotScheduledTaskRepository(db.connection())
+        uc = ListTasks(repo)
+        return await uc.execute(get_user_id())
 
     @mcp.tool()
     async def pause_scheduled_task(task_id: int) -> dict:
         """Pause a scheduled task. It will not run until resumed."""
-        db = await get_db()
-        return await biz.pause_task(get_user_id(), task_id, db)
+        uc = PauseTask(get_uow())
+        return await uc.execute(get_user_id(), task_id)
 
     @mcp.tool()
     async def resume_scheduled_task(task_id: int) -> dict:
         """Resume a paused scheduled task."""
-        db = await get_db()
-        return await biz.resume_task(get_user_id(), task_id, db)
+        uc = ResumeTask(get_uow())
+        return await uc.execute(get_user_id(), task_id)
 
     @mcp.tool()
     async def cancel_scheduled_task(task_id: int) -> dict:
         """Cancel and delete a scheduled task."""
-        db = await get_db()
-        return await biz.cancel_task(get_user_id(), task_id, db)
+        uc = CancelTask(get_uow())
+        return await uc.execute(get_user_id(), task_id)

@@ -4,7 +4,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import zvec
+try:
+    import zvec
+    ZVEC_AVAILABLE = True
+except ImportError:
+    zvec = None  # type: ignore[assignment]
+    ZVEC_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 

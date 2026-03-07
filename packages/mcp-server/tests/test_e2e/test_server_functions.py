@@ -1,6 +1,6 @@
 """Tests for server.py module-level functions."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import flux_mcp.server as server_module
 from flux_mcp.server import get_session_user_id, get_db, get_embedding_service
@@ -12,17 +12,20 @@ def test_get_session_user_id_raises_when_empty(monkeypatch):
         get_session_user_id()
 
 
-async def test_get_db_creates_database_when_none(monkeypatch):
-    mock_db_instance = AsyncMock()
+def test_get_db_creates_database_when_none(monkeypatch, tmp_path):
+    mock_db_instance = MagicMock()
     mock_db_class = MagicMock(return_value=mock_db_instance)
+    mock_migrate = MagicMock()
 
     monkeypatch.setattr(server_module, "_db", None)
     monkeypatch.setattr(server_module, "Database", mock_db_class)
+    monkeypatch.setattr(server_module, "migrate", mock_migrate)
 
-    result = await get_db()
+    result = get_db()
 
     mock_db_class.assert_called_once()
-    mock_db_instance.connect.assert_awaited_once()
+    mock_db_instance.connect.assert_called_once()
+    mock_migrate.assert_called_once_with(mock_db_instance)
     assert result is mock_db_instance
 
     # restore _db to None so other tests start clean

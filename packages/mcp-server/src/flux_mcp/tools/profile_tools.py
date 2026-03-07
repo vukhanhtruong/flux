@@ -1,13 +1,15 @@
-from typing import Callable, Awaitable
+from typing import Callable
 
 from fastmcp import FastMCP
-from flux_core.db.connection import Database
-from flux_core.db.user_profile_repo import UserProfileRepository
+from flux_core.sqlite.database import Database
+from flux_core.sqlite.user_repo import SqliteUserRepository
+from flux_core.uow.unit_of_work import UnitOfWork
 
 
 def register_profile_tools(
     mcp: FastMCP,
-    get_db: Callable[[], Awaitable[Database]],
+    get_db: Callable[[], Database],
+    get_uow: Callable[[], UnitOfWork],
     get_user_id: Callable[[], str],
 ):
     @mcp.tool()
@@ -21,12 +23,12 @@ def register_profile_tools(
         If all fields are omitted, returns your current preferences without making any changes.
         Changing username assigns a new user_id; past records are unaffected.
         """
-        db = await get_db()
-        repo = UserProfileRepository(db)
+        db = get_db()
         user_id = get_user_id()
+        repo = SqliteUserRepository(db.connection())
 
         if currency is None and timezone is None and username is None:
-            profile = await repo.get_by_user_id(user_id)
+            profile = repo.get_by_user_id(user_id)
             if profile is None:
                 return {"error": "profile not found"}
             return {
@@ -36,15 +38,21 @@ def register_profile_tools(
                 "user_id": profile.user_id,
             }
 
-        try:
-            profile = await repo.update(
-                user_id,
-                currency=currency,
-                timezone=timezone,
-                username=username,
-            )
-        except ValueError as e:
-            return {"error": str(e)}
+        # Write operation — use UoW for transactional safety
+        uow = get_uow()
+        async with uow:
+            uw_repo = SqliteUserRepository(uow.conn)
+            try:
+                profile = uw_repo.update(
+                    user_id,
+                    currency=currency,
+                    timezone=timezone,
+                    username=username,
+                )
+            except ValueError as e:
+                await uow.commit()
+                return {"error": str(e)}
+            await uow.commit()
 
         return {
             "currency": profile.currency,
