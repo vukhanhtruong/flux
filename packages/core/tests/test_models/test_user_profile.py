@@ -12,7 +12,7 @@ def test_user_profile_create_defaults():
     assert p.currency == "VND"
     assert p.timezone == "Asia/Ho_Chi_Minh"
     assert p.locale == "vi-VN"
-    assert p.user_id == "tg:truong-vu"
+    assert p.user_id == "tg:12345"
 
 
 def test_user_profile_create_custom():
@@ -24,15 +24,20 @@ def test_user_profile_create_custom():
         timezone="America/New_York",
         locale="en-US",
     )
-    assert p.user_id == "wa:my-wife"
+    assert p.user_id == "wa:84901234567"
     assert p.locale == "en-US"
 
 
-def test_username_invalid_characters():
-    with pytest.raises(ValidationError):
-        UserProfileCreate(username="Truong Vu!", channel="telegram", platform_id="1")
+def test_username_freeform_allowed():
+    p = UserProfileCreate(username="Truong Vu!", channel="telegram", platform_id="1")
+    assert p.username == "Truong Vu!"
 
 
-def test_username_too_short():
+def test_username_empty_rejected():
     with pytest.raises(ValidationError):
-        UserProfileCreate(username="a", channel="telegram", platform_id="1")
+        UserProfileCreate(username="", channel="telegram", platform_id="1")
+
+
+def test_username_whitespace_only_rejected():
+    with pytest.raises(ValidationError):
+        UserProfileCreate(username="   ", channel="telegram", platform_id="1")

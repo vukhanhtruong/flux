@@ -11,6 +11,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+
+# Load .env if present (export vars so subprocesses see them)
+if [ -f "$ROOT/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$ROOT/.env"
+    set +a
+fi
 VENV="$ROOT/.venv"
 DATA="$ROOT/.dev-data"
 

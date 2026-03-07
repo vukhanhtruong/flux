@@ -46,7 +46,7 @@ class TestCreateProfile:
         )
         profile = repo.create_profile(create)
         assert isinstance(profile, UserProfile)
-        assert profile.user_id == "tg:alice"
+        assert profile.user_id == "tg:12345"
         assert profile.username == "alice"
         assert profile.channel == "telegram"
         assert profile.platform_id == "12345"
@@ -71,7 +71,7 @@ class TestGetByUserId:
             platform_id="222",
         )
         repo.create_profile(create)
-        profile = repo.get_by_user_id("tg:carol")
+        profile = repo.get_by_user_id("tg:222")
         assert profile is not None
         assert profile.username == "carol"
 
@@ -117,7 +117,7 @@ class TestUpdate:
             platform_id="555",
         )
         repo.create_profile(create)
-        profile = repo.update("tg:frank", currency="EUR")
+        profile = repo.update("tg:555", currency="EUR")
         assert profile.currency == "EUR"
 
     def test_update_multiple_fields(self, repo):
@@ -127,7 +127,7 @@ class TestUpdate:
             platform_id="666",
         )
         repo.create_profile(create)
-        profile = repo.update("tg:grace", timezone="US/Eastern", locale="en-US")
+        profile = repo.update("tg:666", timezone="US/Eastern", locale="en-US")
         assert profile.timezone == "US/Eastern"
         assert profile.locale == "en-US"
 
@@ -138,7 +138,7 @@ class TestUpdate:
             platform_id="777",
         )
         repo.create_profile(create)
-        profile = repo.update("tg:hank", username="henry")
+        profile = repo.update("tg:777", username="henry")
         assert profile.username == "henry"
 
     def test_update_not_found_raises(self, repo):

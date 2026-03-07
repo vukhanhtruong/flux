@@ -25,7 +25,7 @@ class SqliteUserRepository:
     def create_profile(self, create: UserProfileCreate) -> UserProfile:
         """Create a full user profile."""
         prefix = _CHANNEL_PREFIXES.get(create.channel, create.channel)
-        user_id = f"{prefix}:{create.username}"
+        user_id = f"{prefix}:{create.platform_id}"
         self._conn.execute(
             """
             INSERT INTO users
