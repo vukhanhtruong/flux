@@ -28,11 +28,15 @@ class CreateBackup:
         zvec_path: str,
         local_provider: LocalStorageProvider | None = None,
         s3_provider: S3StorageProvider | None = None,
+        local_retention: int | None = None,
+        s3_retention: int | None = None,
     ):
         self._db = db
         self._zvec_path = zvec_path
         self._local = local_provider
         self._s3 = s3_provider
+        self._local_retention = local_retention
+        self._s3_retention = s3_retention
 
     async def execute(
         self,
@@ -92,7 +96,20 @@ class CreateBackup:
                     s3_key=key,
                 )
 
+        await self._apply_retention()
+
         return result_meta
+
+    async def _apply_retention(self) -> None:
+        if self._local and self._local_retention:
+            backups = await self._local.list_backups()
+            for old in backups[self._local_retention:]:
+                await self._local.delete(old.filename)
+        if self._s3 and self._s3_retention:
+            backups = await self._s3.list_backups()
+            for old in backups[self._s3_retention:]:
+                if old.s3_key:
+                    await self._s3.delete(old.s3_key)
 
     def _resolve_provider(self, storage: str) -> None:
         if storage == "local" and not self._local:

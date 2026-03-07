@@ -103,6 +103,37 @@ async def test_create_backup_both(tmp_path):
     s3_provider.upload.assert_called_once()
 
 
+async def test_create_backup_applies_retention(tmp_path):
+    db_path = _make_test_db(tmp_path)
+    zvec_path = _make_test_zvec(tmp_path)
+
+    db = _mock_db(db_path)
+    local_provider = AsyncMock()
+    local_provider.upload.return_value = "new-backup.zip"
+    # Simulate 10 existing backups
+    local_provider.list_backups.return_value = [
+        BackupMetadata(
+            id=f"id-{i}",
+            filename=f"backup-{i}.zip",
+            size_bytes=1024,
+            created_at=datetime(2026, 3, 7, tzinfo=UTC),
+            storage="local",
+        )
+        for i in range(10)
+    ]
+
+    uc = CreateBackup(
+        db=db,
+        zvec_path=zvec_path,
+        local_provider=local_provider,
+        local_retention=3,
+    )
+    await uc.execute(storage="local")
+
+    # Should have deleted backups beyond retention (10 - 3 = 7 deletions)
+    assert local_provider.delete.call_count == 7
+
+
 async def test_create_backup_no_provider_raises(tmp_path):
     db_path = _make_test_db(tmp_path)
     zvec_path = _make_test_zvec(tmp_path)
