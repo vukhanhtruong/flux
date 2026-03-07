@@ -367,8 +367,8 @@ export function Settings() {
                             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">{task.status}</span>
                           </span>
                         </td>
-                        <td className="py-3 pr-4 text-slate-400 text-xs">{new Date(task.next_run_at).toLocaleString()}</td>
-                        <td className="py-3 pr-4 text-slate-400 text-xs">{task.last_run_at ? new Date(task.last_run_at).toLocaleString() : "—"}</td>
+                        <td className="py-3 pr-4 text-slate-400 text-xs">{new Date(task.next_run_at + "Z").toLocaleString(profile.locale, { timeZone: profile.timezone })}</td>
+                        <td className="py-3 pr-4 text-slate-400 text-xs">{task.last_run_at ? new Date(task.last_run_at + "Z").toLocaleString(profile.locale, { timeZone: profile.timezone }) : "—"}</td>
                         <td className="py-3 text-slate-400 text-xs">
                           {task.subscription_id ? `Subscription` : task.asset_id ? `Savings` : "—"}
                         </td>
