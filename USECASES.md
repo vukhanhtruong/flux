@@ -6,38 +6,38 @@ Living document — all use cases implemented in FluxFinance. Keep in sync with 
 
 ## Inventory
 
-| Domain | Use Case | Writes | Vectors | Events |
-|--------|----------|--------|---------|--------|
-| **Transactions** | `AddTransaction` | SQLite | zvec | `TransactionCreated` |
-| | `ListTransactions` | — | — | — |
-| | `SearchTransactions` | — | zvec (read) | — |
-| | `UpdateTransaction` | SQLite | zvec | `TransactionUpdated` |
-| | `DeleteTransaction` | SQLite | zvec (delete) | `TransactionDeleted` |
-| **Budgets** | `SetBudget` | SQLite | — | — |
-| | `ListBudgets` | — | — | — |
-| | `RemoveBudget` | SQLite | — | — |
-| **Goals** | `CreateGoal` | SQLite | — | — |
-| | `ListGoals` | — | — | — |
-| | `DepositToGoal` | SQLite | — | — |
-| | `WithdrawFromGoal` | SQLite | — | — |
-| | `DeleteGoal` | SQLite | — | — |
-| **Subscriptions** | `CreateSubscription` | SQLite (2 tables) | — | `SubscriptionCreated` |
-| | `ListSubscriptions` | — | — | — |
-| | `ToggleSubscription` | SQLite (2 tables) | — | — |
-| | `DeleteSubscription` | SQLite (2 tables) | — | — |
-| **Savings** | `CreateSavings` | SQLite (2 tables) | — | `SavingsCreated` |
-| | `ProcessInterest` | SQLite | — | — |
-| | `WithdrawSavings` | SQLite (3 tables) | — | — |
-| **Memory** | `Remember` | SQLite | zvec | `MemoryCreated` |
-| | `Recall` | — | zvec (read) | — |
-| | `ListMemories` | — | — | — |
-| **Analytics** | `GetSummary` | — | — | — |
-| | `GetTrends` | — | — | — |
-| | `GetCategoryBreakdown` | — | — | — |
-| **Bot** | `ProcessMessage` | SQLite (3 tables) | — | `OutboundCreated` |
-| | `SendOutbound` | SQLite | — | — |
-| | `CreateScheduledTask` | SQLite | — | `ScheduledTaskCreated` |
-| | `FireScheduledTask` | SQLite (2 tables) | — | `MessageCreated` |
+| Domain            | Use Case               | Writes            | Vectors       | Events                 |
+| ----------------- | ---------------------- | ----------------- | ------------- | ---------------------- |
+| **Transactions**  | `AddTransaction`       | SQLite            | zvec          | `TransactionCreated`   |
+|                   | `ListTransactions`     | —                 | —             | —                      |
+|                   | `SearchTransactions`   | —                 | zvec (read)   | —                      |
+|                   | `UpdateTransaction`    | SQLite            | zvec          | `TransactionUpdated`   |
+|                   | `DeleteTransaction`    | SQLite            | zvec (delete) | `TransactionDeleted`   |
+| **Budgets**       | `SetBudget`            | SQLite            | —             | —                      |
+|                   | `ListBudgets`          | —                 | —             | —                      |
+|                   | `RemoveBudget`         | SQLite            | —             | —                      |
+| **Goals**         | `CreateGoal`           | SQLite            | —             | —                      |
+|                   | `ListGoals`            | —                 | —             | —                      |
+|                   | `DepositToGoal`        | SQLite            | —             | —                      |
+|                   | `WithdrawFromGoal`     | SQLite            | —             | —                      |
+|                   | `DeleteGoal`           | SQLite            | —             | —                      |
+| **Subscriptions** | `CreateSubscription`   | SQLite (2 tables) | —             | `SubscriptionCreated`  |
+|                   | `ListSubscriptions`    | —                 | —             | —                      |
+|                   | `ToggleSubscription`   | SQLite (2 tables) | —             | —                      |
+|                   | `DeleteSubscription`   | SQLite (2 tables) | —             | —                      |
+| **Savings**       | `CreateSavings`        | SQLite (2 tables) | —             | `SavingsCreated`       |
+|                   | `ProcessInterest`      | SQLite            | —             | —                      |
+|                   | `WithdrawSavings`      | SQLite (3 tables) | —             | —                      |
+| **Memory**        | `Remember`             | SQLite            | zvec          | `MemoryCreated`        |
+|                   | `Recall`               | —                 | zvec (read)   | —                      |
+|                   | `ListMemories`         | —                 | —             | —                      |
+| **Analytics**     | `GetSummary`           | —                 | —             | —                      |
+|                   | `GetTrends`            | —                 | —             | —                      |
+|                   | `GetCategoryBreakdown` | —                 | —             | —                      |
+| **Bot**           | `ProcessMessage`       | SQLite (3 tables) | —             | `OutboundCreated`      |
+|                   | `SendOutbound`         | SQLite            | —             | —                      |
+|                   | `CreateScheduledTask`  | SQLite            | —             | `ScheduledTaskCreated` |
+|                   | `FireScheduledTask`    | SQLite (2 tables) | —             | `MessageCreated`       |
 
 ---
 
