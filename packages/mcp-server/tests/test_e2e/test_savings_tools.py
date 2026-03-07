@@ -1,0 +1,160 @@
+"""E2E tests for savings MCP tools."""
+import json
+from decimal import Decimal
+
+
+def _extract_json(tool_result):
+    if tool_result.content:
+        return json.loads(tool_result.content[0].text)
+    # FastMCP may return structured_content with empty content for lists
+    if tool_result.structured_content is not None:
+        return tool_result.structured_content.get("result", tool_result.structured_content)
+    raise AssertionError("Tool result has no content")
+
+
+async def test_create_savings_deposit_defaults_start_date(seeded_server):
+    """create_savings_deposit with start_date=None defaults to today."""
+    result = await seeded_server.call_tool(
+        "create_savings_deposit",
+        {
+            "name": "Term Deposit",
+            "amount": 10000.0,
+            "interest_rate": 5.0,
+            "compound_frequency": "monthly",
+            "maturity_date": "2028-03-07",
+            "category": "savings",
+        },
+    )
+    data = _extract_json(result)
+    assert data["name"] == "Term Deposit"
+    assert Decimal(data["amount"]) == Decimal("10000")
+    assert data["active"] is True
+    assert "id" in data
+
+
+async def test_list_savings(seeded_server):
+    """list_savings returns correct response format after seeding."""
+    await seeded_server.call_tool(
+        "create_savings_deposit",
+        {
+            "name": "My Savings",
+            "amount": 5000.0,
+            "interest_rate": 3.0,
+            "compound_frequency": "monthly",
+            "maturity_date": "2027-06-01",
+            "category": "savings",
+        },
+    )
+    result = await seeded_server.call_tool("list_savings", {"active_only": True})
+    data = _extract_json(result)
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    item = data[0]
+    assert "id" in item
+    assert "name" in item
+    assert "amount" in item
+    assert "interest_rate" in item
+    assert "compound_frequency" in item
+    assert "next_date" in item
+    assert "active" in item
+
+
+async def test_process_savings_interest(seeded_server):
+    """process_savings_interest applies interest and returns updated balance."""
+    create_result = await seeded_server.call_tool(
+        "create_savings_deposit",
+        {
+            "name": "Interest Test",
+            "amount": 10000.0,
+            "interest_rate": 12.0,
+            "compound_frequency": "monthly",
+            "maturity_date": "2028-01-01",
+            "category": "savings",
+        },
+    )
+    asset_id = _extract_json(create_result)["id"]
+    result = await seeded_server.call_tool(
+        "process_savings_interest", {"asset_id": asset_id}
+    )
+    data = _extract_json(result)
+    # 10000 * (12/100/12) = 100.00
+    assert data["interest_applied"] == "100.00"
+    assert data["new_balance"] == "10100.00"
+    assert data["matured"] is False
+
+
+async def test_close_savings_early(seeded_server):
+    """close_savings_early deactivates asset and removes scheduler task."""
+    create_result = await seeded_server.call_tool(
+        "create_savings_deposit",
+        {
+            "name": "Early Close",
+            "amount": 5000.0,
+            "interest_rate": 4.0,
+            "compound_frequency": "monthly",
+            "maturity_date": "2028-01-01",
+            "category": "savings",
+        },
+    )
+    asset_id = _extract_json(create_result)["id"]
+    result = await seeded_server.call_tool(
+        "close_savings_early", {"asset_id": asset_id}
+    )
+    data = _extract_json(result)
+    assert data["active"] is False
+    assert data["status"] == "closed_early"
+    assert data["name"] == "Early Close"
+    # Verify asset no longer in active list
+    list_result = await seeded_server.call_tool("list_savings", {"active_only": True})
+    list_data = _extract_json(list_result)
+    ids = [s["id"] for s in list_data]
+    assert asset_id not in ids
+
+
+async def test_withdraw_savings(seeded_server):
+    """withdraw_savings creates income transaction and deactivates asset."""
+    create_result = await seeded_server.call_tool(
+        "create_savings_deposit",
+        {
+            "name": "Withdraw Test",
+            "amount": 8000.0,
+            "interest_rate": 5.0,
+            "compound_frequency": "monthly",
+            "maturity_date": "2028-01-01",
+            "category": "savings",
+        },
+    )
+    asset_id = _extract_json(create_result)["id"]
+    result = await seeded_server.call_tool(
+        "withdraw_savings", {"asset_id": asset_id}
+    )
+    data = _extract_json(result)
+    assert Decimal(data["withdrawn_amount"]) == Decimal("8000")
+    assert data["asset_name"] == "Withdraw Test"
+
+
+async def test_delete_savings(seeded_server):
+    """delete_savings removes both asset and scheduler task."""
+    create_result = await seeded_server.call_tool(
+        "create_savings_deposit",
+        {
+            "name": "Delete Me",
+            "amount": 1000.0,
+            "interest_rate": 2.0,
+            "compound_frequency": "yearly",
+            "maturity_date": "2028-01-01",
+            "category": "savings",
+        },
+    )
+    asset_id = _extract_json(create_result)["id"]
+    result = await seeded_server.call_tool(
+        "delete_savings", {"asset_id": asset_id}
+    )
+    data = _extract_json(result)
+    assert data["deleted"] is True
+    assert data["asset_id"] == asset_id
+    # Verify gone from list
+    list_result = await seeded_server.call_tool("list_savings", {"active_only": False})
+    list_data = _extract_json(list_result)
+    ids = [s["id"] for s in list_data]
+    assert asset_id not in ids
