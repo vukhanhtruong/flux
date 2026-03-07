@@ -1,20 +1,15 @@
 import pytest
-from testcontainers.postgres import PostgresContainer
+
+from flux_core.sqlite.database import Database
+from flux_core.sqlite.migrations.migrate import migrate
 
 
-@pytest.fixture(scope="session")
-def pg_container():
-    """Start a PostgreSQL + pgvector container for the test session."""
-    with PostgresContainer(
-        image="pgvector/pgvector:pg16",
-        username="test",
-        password="test",
-        dbname="flux_test",
-    ) as pg:
-        yield pg
-
-
-@pytest.fixture(scope="session")
-def pg_url(pg_container):
-    """Return the PostgreSQL connection URL."""
-    return pg_container.get_connection_url().replace("+psycopg2", "")
+@pytest.fixture
+def sqlite_db(tmp_path):
+    """Provide a migrated SQLite Database for testing."""
+    db_path = str(tmp_path / "test.db")
+    db = Database(db_path)
+    db.connect()
+    migrate(db)
+    yield db
+    db.disconnect()

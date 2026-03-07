@@ -1,7 +1,7 @@
+"""Integration test: full message flow with SQLite database."""
 import asyncio
 from unittest.mock import AsyncMock
-import asyncpg
-from flux_bot.db.migrate import run_migrations
+
 from flux_bot.db.messages import MessageRepository
 from flux_bot.db.sessions import SessionRepository
 from flux_bot.orchestrator.poller import Poller
@@ -10,17 +10,10 @@ from flux_bot.orchestrator.handler import make_handle_message
 from flux_bot.runner.sdk import ClaudeResult
 
 
-async def test_full_message_flow(pg_url):
+async def test_full_message_flow(sqlite_db):
     """Full flow: message inserted -> polled -> processed -> marked done."""
-    await run_migrations(pg_url)
-    pool = await asyncpg.create_pool(pg_url)
-
-    async with pool.acquire() as conn:
-        await conn.execute("DELETE FROM bot_messages")
-        await conn.execute("DELETE FROM bot_sessions")
-
-    msg_repo = MessageRepository(pool)
-    session_repo = SessionRepository(pool)
+    msg_repo = MessageRepository(sqlite_db)
+    session_repo = SessionRepository(sqlite_db)
 
     mock_channel = AsyncMock()
     mock_runner = AsyncMock()
@@ -59,4 +52,3 @@ async def test_full_message_flow(pg_url):
     assert len(pending) == 0
 
     queue.stop()
-    await pool.close()
