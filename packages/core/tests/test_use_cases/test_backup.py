@@ -111,3 +111,65 @@ async def test_create_backup_no_provider_raises(tmp_path):
     uc = CreateBackup(db=db, zvec_path=zvec_path, local_provider=None, s3_provider=None)
     with pytest.raises(ValueError, match="No storage provider"):
         await uc.execute(storage="s3")
+
+
+# ---------------------------------------------------------------------------
+# ListBackups tests
+# ---------------------------------------------------------------------------
+from flux_core.models.backup import BackupMetadata
+from flux_core.use_cases.backup.list_backups import ListBackups
+from flux_core.use_cases.backup.delete_backup import DeleteBackup
+from datetime import datetime, UTC
+
+
+def _make_meta(filename: str, storage: str = "local") -> BackupMetadata:
+    return BackupMetadata(
+        id="test-id",
+        filename=filename,
+        size_bytes=1024,
+        created_at=datetime(2026, 3, 7, tzinfo=UTC),
+        storage=storage,
+        local_path=f"/data/backups/{filename}" if storage == "local" else None,
+        s3_key=f"backups/{filename}" if storage == "s3" else None,
+    )
+
+
+async def test_list_backups_combined():
+    local = AsyncMock()
+    local.list_backups.return_value = [_make_meta("backup-1.zip", "local")]
+    s3 = AsyncMock()
+    s3.list_backups.return_value = [_make_meta("backup-2.zip", "s3")]
+    uc = ListBackups(local_provider=local, s3_provider=s3)
+    result = await uc.execute()
+    assert len(result) == 2
+
+
+async def test_list_backups_local_only():
+    local = AsyncMock()
+    local.list_backups.return_value = [_make_meta("backup-1.zip")]
+    uc = ListBackups(local_provider=local, s3_provider=None)
+    result = await uc.execute()
+    assert len(result) == 1
+
+
+async def test_list_backups_no_providers():
+    uc = ListBackups(local_provider=None, s3_provider=None)
+    result = await uc.execute()
+    assert result == []
+
+
+# ---------------------------------------------------------------------------
+# DeleteBackup tests
+# ---------------------------------------------------------------------------
+async def test_delete_backup_local():
+    local = AsyncMock()
+    uc = DeleteBackup(local_provider=local, s3_provider=None)
+    await uc.execute("backup-1.zip", storage="local")
+    local.delete.assert_called_once_with("backup-1.zip")
+
+
+async def test_delete_backup_s3():
+    s3 = AsyncMock()
+    uc = DeleteBackup(local_provider=None, s3_provider=s3)
+    await uc.execute("backups/backup-1.zip", storage="s3")
+    s3.delete.assert_called_once_with("backups/backup-1.zip")
