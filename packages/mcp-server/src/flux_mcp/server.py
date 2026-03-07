@@ -11,6 +11,7 @@ from flux_core.uow.unit_of_work import UnitOfWork
 from flux_core.logging import configure_logging
 from flux_core.vector.store import ZvecStore
 from flux_mcp.tools.analytics_tools import register_analytics_tools
+from flux_mcp.tools.backup_tools import register_backup_tools
 from flux_mcp.tools.financial_tools import register_financial_tools
 from flux_mcp.tools.ipc_tools import register_ipc_tools
 from flux_mcp.tools.memory_tools import register_memory_tools
@@ -71,6 +72,31 @@ def get_embedding_service() -> EmbeddingService:
     return _embedding_service
 
 
+def get_local_storage():
+    from flux_core.services.storage.local import LocalStorageProvider
+    backup_dir = os.getenv("BACKUP_LOCAL_DIR", "/data/backups")
+    return LocalStorageProvider(backup_dir)
+
+
+def get_s3_storage():
+    try:
+        from flux_core.services.encryption import EncryptionService
+        from flux_core.sqlite.system_config_repo import SqliteSystemConfigRepository
+        enc = EncryptionService.from_env()
+        config_repo = SqliteSystemConfigRepository(get_db().connection(), enc)
+        endpoint = config_repo.get("s3_endpoint")
+        bucket = config_repo.get("s3_bucket")
+        access_key = config_repo.get("s3_access_key")
+        secret_key = config_repo.get("s3_secret_key")
+        if all([endpoint, bucket, access_key, secret_key]):
+            from flux_core.services.storage.s3 import S3StorageProvider
+            region = config_repo.get("s3_region") or "auto"
+            return S3StorageProvider(endpoint, access_key, secret_key, bucket, region)
+    except (ValueError, ImportError):
+        pass
+    return None
+
+
 _user_timezone: str | None = None
 
 
@@ -101,6 +127,7 @@ register_analytics_tools(mcp, get_db, get_session_user_id)
 register_profile_tools(mcp, get_db, get_uow, get_session_user_id)
 register_ipc_tools(mcp, get_uow, get_session_user_id, get_user_timezone)
 register_savings_tools(mcp, get_uow, get_session_user_id, get_user_timezone)
+register_backup_tools(mcp, get_db, get_local_storage, get_s3_storage)
 
 
 if __name__ == "__main__":
