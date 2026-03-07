@@ -41,6 +41,19 @@ Living document — all use cases implemented in FluxFinance. Keep in sync with 
 
 ---
 
+## Backup
+
+| Use Case | Write | Vector | Event | Description |
+|---|---|---|---|---|
+| CreateBackup | No | No | No | Snapshot SQLite + zvec → .zip → upload to local/S3 |
+| RestoreBackup | Yes* | Yes* | No | Auto-backup → download → replace SQLite + zvec |
+| ListBackups | No | No | No | List backups from local + S3 |
+| DeleteBackup | No | No | No | Delete backup from specified storage |
+
+*RestoreBackup replaces the entire database, bypassing UoW.
+
+---
+
 ## Patterns
 
 ### Write use cases (with UoW)
@@ -116,9 +129,14 @@ packages/core/src/flux_core/use_cases/
 │   ├── get_summary.py
 │   ├── get_trends.py
 │   └── get_category_breakdown.py
-└── bot/
-    ├── process_message.py
-    ├── send_outbound.py
-    ├── create_scheduled_task.py
-    └── fire_scheduled_task.py
+├── bot/
+│   ├── process_message.py
+│   ├── send_outbound.py
+│   ├── create_scheduled_task.py
+│   └── fire_scheduled_task.py
+└── backup/
+    ├── create_backup.py
+    ├── restore_backup.py
+    ├── list_backups.py
+    └── delete_backup.py
 ```

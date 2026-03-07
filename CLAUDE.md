@@ -312,6 +312,7 @@ All async tests use `pytest-asyncio` with `asyncio_mode = "auto"` — no `@pytes
 
 ```
 /data/
+├── backups/                          # Backup archives (.zip)
 ├── sqlite/
 │   ├── flux.db           # SQLite database (WAL mode)
 │   ├── flux.db-wal       # Write-ahead log (automatic)
@@ -325,6 +326,10 @@ Environment variables:
 
 - `DATABASE_PATH` — SQLite file path (default: `/data/sqlite/flux.db`)
 - `ZVEC_PATH` — zvec data directory (default: `/data/zvec`)
+- `FLUX_SECRET_KEY` — Encryption key for sensitive config (required for backup feature)
+- `BACKUP_LOCAL_DIR` — Local backup directory (default: `/data/backups`)
+- `BACKUP_LOCAL_RETENTION` — Max local backups to keep (default: `7`)
+- `BACKUP_S3_RETENTION` — Max S3 backups to keep (default: `30`)
 
 ## Reference Documentation
 
