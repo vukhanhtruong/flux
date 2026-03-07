@@ -139,6 +139,29 @@ async def test_cron_task_uses_user_timezone(worker, mock_task_repo, mock_msg_rep
     assert next_run_utc.minute == 0
 
 
+async def test_once_savings_task_marks_completed_not_advances(
+    worker, mock_task_repo, mock_msg_repo,
+):
+    """A savings 'once' task must be marked completed, not advanced."""
+    savings_task = {
+        "id": 10, "user_id": "tg:12345",
+        "prompt": "Process savings interest for Term Deposit (id: 76a4d353-c72c-4d9b-9374-486c0ec8de8f)",
+        "schedule_type": "once", "schedule_value": "2026-04-07",
+        "asset_id": "76a4d353-c72c-4d9b-9374-486c0ec8de8f",
+    }
+    mock_task_repo.fetch_due_tasks.return_value = [savings_task]
+    mock_msg_repo.insert.return_value = 20
+
+    await worker._fire_once()
+
+    mock_msg_repo.insert.assert_called_once_with(
+        user_id="tg:12345", channel="telegram", platform_id="12345",
+        text=savings_task["prompt"],
+    )
+    mock_task_repo.mark_completed.assert_called_once_with(10)
+    mock_task_repo.advance_next_run.assert_not_called()
+
+
 async def test_subscription_cron_falls_back_to_croniter_when_lookup_missing(
     worker, mock_task_repo, mock_msg_repo,
 ):
@@ -152,3 +175,14 @@ async def test_subscription_cron_falls_back_to_croniter_when_lookup_missing(
     mock_task_repo.get_subscription_next_run.assert_called_once_with(5)
     _, next_run = mock_task_repo.advance_next_run.call_args.args
     assert next_run > datetime.now(UTC)
+
+
+async def test_message_inject_failure_skips_task(worker, mock_task_repo, mock_msg_repo):
+    """When message_repo.insert raises, task must NOT be marked completed."""
+    mock_task_repo.fetch_due_tasks.return_value = [_ONCE_TASK]
+    mock_msg_repo.insert.side_effect = RuntimeError("DB error")
+
+    await worker._fire_once()  # must not raise
+
+    mock_task_repo.mark_completed.assert_not_called()
+    mock_task_repo.advance_next_run.assert_not_called()

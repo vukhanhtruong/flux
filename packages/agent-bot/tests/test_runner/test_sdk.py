@@ -252,3 +252,18 @@ def test_setup_env_maps_api_key():
         runner._setup_env()
         assert os.environ.get("ANTHROPIC_API_KEY") == "sk-ant-api03-xyz"
         assert "CLAUDE_CODE_OAUTH_TOKEN" not in os.environ
+
+
+def test_setup_env_fallback_sets_both():
+    """Unknown token prefix sets both OAUTH and API_KEY."""
+    import os
+
+    runner = ClaudeRunner(mcp_config_path="/tmp/mcp.json", system_prompt=None)
+    with patch.dict(
+        os.environ,
+        {"CLAUDE_AUTH_TOKEN": "some-custom-token-123"},
+        clear=True,
+    ):
+        runner._setup_env()
+        assert os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") == "some-custom-token-123"
+        assert os.environ.get("ANTHROPIC_API_KEY") == "some-custom-token-123"
