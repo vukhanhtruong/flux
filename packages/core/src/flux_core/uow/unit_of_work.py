@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+import structlog
 import sqlite3
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from flux_core.sqlite.database import Database
     from flux_core.vector.store import ZvecStore
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass

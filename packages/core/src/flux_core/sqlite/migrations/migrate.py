@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import logging
+import structlog
 from pathlib import Path
 
 from flux_core.sqlite.database import Database
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 MIGRATIONS_DIR = Path(__file__).parent
 
 

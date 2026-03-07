@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import logging
+import structlog
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class Database:
