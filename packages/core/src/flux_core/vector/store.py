@@ -45,12 +45,12 @@ class ZvecStore:
         coll = self._get(collection)
         if coll is None:
             return []
-        query = zvec.VectorQuery(field_name="embedding", vector=vector, limit=limit)
+        query = zvec.VectorQuery(field_name="embedding", vector=vector)
         try:
             if filter:
-                results = coll.query(query, filter=filter)
+                results = coll.query(query, topk=limit, filter=filter)
             else:
-                results = coll.query(query)
+                results = coll.query(query, topk=limit)
         except Exception:
             logger.debug("zvec query failed, returning empty", exc_info=True)
             return []

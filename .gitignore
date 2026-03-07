@@ -9,7 +9,7 @@ huggingface_cache/
 # Python
 __pycache__/
 *.pyc
-.venv/
+.venv*/
 *.egg-info/
 dist/
 .env
