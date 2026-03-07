@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock
 
 import flux_mcp.server as server_module
-from flux_mcp.server import get_session_user_id, get_db, get_embedding_service
+from flux_mcp.server import get_session_user_id, get_db, get_embedding_service, get_user_timezone
 
 
 def test_get_session_user_id_raises_when_empty(monkeypatch):
@@ -46,3 +46,17 @@ def test_get_embedding_service_creates_service_when_none(monkeypatch):
 
     # restore so other tests start clean
     monkeypatch.setattr(server_module, "_embedding_service", None)
+
+
+def test_get_user_timezone_falls_back_to_utc(monkeypatch, seeded_db):
+    """get_user_timezone returns 'UTC' when profile has no timezone."""
+    monkeypatch.setattr(server_module, "_user_timezone", None)
+    monkeypatch.setattr(server_module, "_db", seeded_db)
+    monkeypatch.setattr(server_module, "_session_user_id", "nonexistent:user")
+    monkeypatch.setattr(server_module, "get_db", lambda: seeded_db)
+    monkeypatch.setattr(server_module, "get_session_user_id", lambda: "nonexistent:user")
+
+    result = get_user_timezone()
+    assert result == "UTC"
+
+    monkeypatch.setattr(server_module, "_user_timezone", None)
