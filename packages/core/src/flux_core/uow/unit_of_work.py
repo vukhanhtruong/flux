@@ -22,6 +22,12 @@ class VectorOp:
     metadata: dict
 
 
+@dataclass
+class VectorDeleteOp:
+    collection: str
+    doc_id: str
+
+
 class UnitOfWork:
     """Coordinates dual-writes between SQLite and zvec, plus event emission.
 
@@ -45,6 +51,7 @@ class UnitOfWork:
         self._vector_store = vector_store
         self._event_bus = event_bus
         self._pending_vectors: list[VectorOp] = []
+        self._pending_deletes: list[VectorDeleteOp] = []
         self._pending_events: list[Event] = []
         self._conn: sqlite3.Connection | None = None
         self._committed = False
@@ -60,13 +67,16 @@ class UnitOfWork:
     ) -> None:
         self._pending_vectors.append(VectorOp(collection, doc_id, vector, metadata))
 
+    def delete_vector(self, collection: str, doc_id: str) -> None:
+        self._pending_deletes.append(VectorDeleteOp(collection, doc_id))
+
     def add_event(self, event: Event) -> None:
         self._pending_events.append(event)
 
     async def commit(self) -> None:
         conn = self.conn
 
-        # Step 1: Write zvec FIRST (SQLite tx still open)
+        # Step 1: Write/delete zvec FIRST (SQLite tx still open)
         written_vectors: list[VectorOp] = []
         if self._pending_vectors and self._vector_store:
             try:
@@ -77,6 +87,17 @@ class UnitOfWork:
                     written_vectors.append(op)
             except Exception:
                 logger.error("zvec write failed, rolling back SQLite")
+                conn.rollback()
+                raise
+
+        deleted_vectors: list[VectorDeleteOp] = []
+        if self._pending_deletes and self._vector_store:
+            try:
+                for op in self._pending_deletes:
+                    self._vector_store.delete(op.collection, op.doc_id)
+                    deleted_vectors.append(op)
+            except Exception:
+                logger.error("zvec delete failed, rolling back SQLite")
                 conn.rollback()
                 raise
 
@@ -111,6 +132,7 @@ class UnitOfWork:
         self._conn = self._db.connection()
         self._conn.execute("BEGIN")
         self._pending_vectors.clear()
+        self._pending_deletes.clear()
         self._pending_events.clear()
         self._committed = False
         return self
