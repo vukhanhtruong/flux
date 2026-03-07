@@ -75,6 +75,7 @@ class UnitOfWork:
 
     async def commit(self) -> None:
         conn = self.conn
+        logger.debug("UoW commit", vectors=len(self._pending_vectors), deletes=len(self._pending_deletes), events=len(self._pending_events))
 
         # Step 1: Write/delete zvec FIRST (SQLite tx still open)
         written_vectors: list[VectorOp] = []
@@ -131,6 +132,7 @@ class UnitOfWork:
     async def __aenter__(self) -> UnitOfWork:
         self._conn = self._db.connection()
         self._conn.execute("BEGIN")
+        logger.debug("UoW begin")
         self._pending_vectors.clear()
         self._pending_deletes.clear()
         self._pending_events.clear()
@@ -139,6 +141,7 @@ class UnitOfWork:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if not self._committed:
+            logger.debug("UoW rollback")
             try:
                 self.conn.rollback()
             except Exception:

@@ -22,6 +22,7 @@ class ZvecStore:
     def upsert(
         self, collection: str, doc_id: str, vector: list[float], metadata: dict
     ) -> None:
+        logger.debug("zvec upsert", collection=collection, doc_id=doc_id, dim=len(vector))
         coll = self._get_or_create(collection, len(vector), metadata)
         doc = zvec.Doc(
             id=doc_id,
@@ -31,6 +32,7 @@ class ZvecStore:
         coll.upsert(doc)
 
     def delete(self, collection: str, doc_id: str) -> None:
+        logger.debug("zvec delete", collection=collection, doc_id=doc_id)
         coll = self._get(collection)
         if coll is not None:
             coll.delete(ids=doc_id)
@@ -42,6 +44,7 @@ class ZvecStore:
         limit: int,
         filter: str | None = None,
     ) -> list[str]:
+        logger.debug("zvec search", collection=collection, limit=limit, has_filter=filter is not None)
         coll = self._get(collection)
         if coll is None:
             return []

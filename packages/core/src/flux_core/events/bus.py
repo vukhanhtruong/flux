@@ -23,6 +23,7 @@ class EventBus:
 
     async def emit(self, event: Event) -> None:
         handlers = self._subscribers.get(type(event), [])
+        logger.debug("Event emitted", event_type=type(event).__name__, subscribers=len(handlers))
         for handler in handlers:
             try:
                 await handler(event)

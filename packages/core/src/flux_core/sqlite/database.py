@@ -41,12 +41,15 @@ class Database:
         return self._conn
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+        logger.debug("SQL execute", sql=sql, params=params)
         return self.connection().execute(sql, params)
 
     def fetchone(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
+        logger.debug("SQL fetchone", sql=sql, params=params)
         return self.connection().execute(sql, params).fetchone()
 
     def fetchall(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
+        logger.debug("SQL fetchall", sql=sql, params=params)
         return self.connection().execute(sql, params).fetchall()
 
     async def execute_async(self, sql: str, params: tuple = ()) -> None:
