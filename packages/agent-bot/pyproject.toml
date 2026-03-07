@@ -29,5 +29,8 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
 
+[tool.coverage.run]
+omit = ["src/flux_bot/main.py"]
+
 [tool.ruff]
 line-length = 100

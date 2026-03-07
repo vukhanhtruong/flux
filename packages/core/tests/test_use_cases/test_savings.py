@@ -197,6 +197,109 @@ async def test_process_interest_inactive(mock_asset_repo_cls, mock_task_repo_cls
         pass
 
 
+@patch("flux_core.use_cases.savings.process_interest.SqliteBotScheduledTaskRepository")
+@patch("flux_core.use_cases.savings.process_interest.SqliteAssetRepository")
+async def test_process_interest_quarterly_compound(mock_asset_repo_cls, mock_task_repo_cls):
+    """Quarterly compounding uses 4 periods — interest = amount * rate/100/4."""
+    uow = _mock_uow()
+    asset = _make_asset(
+        compound_frequency="quarterly",
+        frequency=AssetFrequency.quarterly,
+        next_date=date(2026, 6, 7),
+        maturity_date=date(2028, 3, 7),
+    )
+    advanced = _make_asset(next_date=date(2026, 9, 7))
+    mock_asset_repo_cls.return_value.get.return_value = asset
+    mock_asset_repo_cls.return_value.update_amount.return_value = None
+    mock_asset_repo_cls.return_value.advance_next_date.return_value = advanced
+
+    uc = ProcessInterest(uow)
+    result = await uc.execute(FAKE_ID, USER_ID)
+
+    # 10000 * (5/100/4) = 125.00
+    assert result["interest_applied"] == "125.00"
+    assert result["new_balance"] == "10125.00"
+    assert result["matured"] is False
+    mock_task_repo_cls.return_value.create.assert_called_once()
+
+
+@patch("flux_core.use_cases.savings.process_interest.SqliteBotScheduledTaskRepository")
+@patch("flux_core.use_cases.savings.process_interest.SqliteAssetRepository")
+async def test_process_interest_yearly_compound(mock_asset_repo_cls, mock_task_repo_cls):
+    """Yearly compounding uses 1 period — interest = amount * rate/100."""
+    uow = _mock_uow()
+    asset = _make_asset(
+        compound_frequency="yearly",
+        frequency=AssetFrequency.yearly,
+        next_date=date(2027, 3, 7),
+        maturity_date=date(2028, 3, 7),
+    )
+    advanced = _make_asset(next_date=date(2028, 3, 7))
+    mock_asset_repo_cls.return_value.get.return_value = asset
+    mock_asset_repo_cls.return_value.update_amount.return_value = None
+    mock_asset_repo_cls.return_value.advance_next_date.return_value = advanced
+
+    uc = ProcessInterest(uow)
+    result = await uc.execute(FAKE_ID, USER_ID)
+
+    # 10000 * (5/100/1) = 500.00
+    assert result["interest_applied"] == "500.00"
+    assert result["new_balance"] == "10500.00"
+    assert result["matured"] is False
+
+
+@patch("flux_core.use_cases.savings.process_interest.SqliteBotScheduledTaskRepository")
+@patch("flux_core.use_cases.savings.process_interest.SqliteAssetRepository")
+async def test_process_interest_exact_maturity_creates_maturity_task(
+    mock_asset_repo_cls, mock_task_repo_cls
+):
+    """When next_date == maturity_date, task should be created with maturity prompt."""
+    uow = _mock_uow()
+    mat = date(2027, 3, 7)
+    asset = _make_asset(maturity_date=mat, next_date=date(2027, 2, 7))
+    # After advance, next_date equals maturity_date exactly
+    advanced = _make_asset(next_date=mat, maturity_date=mat, active=True)
+    mock_asset_repo_cls.return_value.get.return_value = asset
+    mock_asset_repo_cls.return_value.update_amount.return_value = None
+    mock_asset_repo_cls.return_value.advance_next_date.return_value = advanced
+
+    uc = ProcessInterest(uow)
+    result = await uc.execute(FAKE_ID, USER_ID)
+
+    assert result["matured"] is False
+    # Should still create a task (next_date == maturity, not >)
+    mock_task_repo_cls.return_value.create.assert_called_once()
+    call_kwargs = mock_task_repo_cls.return_value.create.call_args.kwargs
+    assert "matures today" in call_kwargs["prompt"]
+    mock_asset_repo_cls.return_value.deactivate.assert_not_called()
+
+
+@patch("flux_core.use_cases.savings.process_interest.SqliteBotScheduledTaskRepository")
+@patch("flux_core.use_cases.savings.process_interest.SqliteAssetRepository")
+async def test_process_interest_chained_task_params(mock_asset_repo_cls, mock_task_repo_cls):
+    """Chained task must have correct schedule_value, next_run_at, and asset_id."""
+    uow = _mock_uow()
+    asset = _make_asset()
+    next_d = date(2026, 5, 7)
+    advanced = _make_asset(next_date=next_d)
+    mock_asset_repo_cls.return_value.get.return_value = asset
+    mock_asset_repo_cls.return_value.update_amount.return_value = None
+    mock_asset_repo_cls.return_value.advance_next_date.return_value = advanced
+
+    uc = ProcessInterest(uow)
+    await uc.execute(FAKE_ID, USER_ID)
+
+    call_kwargs = mock_task_repo_cls.return_value.create.call_args.kwargs
+    assert call_kwargs["schedule_type"] == "once"
+    assert call_kwargs["schedule_value"] == "2026-05-07"
+    assert call_kwargs["asset_id"] == str(FAKE_ID)
+    assert call_kwargs["user_id"] == USER_ID
+    # next_run_at should be UTC midnight of 2026-05-07
+    from datetime import UTC
+    expected_run = datetime(2026, 5, 7, tzinfo=UTC)
+    assert call_kwargs["next_run_at"] == expected_run
+
+
 # ── WithdrawSavings ─────────────────────────────────────────────────────
 
 

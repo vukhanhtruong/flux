@@ -222,7 +222,7 @@ migrate(db)
 4. Run tests to confirm they pass
 5. Commit with a semantic commit message
 
-**Minimum 80% test coverage** — CI will fail below this threshold.
+**Minimum 90% test coverage** — this is non-negotiable. CI will fail below this threshold.
 
 **Semantic commit messages** — all commits must follow this format:
 

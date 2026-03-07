@@ -1,3 +1,3 @@
-- Bank savings auto income based on start date, duration and interest.
-- Subscription auto create transaction monthly
-- Report bugs to Github Issues
+- Backup and Restore data
+- Auto backup schedule
+- DEBUG_LEVEL
