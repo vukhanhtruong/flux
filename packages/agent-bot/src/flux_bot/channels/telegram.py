@@ -19,9 +19,9 @@ from telegram.request import HTTPXRequest
 from flux_bot.channels.base import Channel
 from flux_bot.channels.commands import CommandHandlers
 from flux_bot.db.messages import MessageRepository
+from flux_bot.db.profile import ProfileRepository
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
 from flux_bot.db.sessions import SessionRepository
-from flux_core.db.user_profile_repo import UserProfileRepository
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class TelegramChannel(Channel):
         self,
         bot_token: str,
         message_repo: MessageRepository,
-        profile_repo: UserProfileRepository,
+        profile_repo: ProfileRepository,
         session_repo: SessionRepository,
         task_repo: ScheduledTaskRepository,
         allow_from: list[str] | None = None,

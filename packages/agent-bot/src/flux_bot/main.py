@@ -4,13 +4,11 @@ import asyncio
 import logging
 import signal
 
-import asyncpg
-
 from flux_bot.config import load_config
 from flux_bot.db.migrate import run_migrations
-from flux_core.migrations.migrate import migrate as run_core_migrations
 from flux_bot.db.messages import MessageRepository
 from flux_bot.db.sessions import SessionRepository
+from flux_bot.db.profile import ProfileRepository
 from flux_bot.channels.telegram import TelegramChannel
 from flux_bot.orchestrator.handler import make_handle_message
 from flux_bot.db.outbound import OutboundRepository
@@ -20,8 +18,8 @@ from flux_bot.orchestrator.scheduler import SchedulerWorker
 from flux_bot.orchestrator.poller import Poller
 from flux_bot.orchestrator.queue import UserQueue
 from flux_bot.runner.sdk import ClaudeRunner
-from flux_core.db.connection import Database
-from flux_core.db.user_profile_repo import UserProfileRepository
+from flux_core.sqlite.database import Database
+from flux_core.sqlite.migrations.migrate import migrate as run_core_migrations
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,20 +32,17 @@ async def main():
     config = load_config()
     logger.info("Starting flux Agent Bot (orchestrator mode)...")
 
-    await run_core_migrations(config.database_url)
-    await run_migrations(config.database_url)
-    logger.info("Migrations complete")
+    # Initialize SQLite database and run migrations
+    db = Database(config.database_path)
+    db.connect()
+    run_core_migrations(db)
+    await run_migrations(config.database_path)
+    logger.info("Database connected: %s", config.database_path)
 
-    pool = await asyncpg.create_pool(config.database_url, min_size=2, max_size=10)
-    logger.info("Database connected")
-
-    core_db = Database(config.database_url)
-    await core_db.connect()
-
-    msg_repo = MessageRepository(pool)
-    session_repo = SessionRepository(pool)
-    task_repo = ScheduledTaskRepository(pool)
-    profile_repo = UserProfileRepository(core_db)
+    msg_repo = MessageRepository(db)
+    session_repo = SessionRepository(db)
+    task_repo = ScheduledTaskRepository(db)
+    profile_repo = ProfileRepository(db)
 
     runner = ClaudeRunner(
         mcp_config_path=config.runner.mcp_config_path,
@@ -90,17 +85,13 @@ async def main():
         message_repo=msg_repo,
         queue=queue,
         poll_interval=config.poll_interval,
-        database_url=config.database_url,
-        fallback_poll_interval=config.fallback_poll_interval,
     )
 
-    outbound_repo = OutboundRepository(pool)
+    outbound_repo = OutboundRepository(db)
     outbound_worker = OutboundWorker(
         outbound_repo=outbound_repo,
         channels=channels,
         poll_interval=config.poll_interval,
-        database_url=config.database_url,
-        fallback_poll_interval=config.fallback_poll_interval,
     )
 
     scheduler_worker = SchedulerWorker(
@@ -129,12 +120,9 @@ async def main():
     poller_task.cancel()
     outbound_task.cancel()
     scheduler_task.cancel()
-    await poller.close()
-    await outbound_worker.close()
     for ch in channels.values():
         await ch.stop()
-    await core_db.disconnect()
-    await pool.close()
+    db.disconnect()
     logger.info("Goodbye!")
 
 

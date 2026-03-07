@@ -25,7 +25,7 @@ class RunnerConfig:
 
 @dataclass
 class BotConfig:
-    database_url: str = "postgresql://localhost/flux"
+    database_path: str = "/data/sqlite/flux.db"
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
     runner: RunnerConfig = field(default_factory=RunnerConfig)
     poll_interval: float = 2.0
@@ -37,7 +37,7 @@ def load_config() -> BotConfig:
     """Load config from environment variables."""
     config = BotConfig()
 
-    config.database_url = os.getenv("DATABASE_URL", config.database_url)
+    config.database_path = os.getenv("DATABASE_PATH", config.database_path)
     config.poll_interval = float(os.getenv("POLL_INTERVAL", str(config.poll_interval)))
     config.fallback_poll_interval = float(
         os.getenv("FALLBACK_POLL_INTERVAL", str(config.fallback_poll_interval))

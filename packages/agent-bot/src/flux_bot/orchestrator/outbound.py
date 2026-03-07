@@ -1,12 +1,10 @@
 """Outbound message worker — delivers bot_outbound_messages to channels.
 
-Uses LISTEN/NOTIFY for near-instant delivery + fallback polling.
+With SQLite, uses simple polling (no LISTEN/NOTIFY).
 """
 
 import asyncio
 import logging
-
-import asyncpg
 
 from flux_bot.db.outbound import OutboundRepository
 
@@ -32,27 +30,17 @@ class OutboundWorker:
         outbound_repo: OutboundRepository,
         channels: dict,
         poll_interval: float = 2.0,
-        database_url: str | None = None,
-        fallback_poll_interval: float = 30.0,
     ):
         self.outbound_repo = outbound_repo
         self.channels = channels
         self.poll_interval = poll_interval
-        self.database_url = database_url
-        self.fallback_poll_interval = fallback_poll_interval
         self._running = False
-        self._listener_conn: asyncpg.Connection | None = None
         self._notify_event = asyncio.Event()
 
     async def start(self) -> None:
         """Start the outbound delivery loop."""
         self._running = True
-        listener_active = await self._setup_listener()
-        interval = self.fallback_poll_interval if listener_active else self.poll_interval
-        logger.info(
-            f"OutboundWorker started (interval={interval}s, "
-            f"listener={'active' if listener_active else 'inactive'})"
-        )
+        logger.info(f"OutboundWorker started (interval={self.poll_interval}s)")
         while self._running:
             try:
                 await self._deliver_once()
@@ -60,7 +48,9 @@ class OutboundWorker:
                 logger.exception("Error in outbound delivery cycle")
             self._notify_event.clear()
             try:
-                await asyncio.wait_for(self._notify_event.wait(), timeout=interval)
+                await asyncio.wait_for(
+                    self._notify_event.wait(), timeout=self.poll_interval
+                )
             except asyncio.TimeoutError:
                 pass
 
@@ -68,36 +58,13 @@ class OutboundWorker:
         self._running = False
         self._notify_event.set()
 
-    async def close(self) -> None:
-        """Close the dedicated listener connection."""
-        if self._listener_conn is not None:
-            try:
-                await self._listener_conn.remove_listener(
-                    "new_outbound_message", self._on_notify
-                )
-                await self._listener_conn.close()
-            except Exception:
-                logger.exception("Error closing outbound listener connection")
-            finally:
-                self._listener_conn = None
-
-    async def _setup_listener(self) -> bool:
-        """Open a dedicated connection for LISTEN/NOTIFY. Returns True on success."""
-        if not self.database_url:
-            return False
-        try:
-            conn = await asyncpg.connect(self.database_url)
-            await conn.add_listener("new_outbound_message", self._on_notify)
-            self._listener_conn = conn
-            logger.info("LISTEN/NOTIFY listener active on 'new_outbound_message'")
-            return True
-        except Exception:
-            logger.exception("Failed to set up outbound LISTEN/NOTIFY")
-            self._listener_conn = None
-            return False
-
-    def _on_notify(self, connection, pid, channel, payload) -> None:
+    def notify(self) -> None:
+        """Wake the worker immediately (called by EventBus subscriber)."""
         self._notify_event.set()
+
+    async def close(self) -> None:
+        """No-op — no dedicated connections to close with SQLite."""
+        pass
 
     async def _deliver_once(self) -> None:
         """Fetch pending outbound messages and deliver them."""

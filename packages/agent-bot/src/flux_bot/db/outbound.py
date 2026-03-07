@@ -1,11 +1,15 @@
-"""Repository for bot_outbound_messages table."""
+"""Async wrapper for bot_outbound_messages — delegates to core SQLite repo."""
 
-import asyncpg
+from flux_core.sqlite.bot.outbound_repo import SqliteBotOutboundRepository
+from flux_core.sqlite.database import Database
 
 
 class OutboundRepository:
-    def __init__(self, pool: asyncpg.Pool):
-        self.pool = pool
+    def __init__(self, db: Database):
+        self._db = db
+
+    def _repo(self) -> SqliteBotOutboundRepository:
+        return SqliteBotOutboundRepository(self._db.connection())
 
     async def insert(
         self,
@@ -14,49 +18,20 @@ class OutboundRepository:
         sender: str | None = None,
     ) -> int:
         """Insert a pending outbound message and return its ID."""
-        async with self.pool.acquire() as conn:
-            return await conn.fetchval(
-                """
-                INSERT INTO bot_outbound_messages (user_id, text, sender)
-                VALUES ($1, $2, $3)
-                RETURNING id
-                """,
-                user_id, text, sender,
-            )
+        msg_id = self._repo().insert(user_id, text, sender)
+        self._db.connection().commit()
+        return msg_id
 
     async def fetch_pending(self) -> list[dict]:
         """Fetch all pending outbound messages ordered by creation time."""
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT id, user_id, text, sender, status, created_at
-                FROM bot_outbound_messages
-                WHERE status = 'pending'
-                ORDER BY created_at
-                """
-            )
-            return [dict(r) for r in rows]
+        return self._repo().fetch_pending()
 
     async def mark_sent(self, msg_id: int) -> None:
         """Mark an outbound message as sent."""
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE bot_outbound_messages
-                SET status = 'sent', completed_at = NOW()
-                WHERE id = $1
-                """,
-                msg_id,
-            )
+        self._repo().mark_sent(msg_id)
+        self._db.connection().commit()
 
     async def mark_failed(self, msg_id: int, error: str) -> None:
         """Mark an outbound message as failed."""
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE bot_outbound_messages
-                SET status = 'failed', completed_at = NOW(), error = $2
-                WHERE id = $1
-                """,
-                msg_id, error,
-            )
+        self._repo().mark_failed(msg_id, error)
+        self._db.connection().commit()

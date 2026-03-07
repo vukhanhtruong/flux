@@ -15,9 +15,9 @@ from telegram.ext import (
     filters,
 )
 
+from flux_bot.db.profile import ProfileRepository
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
 from flux_bot.db.sessions import SessionRepository
-from flux_core.db.user_profile_repo import UserProfileRepository
 from flux_core.models.user_profile import UserProfileCreate
 
 logger = logging.getLogger(__name__)
@@ -151,7 +151,7 @@ Here are some things you can ask me:
 class CommandHandlers:
     def __init__(
         self,
-        profile_repo: UserProfileRepository,
+        profile_repo: ProfileRepository,
         session_repo: SessionRepository,
         task_repo: ScheduledTaskRepository,
     ):
