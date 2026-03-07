@@ -72,6 +72,7 @@ export function Assets() {
       time: new Date(point.timestamp).toLocaleDateString(profile.locale, {
         month: "short",
         day: "numeric",
+        timeZone: profile.timezone,
       }),
       fullDate: point.timestamp,
       value: point.totalValue,
@@ -165,7 +166,7 @@ export function Assets() {
                     labelFormatter={(label, payload) => {
                       const raw = payload?.[0]?.payload?.fullDate;
                       if (!raw) return label;
-                      return new Date(raw).toLocaleDateString(profile.locale);
+                      return new Date(raw).toLocaleDateString(profile.locale, { timeZone: profile.timezone });
                     }}
                   />
                   <Area type="monotone" dataKey="value" stroke="#F59E0B" strokeWidth={3} fill="url(#assetPerf)" />

@@ -84,7 +84,7 @@ export function Dashboard() {
 
         const formattedData = Object.entries(dataMap)
           .map(([date, values]) => ({
-            name: new Date(date).toLocaleDateString(profile.locale, { weekday: "short" }),
+            name: new Date(date + "T00:00:00Z").toLocaleDateString(profile.locale, { weekday: "short", timeZone: profile.timezone }),
             expense: parseFloat(values.expense.toFixed(2)),
             income: parseFloat(values.income.toFixed(2)),
             fullDate: date,
@@ -328,6 +328,7 @@ function AssetOverviewCard({
     name: new Date(point.timestamp).toLocaleDateString(profile.locale, {
       month: "short",
       day: "numeric",
+      timeZone: profile.timezone,
     }),
   }));
 

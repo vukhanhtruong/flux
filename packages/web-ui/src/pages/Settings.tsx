@@ -3,6 +3,7 @@ import { User, Send, Smartphone, Cpu, Database, Globe, Clock, Coins, CalendarClo
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
 import { api } from "../lib/api";
+import { formatDateTime } from "../lib/format";
 import type { ScheduledTask } from "../types";
 
 type Tab = "general" | "messaging" | "system" | "scheduled-tasks";
@@ -367,8 +368,8 @@ export function Settings() {
                             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">{task.status}</span>
                           </span>
                         </td>
-                        <td className="py-3 pr-4 text-slate-400 text-xs">{new Date(task.next_run_at + "Z").toLocaleString(profile.locale, { timeZone: profile.timezone })}</td>
-                        <td className="py-3 pr-4 text-slate-400 text-xs">{task.last_run_at ? new Date(task.last_run_at + "Z").toLocaleString(profile.locale, { timeZone: profile.timezone }) : "—"}</td>
+                        <td className="py-3 pr-4 text-slate-400 text-xs">{formatDateTime(task.next_run_at, profile.locale, profile.timezone)}</td>
+                        <td className="py-3 pr-4 text-slate-400 text-xs">{task.last_run_at ? formatDateTime(task.last_run_at, profile.locale, profile.timezone) : "—"}</td>
                         <td className="py-3 text-slate-400 text-xs">
                           {task.subscription_id ? `Subscription` : task.asset_id ? `Savings` : "—"}
                         </td>
