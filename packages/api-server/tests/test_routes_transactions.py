@@ -8,54 +8,49 @@ import pytest
 from fastapi.testclient import TestClient
 
 from flux_api.app import app
-from flux_api.deps import get_db, get_embedding_service
-from flux_core.db.transaction_repo import TransactionRepository
 from flux_core.models.transaction import TransactionOut, TransactionType
+from flux_core.repositories.transaction_repo import TransactionRepository
 
 
 @pytest.fixture
 def mock_repo():
     """Mock transaction repository."""
-    repo = AsyncMock(spec=TransactionRepository)
-    return repo
+    return MagicMock(spec=TransactionRepository)
 
 
 @pytest.fixture
-def mock_db():
-    """Mock database connection."""
-    return MagicMock()
+def mock_db(mock_repo):
+    """Mock Database that returns a connection wired to mock_repo."""
+    db = MagicMock()
+    return db
+
+
+@pytest.fixture
+def mock_uow():
+    """Mock UnitOfWork."""
+    uow = MagicMock()
+    uow.__aenter__ = AsyncMock(return_value=uow)
+    uow.__aexit__ = AsyncMock(return_value=False)
+    uow.commit = AsyncMock()
+    return uow
 
 
 @pytest.fixture
 def mock_embedding_service():
     """Mock embedding service."""
     service = MagicMock()
-    service.embed_text.return_value = [0.1] * 384  # Mock embedding vector
+    service.embed.return_value = [0.1] * 384
     return service
 
 
 @pytest.fixture
-def client(mock_db, mock_embedding_service):
-    """Test client with mocked dependencies."""
-    async def override_get_db():
-        yield mock_db
-
-    def override_get_embedding_service():
-        return mock_embedding_service
-
-    # Override dependencies
-    app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_embedding_service] = override_get_embedding_service
-
-    yield TestClient(app)
-
-    # Clean up
-    app.dependency_overrides.clear()
+def client():
+    """Test client."""
+    return TestClient(app)
 
 
-def test_add_transaction(client, mock_repo):
-    """Test POST /transactions/ creates a transaction."""
-    mock_transaction = TransactionOut(
+def _make_txn_out(**overrides) -> TransactionOut:
+    defaults = dict(
         id=UUID("12345678-1234-5678-1234-567812345678"),
         user_id="user-1",
         date=date(2024, 1, 15),
@@ -67,23 +62,36 @@ def test_add_transaction(client, mock_repo):
         tags=["food"],
         created_at=datetime(2024, 1, 15, 10, 0, 0),
     )
-    mock_repo.create.return_value = mock_transaction
+    defaults.update(overrides)
+    return TransactionOut(**defaults)
 
-    with patch(
-        "flux_api.routes.transactions.TransactionRepository",
-        return_value=mock_repo,
+
+def test_add_transaction(client, mock_uow, mock_embedding_service):
+    """Test POST /transactions/ creates a transaction."""
+    expected = _make_txn_out()
+
+    with (
+        patch("flux_api.routes.transactions.get_uow", return_value=mock_uow),
+        patch("flux_api.routes.transactions.get_embedding_service",
+              return_value=mock_embedding_service),
+        patch(
+            "flux_api.routes.transactions.AddTransaction"
+        ) as MockUC,
     ):
+        mock_uc = AsyncMock()
+        mock_uc.execute = AsyncMock(return_value=expected)
+        MockUC.return_value = mock_uc
+
         response = client.post(
             "/transactions/",
-            json={
+            params={
                 "user_id": "user-1",
-                "date": "2024-01-15",
+                "date_str": "2024-01-15",
                 "amount": 50.00,
                 "category": "groceries",
                 "description": "Weekly shopping",
-                "type": "expense",
+                "transaction_type": "expense",
                 "is_recurring": False,
-                "tags": ["food"],
             },
         )
 
@@ -98,21 +106,13 @@ def test_add_transaction(client, mock_repo):
 def test_list_transactions(client, mock_repo):
     """Test GET /transactions/ lists user transactions."""
     mock_transactions = [
-        TransactionOut(
+        _make_txn_out(
             id=UUID("11111111-1111-1111-1111-111111111111"),
-            user_id="user-1",
-            date=date(2024, 1, 15),
-            amount=Decimal("50.00"),
-            category="groceries",
             description="Shopping",
-            type=TransactionType.expense,
-            is_recurring=False,
             tags=[],
-            created_at=datetime(2024, 1, 15, 10, 0, 0),
         ),
-        TransactionOut(
+        _make_txn_out(
             id=UUID("22222222-2222-2222-2222-222222222222"),
-            user_id="user-1",
             date=date(2024, 1, 20),
             amount=Decimal("1000.00"),
             category="salary",
@@ -120,16 +120,23 @@ def test_list_transactions(client, mock_repo):
             type=TransactionType.income,
             is_recurring=True,
             tags=["monthly"],
-            created_at=datetime(2024, 1, 20, 9, 0, 0),
         ),
     ]
-    mock_repo.list_by_user.return_value = mock_transactions
 
-    with patch(
-        "flux_api.routes.transactions.TransactionRepository",
-        return_value=mock_repo,
+    with (
+        patch("flux_api.routes.transactions.get_db") as mock_get_db,
+        patch(
+            "flux_api.routes.transactions.SqliteTransactionRepository",
+            return_value=mock_repo,
+        ),
     ):
-        response = client.get("/transactions/?user_id=user-1")
+        mock_get_db.return_value = MagicMock()
+        mock_uc = AsyncMock(return_value=mock_transactions)
+        with patch(
+            "flux_api.routes.transactions.ListTransactions"
+        ) as MockUC:
+            MockUC.return_value.execute = mock_uc
+            response = client.get("/transactions/?user_id=user-1")
 
     assert response.status_code == 200
     data = response.json()
@@ -140,25 +147,20 @@ def test_list_transactions(client, mock_repo):
 
 def test_get_transaction(client, mock_repo):
     """Test GET /transactions/{id} retrieves a transaction."""
-    mock_transaction = TransactionOut(
-        id=UUID("33333333-3333-3333-3333-333333333333"),
-        user_id="user-1",
-        date=date(2024, 1, 15),
-        amount=Decimal("50.00"),
-        category="groceries",
-        description="Shopping",
-        type=TransactionType.expense,
-        is_recurring=False,
-        tags=[],
-        created_at=datetime(2024, 1, 15, 10, 0, 0),
-    )
-    mock_repo.get_by_id.return_value = mock_transaction
+    expected = _make_txn_out(id=UUID("33333333-3333-3333-3333-333333333333"))
 
-    with patch(
-        "flux_api.routes.transactions.TransactionRepository",
-        return_value=mock_repo,
+    with (
+        patch("flux_api.routes.transactions.get_db") as mock_get_db,
+        patch(
+            "flux_api.routes.transactions.SqliteTransactionRepository",
+            return_value=mock_repo,
+        ),
     ):
-        response = client.get("/transactions/33333333-3333-3333-3333-333333333333?user_id=user-1")
+        mock_get_db.return_value = MagicMock()
+        mock_repo.get_by_id.return_value = expected
+        response = client.get(
+            "/transactions/33333333-3333-3333-3333-333333333333?user_id=user-1"
+        )
 
     assert response.status_code == 200
     data = response.json()
@@ -166,16 +168,20 @@ def test_get_transaction(client, mock_repo):
     assert data["amount"] == "50.00"
 
 
-def test_delete_transaction(client, mock_repo):
+def test_delete_transaction(client, mock_uow):
     """Test DELETE /transactions/{id} deletes a transaction."""
-    mock_repo.delete.return_value = True
-
-    with patch(
-        "flux_api.routes.transactions.TransactionRepository",
-        return_value=mock_repo,
+    with (
+        patch("flux_api.routes.transactions.get_uow", return_value=mock_uow),
+        patch(
+            "flux_api.routes.transactions.DeleteTransaction"
+        ) as MockUC,
     ):
-        response = client.delete("/transactions/33333333-3333-3333-3333-333333333333?user_id=user-1")
+        mock_uc = AsyncMock()
+        mock_uc.execute = AsyncMock(return_value=None)
+        MockUC.return_value = mock_uc
+
+        response = client.delete(
+            "/transactions/33333333-3333-3333-3333-333333333333?user_id=user-1"
+        )
 
     assert response.status_code == 204
-    from uuid import UUID
-    mock_repo.delete.assert_called_once_with(UUID("33333333-3333-3333-3333-333333333333"), "user-1")

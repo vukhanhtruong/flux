@@ -19,7 +19,7 @@ def test_all_routes_registered():
 
     # Budgets
     assert "/budgets/" in routes
-    assert "/budgets/{budget_id}" in routes
+    assert "/budgets/{category}" in routes
 
     # Goals
     assert "/goals/" in routes
