@@ -1,4 +1,5 @@
 from typing import Callable
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastmcp import FastMCP
 from flux_core.sqlite.database import Database
@@ -37,6 +38,13 @@ def register_profile_tools(
                 "username": profile.username,
                 "user_id": profile.user_id,
             }
+
+        # Validate timezone before writing
+        if timezone is not None:
+            try:
+                ZoneInfo(timezone)
+            except (ZoneInfoNotFoundError, KeyError):
+                return {"error": f"Invalid timezone: {timezone}"}
 
         # Write operation — use UoW for transactional safety
         uow = get_uow()
