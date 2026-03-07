@@ -1,12 +1,26 @@
 """Main FastAPI application."""
 import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from flux_api.deps import get_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialise SQLite+zvec on startup, clean up on shutdown."""
+    # Eager init: connect DB + run migrations on startup
+    get_db()
+    yield
+
 
 app = FastAPI(
     title="flux API",
     description="Personal finance AI agent REST API",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 _origins_raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174")
@@ -26,13 +40,13 @@ async def health_check() -> dict:
 
 
 # Register routes
-from flux_api.routes.transactions import router as transactions_router
-from flux_api.routes.budgets import router as budgets_router
-from flux_api.routes.goals import router as goals_router
-from flux_api.routes.subscriptions import router as subscriptions_router
-from flux_api.routes.assets import router as assets_router
-from flux_api.routes.analytics import router as analytics_router
-from flux_api.routes.profile import router as profile_router
+from flux_api.routes.transactions import router as transactions_router  # noqa: E402
+from flux_api.routes.budgets import router as budgets_router  # noqa: E402
+from flux_api.routes.goals import router as goals_router  # noqa: E402
+from flux_api.routes.subscriptions import router as subscriptions_router  # noqa: E402
+from flux_api.routes.assets import router as assets_router  # noqa: E402
+from flux_api.routes.analytics import router as analytics_router  # noqa: E402
+from flux_api.routes.profile import router as profile_router  # noqa: E402
 
 app.include_router(transactions_router)
 app.include_router(budgets_router)

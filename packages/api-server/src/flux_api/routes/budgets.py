@@ -1,45 +1,45 @@
-"""Budget REST routes."""
-from typing import Annotated
-from uuid import UUID
+"""Budget REST routes — thin adapters over use cases."""
+from decimal import Decimal
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 
-from flux_api.deps import get_db
-from flux_core.db.connection import Database
-from flux_core.db.budget_repo import BudgetRepository
-from flux_core.models.budget import BudgetSet, BudgetOut
+from flux_api.deps import get_db, get_uow
+from flux_core.models.budget import BudgetOut
+from flux_core.sqlite.budget_repo import SqliteBudgetRepository
+from flux_core.use_cases.budgets.list_budgets import ListBudgets
+from flux_core.use_cases.budgets.remove_budget import RemoveBudget
+from flux_core.use_cases.budgets.set_budget import SetBudget
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def set_budget(
-    budget: BudgetSet,
-    db: Annotated[Database, Depends(get_db)],
+    user_id: str,
+    category: str,
+    monthly_limit: float,
 ) -> BudgetOut:
     """Set a budget limit for a category."""
-    repo = BudgetRepository(db)
-    created = await repo.set_budget(budget)
-    return created
+    uc = SetBudget(get_uow())
+    return await uc.execute(user_id, category, Decimal(str(monthly_limit)))
 
 
 @router.get("/")
 async def list_budgets(
     user_id: str,
-    db: Annotated[Database, Depends(get_db)],
 ) -> list[BudgetOut]:
     """List all budgets for a user."""
-    repo = BudgetRepository(db)
-    budgets = await repo.list_by_user(user_id)
-    return budgets
+    db = get_db()
+    repo = SqliteBudgetRepository(db.connection())
+    uc = ListBudgets(repo)
+    return await uc.execute(user_id)
 
 
-@router.delete("/{budget_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{category}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_budget(
-    budget_id: str,
+    category: str,
     user_id: str,
-    db: Annotated[Database, Depends(get_db)],
 ) -> None:
     """Delete a budget."""
-    repo = BudgetRepository(db)
-    await repo.delete(UUID(budget_id), user_id)
+    uc = RemoveBudget(get_uow())
+    await uc.execute(user_id, category)

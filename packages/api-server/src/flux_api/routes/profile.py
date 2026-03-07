@@ -1,12 +1,9 @@
-"""User profile REST routes."""
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, status
+"""User profile REST routes — thin adapters over SQLite repos."""
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from flux_api.deps import get_db
-from flux_core.db.connection import Database
-from flux_core.db.user_profile_repo import UserProfileRepository
+from flux_api.deps import get_db, get_uow
+from flux_core.sqlite.user_repo import SqliteUserRepository
 
 router = APIRouter(tags=["profile"])
 
@@ -30,14 +27,14 @@ class ProfileUpdate(BaseModel):
 @router.get("/profile")
 async def get_profile(
     user_id: str,
-    db: Annotated[Database, Depends(get_db)],
 ) -> ProfileOut:
     """Fetch profile by user_id."""
     if not user_id.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user_id is required")
 
-    repo = UserProfileRepository(db)
-    profile = await repo.get_by_user_id(user_id)
+    db = get_db()
+    repo = SqliteUserRepository(db.connection())
+    profile = repo.get_by_user_id(user_id)
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="profile not found")
 
@@ -56,31 +53,44 @@ async def get_profile(
 async def update_profile(
     user_id: str,
     payload: ProfileUpdate,
-    db: Annotated[Database, Depends(get_db)],
 ) -> ProfileOut:
     """Update mutable profile preferences."""
     if not user_id.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="user_id is required")
 
     if payload.currency is None and payload.timezone is None and payload.locale is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="no fields to update")
-    if payload.currency is not None and not payload.currency.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="currency cannot be empty")
-    if payload.timezone is not None and not payload.timezone.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="timezone cannot be empty")
-    if payload.locale is not None and not payload.locale.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="locale cannot be empty")
-
-    repo = UserProfileRepository(db)
-    try:
-        profile = await repo.update(
-            user_id,
-            currency=payload.currency,
-            timezone=payload.timezone,
-            locale=payload.locale,
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="no fields to update"
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if payload.currency is not None and not payload.currency.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="currency cannot be empty"
+        )
+    if payload.timezone is not None and not payload.timezone.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="timezone cannot be empty"
+        )
+    if payload.locale is not None and not payload.locale.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="locale cannot be empty"
+        )
+
+    uow = get_uow()
+    async with uow:
+        repo = SqliteUserRepository(uow.conn)
+        try:
+            profile = repo.update(
+                user_id,
+                currency=payload.currency,
+                timezone=payload.timezone,
+                locale=payload.locale,
+            )
+        except ValueError as exc:
+            await uow.commit()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
+        await uow.commit()
 
     return ProfileOut(
         user_id=profile.user_id,

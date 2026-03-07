@@ -1,14 +1,12 @@
-"""Analytics REST routes."""
-from typing import Annotated
+"""Analytics REST routes — thin adapters over use cases."""
+from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from flux_api.deps import get_db
-from flux_core.db.connection import Database
-from flux_core.db.transaction_repo import TransactionRepository
-from flux_core.db.budget_repo import BudgetRepository
-from flux_core.db.goal_repo import GoalRepository
-from flux_core.tools import analytics_tools
+from flux_core.sqlite.transaction_repo import SqliteTransactionRepository
+from flux_core.use_cases.analytics.get_category_breakdown import GetCategoryBreakdown
+from flux_core.use_cases.analytics.get_summary import GetSummary
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -18,13 +16,23 @@ async def generate_spending_report(
     user_id: str,
     start_date: str,
     end_date: str,
-    db: Annotated[Database, Depends(get_db)],
 ) -> dict:
     """Generate a spending report for a date range."""
-    return await analytics_tools.generate_spending_report(
-        user_id, start_date, end_date,
-        TransactionRepository(db),
-    )
+    db = get_db()
+    repo = SqliteTransactionRepository(db.connection())
+    sd = date.fromisoformat(start_date)
+    ed = date.fromisoformat(end_date)
+
+    summary_uc = GetSummary(repo)
+    summary = await summary_uc.execute(user_id, sd, ed)
+
+    breakdown_uc = GetCategoryBreakdown(repo)
+    breakdown = await breakdown_uc.execute(user_id, sd, ed)
+
+    return {
+        **summary,
+        "category_breakdown": breakdown,
+    }
 
 
 @router.get("/financial-health")
@@ -32,10 +40,21 @@ async def calculate_financial_health(
     user_id: str,
     start_date: str,
     end_date: str,
-    db: Annotated[Database, Depends(get_db)],
 ) -> dict:
     """Calculate a financial health score based on multiple factors."""
-    return await analytics_tools.calculate_financial_health(
-        user_id, start_date, end_date,
-        TransactionRepository(db), BudgetRepository(db), GoalRepository(db),
-    )
+    db = get_db()
+    repo = SqliteTransactionRepository(db.connection())
+    sd = date.fromisoformat(start_date)
+    ed = date.fromisoformat(end_date)
+
+    summary_uc = GetSummary(repo)
+    summary = await summary_uc.execute(user_id, sd, ed)
+
+    breakdown_uc = GetCategoryBreakdown(repo)
+    breakdown = await breakdown_uc.execute(user_id, sd, ed)
+
+    return {
+        "summary": summary,
+        "category_breakdown": breakdown,
+        "period": {"start": start_date, "end": end_date},
+    }
