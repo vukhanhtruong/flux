@@ -149,3 +149,57 @@ async def test_events_not_emitted_on_failure(tmp_path):
 
     assert len(received) == 0
     db.disconnect()
+
+
+async def test_compensate_zvec_on_sqlite_commit_failure(tmp_path):
+    """When SQLite COMMIT fails after zvec writes succeed, zvec docs must be deleted."""
+    db = Database(str(tmp_path / "test.db"))
+    db.connect()
+    db.execute("CREATE TABLE test (id TEXT PRIMARY KEY)")
+    event_bus = EventBus()
+
+    mock_zvec = MagicMock()
+    uow = UnitOfWork(db, vector_store=mock_zvec, event_bus=event_bus)
+
+    with pytest.raises(Exception):
+        async with uow:
+            uow.conn.execute("INSERT INTO test VALUES (?)", ("1",))
+            uow.add_vector("coll", "doc1", [0.1, 0.2], {"k": "v"})
+            # Force SQLite commit to fail by closing the connection
+            uow.conn.close()
+            await uow.commit()
+
+    # zvec.upsert was called (write succeeded before commit)
+    mock_zvec.upsert.assert_called_once_with("coll", "doc1", [0.1, 0.2], {"k": "v"})
+    # Compensation: zvec.delete was called to undo the write
+    mock_zvec.delete.assert_called_once_with("coll", "doc1")
+    db.disconnect()
+
+
+async def test_vector_delete_during_commit(tmp_path):
+    """delete_vector() ops execute during commit."""
+    db = Database(str(tmp_path / "test.db"))
+    db.connect()
+    db.execute("CREATE TABLE test (id TEXT PRIMARY KEY)")
+    event_bus = EventBus()
+
+    mock_zvec = MagicMock()
+    uow = UnitOfWork(db, vector_store=mock_zvec, event_bus=event_bus)
+
+    async with uow:
+        uow.conn.execute("INSERT INTO test VALUES (?)", ("1",))
+        uow.delete_vector("coll", "doc1")
+        await uow.commit()
+
+    mock_zvec.delete.assert_called_once_with("coll", "doc1")
+    rows = db.fetchall("SELECT * FROM test")
+    assert len(rows) == 1
+    db.disconnect()
+
+
+async def test_conn_before_aenter_raises():
+    """Accessing .conn without entering context raises RuntimeError."""
+    db = MagicMock()
+    uow = UnitOfWork(db)
+    with pytest.raises(RuntimeError, match="not entered"):
+        _ = uow.conn
