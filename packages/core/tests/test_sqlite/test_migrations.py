@@ -16,6 +16,7 @@ EXPECTED_TABLES = {
     "bot_sessions",
     "bot_scheduled_tasks",
     "bot_outbound_messages",
+    "system_config",
     "schema_migrations",
 }
 
@@ -41,7 +42,7 @@ def test_migrate_is_idempotent(tmp_path):
         migrate(db)
         migrate(db)
         row = db.fetchone("SELECT MAX(version) as v FROM schema_migrations")
-        assert row["v"] == 1
+        assert row["v"] == 2
     finally:
         db.disconnect()
 
@@ -54,5 +55,28 @@ def test_schema_migrations_tracked(tmp_path):
         row = db.fetchone("SELECT version FROM schema_migrations WHERE version = 1")
         assert row is not None
         assert row["version"] == 1
+        row2 = db.fetchone("SELECT version FROM schema_migrations WHERE version = 2")
+        assert row2 is not None
+        assert row2["version"] == 2
+    finally:
+        db.disconnect()
+
+
+def test_system_config_table_schema(tmp_path):
+    db = Database(str(tmp_path / "test.db"))
+    db.connect()
+    try:
+        migrate(db)
+        # Verify we can insert and query system_config
+        db.execute(
+            "INSERT INTO system_config (key, value, encrypted) VALUES (?, ?, ?)",
+            ("test_key", "test_value", 0),
+        )
+        db.connection().commit()
+        row = db.fetchone("SELECT key, value, encrypted, updated_at FROM system_config WHERE key = ?", ("test_key",))
+        assert row["key"] == "test_key"
+        assert row["value"] == "test_value"
+        assert row["encrypted"] == 0
+        assert row["updated_at"] is not None
     finally:
         db.disconnect()
