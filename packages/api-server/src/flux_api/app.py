@@ -6,12 +6,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from flux_api.deps import get_db
+from flux_core.logging import configure_logging
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialise SQLite+zvec on startup, clean up on shutdown."""
-    # Eager init: connect DB + run migrations on startup
+    configure_logging()
     get_db()
     yield
 

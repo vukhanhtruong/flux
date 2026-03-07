@@ -8,6 +8,7 @@ from flux_core.events.bus import EventBus
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.migrations.migrate import migrate
 from flux_core.uow.unit_of_work import UnitOfWork
+from flux_core.logging import configure_logging
 from flux_core.vector.store import ZvecStore
 from flux_mcp.tools.analytics_tools import register_analytics_tools
 from flux_mcp.tools.financial_tools import register_financial_tools
@@ -107,5 +108,6 @@ if __name__ == "__main__":
     parser.add_argument("--user-id", default="", help="Authenticated user_id for this session")
     args, _ = parser.parse_known_args()
 
+    configure_logging()
     _session_user_id = args.user_id
     mcp.run()
