@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "flux REST API Server — FastAPI interface over core"
 requires-python = ">=3.12"
 dependencies = [
-    "flux-core",
+    "flux-core[backup]",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
 ]
