@@ -47,6 +47,7 @@ from flux_api.routes.subscriptions import router as subscriptions_router  # noqa
 from flux_api.routes.assets import router as assets_router  # noqa: E402
 from flux_api.routes.analytics import router as analytics_router  # noqa: E402
 from flux_api.routes.profile import router as profile_router  # noqa: E402
+from flux_api.routes.scheduled_tasks import router as scheduled_tasks_router  # noqa: E402
 
 app.include_router(transactions_router)
 app.include_router(budgets_router)
@@ -55,3 +56,4 @@ app.include_router(subscriptions_router)
 app.include_router(assets_router)
 app.include_router(analytics_router)
 app.include_router(profile_router)
+app.include_router(scheduled_tasks_router)
