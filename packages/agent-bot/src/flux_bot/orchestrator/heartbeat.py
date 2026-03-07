@@ -1,9 +1,9 @@
 """Typing heartbeat — re-sends typing action every N seconds."""
 
 import asyncio
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 async def typing_heartbeat(channel, platform_id: str, interval: float = 4.0) -> None:

@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-import logging
+import structlog
 import os
 import re
 import shutil
@@ -17,7 +17,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, SystemMessage, q
 if TYPE_CHECKING:
     from flux_core.models.user_profile import UserProfile
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass

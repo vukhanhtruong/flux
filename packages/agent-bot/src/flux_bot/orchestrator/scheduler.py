@@ -5,7 +5,7 @@ Poller → UserQueue → ClaudeRunner pipeline handles them normally.
 """
 
 import asyncio
-import logging
+import structlog
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -15,7 +15,7 @@ from flux_bot.db.messages import MessageRepository
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
 from flux_bot.orchestrator.outbound import parse_channel_prefix
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class SchedulerWorker:

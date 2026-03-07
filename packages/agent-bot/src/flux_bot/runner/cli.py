@@ -2,13 +2,13 @@
 
 import asyncio
 import json
-import logging
+import structlog
 import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dataclass

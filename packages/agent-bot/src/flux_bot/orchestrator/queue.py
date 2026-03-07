@@ -1,11 +1,11 @@
 """Per-user async queue — ensures one agent runs per user at a time."""
 
 import asyncio
-import logging
+import structlog
 from collections import defaultdict
 from typing import Callable, Awaitable
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class UserQueue:

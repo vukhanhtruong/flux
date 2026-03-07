@@ -1,11 +1,11 @@
 """Factory for the handle_message coroutine used by UserQueue."""
 
 import asyncio
-import logging
+import structlog
 
 from flux_bot.orchestrator.heartbeat import typing_heartbeat
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _THINKING_SIGNATURE_ERROR = "Invalid `signature` in `thinking` block"
 _DELIVERY_ERROR_MSG = "⚠️ I got a response but couldn't send it due to a network issue. Please try again."

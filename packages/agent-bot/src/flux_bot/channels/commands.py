@@ -1,6 +1,6 @@
 """Telegram slash command handlers: /help, /reset, /tasks, /settings, /onboard."""
 
-import logging
+import structlog
 import re
 import zoneinfo
 from datetime import datetime
@@ -20,7 +20,7 @@ from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
 from flux_bot.db.sessions import SessionRepository
 from flux_core.models.user_profile import UserProfileCreate
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _validate_currency(text: str) -> str | None:

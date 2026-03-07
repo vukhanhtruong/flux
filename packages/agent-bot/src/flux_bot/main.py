@@ -1,8 +1,9 @@
 """flux Agent Bot — NanoClaw-style orchestrator."""
 
 import asyncio
-import logging
 import signal
+
+import structlog
 
 from flux_bot.config import load_config
 from flux_bot.db.migrate import run_migrations
@@ -18,17 +19,15 @@ from flux_bot.orchestrator.scheduler import SchedulerWorker
 from flux_bot.orchestrator.poller import Poller
 from flux_bot.orchestrator.queue import UserQueue
 from flux_bot.runner.sdk import ClaudeRunner
+from flux_core.logging import configure_logging
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.migrations.migrate import migrate as run_core_migrations
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(name)s %(levelname)s %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 async def main():
+    configure_logging()
     config = load_config()
     logger.info("Starting flux Agent Bot (orchestrator mode)...")
 

@@ -4,11 +4,11 @@ With SQLite, uses simple polling (no LISTEN/NOTIFY).
 """
 
 import asyncio
-import logging
+import structlog
 
 from flux_bot.db.outbound import OutboundRepository
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 CHANNEL_PREFIXES = {
     "tg": "telegram",

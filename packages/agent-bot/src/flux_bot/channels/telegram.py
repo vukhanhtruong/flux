@@ -1,7 +1,7 @@
 """Telegram channel — receives messages and routes through onboarding or message queue."""
 
 import asyncio
-import logging
+import structlog
 import os
 from pathlib import Path
 
@@ -23,7 +23,7 @@ from flux_bot.db.profile import ProfileRepository
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
 from flux_bot.db.sessions import SessionRepository
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _MAX_SEND_RETRIES = 3
 
