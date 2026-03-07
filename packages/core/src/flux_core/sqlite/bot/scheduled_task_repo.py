@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime
+
+
+def _to_sqlite_dt(dt: datetime) -> str:
+    """Convert a datetime to SQLite-compatible format (no T, no offset)."""
+    return dt.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class SqliteBotScheduledTaskRepository:
@@ -33,7 +38,7 @@ class SqliteBotScheduledTaskRepository:
                 prompt,
                 schedule_type,
                 schedule_value,
-                next_run_at.isoformat(),
+                _to_sqlite_dt(next_run_at),
                 subscription_id,
                 asset_id,
             ),
@@ -75,7 +80,7 @@ class SqliteBotScheduledTaskRepository:
             SET last_run_at = datetime('now'), next_run_at = ?
             WHERE id = ?
             """,
-            (next_run_at.isoformat(), task_id),
+            (_to_sqlite_dt(next_run_at), task_id),
         )
 
     def mark_completed(self, task_id: int) -> None:
@@ -107,7 +112,7 @@ class SqliteBotScheduledTaskRepository:
             SET status = 'active', next_run_at = ?
             WHERE asset_id = ?
             """,
-            (next_run_at.isoformat(), asset_id),
+            (_to_sqlite_dt(next_run_at), asset_id),
         )
 
     def delete(self, task_id: int) -> None:

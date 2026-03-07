@@ -138,7 +138,7 @@ class TestAdvanceNextRun:
             "SELECT next_run_at, last_run_at FROM bot_scheduled_tasks WHERE id = ?",
             (task_id,),
         ).fetchone()
-        assert row["next_run_at"] == new_time.isoformat()
+        assert row["next_run_at"] == new_time.strftime("%Y-%m-%d %H:%M:%S")
         assert row["last_run_at"] is not None
 
 
@@ -209,7 +209,7 @@ class TestResumeByAsset:
             ("asset-1",),
         ).fetchone()
         assert row["status"] == "active"
-        assert row["next_run_at"] == new_time.isoformat()
+        assert row["next_run_at"] == new_time.strftime("%Y-%m-%d %H:%M:%S")
 
 
 class TestDelete:
