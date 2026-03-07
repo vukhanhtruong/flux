@@ -173,3 +173,85 @@ async def test_delete_backup_s3():
     uc = DeleteBackup(local_provider=None, s3_provider=s3)
     await uc.execute("backups/backup-1.zip", storage="s3")
     s3.delete.assert_called_once_with("backups/backup-1.zip")
+
+
+# ---------------------------------------------------------------------------
+# RestoreBackup tests
+# ---------------------------------------------------------------------------
+from flux_core.use_cases.backup.restore_backup import RestoreBackup
+
+
+def _make_valid_backup_zip(tmp_path: Path) -> Path:
+    """Create a valid backup zip with SQLite DB and zvec directory."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    zip_path = tmp_path / "restore-test.zip"
+    db_path = tmp_path / "backup-db.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("CREATE TABLE test (id INTEGER)")
+    conn.execute("INSERT INTO test VALUES (42)")
+    conn.commit()
+    conn.close()
+
+    zvec_dir = tmp_path / "backup-zvec"
+    zvec_dir.mkdir()
+    (zvec_dir / "test_collection").mkdir()
+    (zvec_dir / "test_collection" / "data.bin").write_bytes(b"vectors")
+
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.write(db_path, "flux.db")
+        for f in zvec_dir.rglob("*"):
+            if f.is_file():
+                zf.write(f, f"zvec/{f.relative_to(zvec_dir)}")
+    return zip_path
+
+
+async def test_restore_from_file(tmp_path):
+    db_path = _make_test_db(tmp_path)
+    zvec_path = _make_test_zvec(tmp_path)
+    backup_zip = _make_valid_backup_zip(tmp_path / "backup-source")
+
+    db = _mock_db(db_path)
+    db.disconnect = MagicMock()
+    db.connect = MagicMock()
+
+    create_backup = AsyncMock()
+    create_backup.execute.return_value = _make_meta("auto-safety.zip")
+
+    uc = RestoreBackup(db=db, zvec_path=zvec_path, create_backup=create_backup)
+    await uc.execute(file_path=backup_zip)
+
+    create_backup.execute.assert_called_once()
+    db.disconnect.assert_called_once()
+    db.connect.assert_called_once()
+
+
+async def test_restore_from_s3(tmp_path):
+    db_path = _make_test_db(tmp_path)
+    zvec_path = _make_test_zvec(tmp_path)
+    backup_zip = _make_valid_backup_zip(tmp_path / "s3-source")
+
+    db = _mock_db(db_path)
+    db.disconnect = MagicMock()
+    db.connect = MagicMock()
+
+    s3_provider = AsyncMock()
+    s3_provider.download.return_value = backup_zip
+
+    create_backup = AsyncMock()
+    create_backup.execute.return_value = _make_meta("auto-safety.zip")
+
+    uc = RestoreBackup(
+        db=db, zvec_path=zvec_path, create_backup=create_backup, s3_provider=s3_provider,
+    )
+    await uc.execute(s3_key="backups/test.zip")
+
+    s3_provider.download.assert_called_once()
+    create_backup.execute.assert_called_once()
+
+
+async def test_restore_no_args_raises(tmp_path):
+    db = MagicMock()
+    create_backup = AsyncMock()
+    uc = RestoreBackup(db=db, zvec_path="/tmp", create_backup=create_backup)
+    with pytest.raises(ValueError, match="Provide either"):
+        await uc.execute()
