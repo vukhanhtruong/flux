@@ -1,0 +1,112 @@
+"""Backup/restore REST routes — thin adapters over use cases."""
+from __future__ import annotations
+
+import os
+import tempfile
+from pathlib import Path
+from typing import Literal
+
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
+
+from flux_api.deps import get_db, get_local_storage, get_s3_storage
+from flux_core.models.backup import BackupMetadata
+from flux_core.use_cases.backup.create_backup import CreateBackup
+from flux_core.use_cases.backup.delete_backup import DeleteBackup
+from flux_core.use_cases.backup.list_backups import ListBackups
+from flux_core.use_cases.backup.restore_backup import RestoreBackup
+
+router = APIRouter(prefix="/backups", tags=["backups"])
+
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_backup(
+    storage: Literal["local", "s3", "both"] = "local",
+) -> BackupMetadata:
+    """Create a new backup."""
+    db = get_db()
+    zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
+    uc = CreateBackup(
+        db,
+        zvec_path,
+        local_provider=get_local_storage(),
+        s3_provider=get_s3_storage(),
+    )
+    return await uc.execute(storage=storage)
+
+
+@router.get("/")
+async def list_backups() -> list[BackupMetadata]:
+    """List all backups."""
+    uc = ListBackups(
+        local_provider=get_local_storage(),
+        s3_provider=get_s3_storage(),
+    )
+    return await uc.execute()
+
+
+@router.get("/{filename}/download")
+async def download_backup(filename: str):
+    """Download a backup file from local storage."""
+    local = get_local_storage()
+    file_path = local._dir / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Backup file not found")
+    return FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type="application/zip",
+    )
+
+
+@router.post("/restore")
+async def restore_backup(
+    file: UploadFile | None = File(None),
+    backup_id: str | None = None,
+) -> dict:
+    """Restore from a backup file upload or a local backup_id."""
+    db = get_db()
+    zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
+    local = get_local_storage()
+    s3 = get_s3_storage()
+
+    create_uc = CreateBackup(db, zvec_path, local_provider=local, s3_provider=s3)
+    uc = RestoreBackup(db, zvec_path, create_backup=create_uc, s3_provider=s3)
+
+    if file and file.filename:
+        # Multipart file upload
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = Path(tmp.name)
+        try:
+            await uc.execute(file_path=tmp_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+        return {"status": "restored", "source": "upload"}
+
+    elif backup_id:
+        # Download from local storage first, then restore
+        with tempfile.TemporaryDirectory() as tmpdir:
+            downloaded = await local.download(backup_id, Path(tmpdir))
+            await uc.execute(file_path=Path(downloaded))
+        return {"status": "restored", "source": "local", "backup_id": backup_id}
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either a file upload or backup_id query parameter",
+        )
+
+
+@router.delete("/{key:path}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_backup(
+    key: str,
+    storage: Literal["local", "s3"] = "local",
+) -> None:
+    """Delete a backup."""
+    uc = DeleteBackup(
+        local_provider=get_local_storage(),
+        s3_provider=get_s3_storage(),
+    )
+    await uc.execute(key, storage=storage)

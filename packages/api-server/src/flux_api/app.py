@@ -58,3 +58,7 @@ app.include_router(assets_router)
 app.include_router(analytics_router)
 app.include_router(profile_router)
 app.include_router(scheduled_tasks_router)
+
+from flux_api.routes.backups import router as backups_router  # noqa: E402
+
+app.include_router(backups_router)
