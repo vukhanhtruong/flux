@@ -12,6 +12,9 @@
 
 services:
   flux:
+    env_file:
+      - path: .env
+        required: false
     build:
       context: .
       dockerfile: Dockerfile
@@ -24,7 +27,7 @@ services:
     environment:
       DATABASE_PATH: /data/sqlite/flux.db
       ZVEC_PATH: /data/zvec
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_ALLOW_FROM: ${TELEGRAM_ALLOW_FROM:-}
       CLAUDE_AUTH_TOKEN: ${CLAUDE_AUTH_TOKEN:-}

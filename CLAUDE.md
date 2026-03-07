@@ -194,7 +194,8 @@ docker run -d -p 80:80 -v flux_data:/data \
 docker compose up
 
 # Run all tests (unit + E2E + perf)
-docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+./test-all.sh              # without coverage
+./test-all.sh --coverage   # with coverage
 ```
 
 ### Running Migrations

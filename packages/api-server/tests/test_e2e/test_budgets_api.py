@@ -1,5 +1,5 @@
 """E2E tests for budget API routes with seeded SQLite+zvec."""
-from tests.test_e2e.conftest import TEST_USER_ID
+TEST_USER_ID = "test:e2e-user"
 
 
 def test_set_and_list_budgets(seeded_app):

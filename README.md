@@ -97,11 +97,12 @@ docker run -d -p 80:80 -v flux_data:/data \
   yourname/flux-finance
 ```
 
-### Docker Testing
+### Testing
 
 ```bash
 # Run all tests (unit + E2E + perf)
-docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+./test-all.sh              # without coverage
+./test-all.sh --coverage   # with coverage
 ```
 
 ### Manual Setup
@@ -142,7 +143,7 @@ dev.sh               # Local dev script (uv + hot reload)
 Dockerfile           # Single-container production build
 nginx.conf           # Nginx config (static + API proxy)
 docker-compose.yml   # Production compose
-docker-compose.test.yml  # Test runner compose
+test-all.sh          # Run all tests (isolated temp DB)
 ```
 
 ## Features

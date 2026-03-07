@@ -1,7 +1,8 @@
 from flux_bot.config import load_config, BotConfig
 
 
-def test_default_config():
+def test_default_config(monkeypatch):
+    monkeypatch.delenv("DATABASE_PATH", raising=False)
     config = load_config()
     assert isinstance(config, BotConfig)
     assert config.database_path == "/data/sqlite/flux.db"

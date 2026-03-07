@@ -1,5 +1,5 @@
 """E2E tests for goal API routes with seeded SQLite+zvec."""
-from tests.test_e2e.conftest import TEST_USER_ID
+TEST_USER_ID = "test:e2e-user"
 
 
 def test_create_and_list_goals(seeded_app):

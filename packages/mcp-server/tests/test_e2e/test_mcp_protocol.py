@@ -206,7 +206,6 @@ async def test_dual_write_transaction_adds_to_both_stores(seeded_server):
     assert txn_id in [t["id"] for t in list_data]
 
     # Verify embedding was created (mock was called)
-    from tests.test_e2e.conftest import TEST_USER_ID
     import flux_mcp.server as srv
     svc = srv._embedding_service
     svc.embed.assert_called()
