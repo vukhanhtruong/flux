@@ -1,7 +1,4 @@
-"""Async wrapper for user profile — delegates to core SQLite UserRepository.
-
-Drop-in replacement for the old asyncpg-based flux_core.db.user_profile_repo.UserProfileRepository.
-"""
+"""Async wrapper for user profile — delegates to core SQLite UserRepository."""
 
 from flux_core.models.user_profile import UserProfile, UserProfileCreate
 from flux_core.sqlite.database import Database
