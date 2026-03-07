@@ -1,14 +1,42 @@
-import { useState } from "react";
-import { User, Send, Smartphone, Cpu, Database, Globe, Clock, Coins } from "lucide-react";
+import { useState, useEffect } from "react";
+import { User, Send, Smartphone, Cpu, Database, Globe, Clock, Coins, CalendarClock } from "lucide-react";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
+import { api } from "../lib/api";
+import type { ScheduledTask } from "../types";
 
-type Tab = "general" | "messaging" | "system";
+type Tab = "general" | "messaging" | "system" | "scheduled-tasks";
+
+function formatScheduleValue(type: string, value: string): string {
+  if (type === "interval") {
+    const ms = parseInt(value, 10);
+    if (ms >= 86400000) return `${Math.round(ms / 86400000)}d`;
+    if (ms >= 3600000) return `${Math.round(ms / 3600000)}h`;
+    if (ms >= 60000) return `${Math.round(ms / 60000)}m`;
+    return `${Math.round(ms / 1000)}s`;
+  }
+  return value;
+}
 
 export function Settings() {
   const { profile, loading, error } = useProfile();
   const [activeTab, setActiveTab] = useState<Tab>("general");
   const [healthStatus, setHealthStatus] = useState<string | null>(null);
+
+  const [tasks, setTasks] = useState<ScheduledTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksError, setTasksError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== "scheduled-tasks") return;
+    setTasksLoading(true);
+    setTasksError(null);
+    api
+      .listScheduledTasks(USER_ID)
+      .then(setTasks)
+      .catch((err) => setTasksError(String(err)))
+      .finally(() => setTasksLoading(false));
+  }, [activeTab]);
 
   const formData = {
     currency: profile.currency,
@@ -36,6 +64,7 @@ export function Settings() {
     { key: "general", label: "General" },
     { key: "messaging", label: "Messaging Platforms" },
     { key: "system", label: "System" },
+    { key: "scheduled-tasks", label: "Scheduled Tasks" },
   ];
 
   return (
@@ -288,6 +317,67 @@ export function Settings() {
                 postgresql://***:***@postgres:5432/fluxfinance
               </p>
             </div>
+          </div>
+        )}
+
+        {activeTab === "scheduled-tasks" && (
+          <div className="glass-card p-10 space-y-8">
+            <div className="flex items-center gap-3 mb-2">
+              <CalendarClock className="w-5 h-5 text-primary" />
+              <h2 className="text-xl font-bold text-white tracking-tight">Active Scheduled Tasks</h2>
+            </div>
+
+            {tasksLoading && <p className="text-sm text-slate-500 italic">Loading tasks...</p>}
+            {tasksError && <p className="text-sm text-red-400">{tasksError}</p>}
+
+            {!tasksLoading && !tasksError && tasks.length === 0 && (
+              <div className="text-center py-16">
+                <CalendarClock className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                <p className="text-slate-500 text-sm">No active scheduled tasks.</p>
+              </div>
+            )}
+
+            {!tasksLoading && tasks.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Prompt</th>
+                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Type</th>
+                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Schedule</th>
+                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Status</th>
+                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Next Run</th>
+                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Last Run</th>
+                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3">Linked Entity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tasks.map((task) => (
+                      <tr key={task.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                        <td className="py-3 pr-4 text-slate-300 max-w-[200px] truncate" title={task.prompt}>{task.prompt}</td>
+                        <td className="py-3 pr-4">
+                          <span className="inline-flex items-center px-2 py-0.5 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold text-slate-400 uppercase">
+                            {task.schedule_type}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-4 text-slate-400 font-mono text-xs">{formatScheduleValue(task.schedule_type, task.schedule_value)}</td>
+                        <td className="py-3 pr-4">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">{task.status}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 pr-4 text-slate-400 text-xs">{new Date(task.next_run_at).toLocaleString()}</td>
+                        <td className="py-3 pr-4 text-slate-400 text-xs">{task.last_run_at ? new Date(task.last_run_at).toLocaleString() : "—"}</td>
+                        <td className="py-3 text-slate-400 text-xs">
+                          {task.subscription_id ? `Subscription` : task.asset_id ? `Savings` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
