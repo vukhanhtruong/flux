@@ -58,7 +58,8 @@ class SqliteBotScheduledTaskRepository:
         rows = self._conn.execute(
             """
             SELECT id, user_id, prompt, schedule_type, schedule_value,
-                   next_run_at, created_at
+                   status, next_run_at, last_run_at,
+                   subscription_id, asset_id, created_at
             FROM bot_scheduled_tasks
             WHERE user_id = ? AND status = 'active'
             ORDER BY next_run_at ASC

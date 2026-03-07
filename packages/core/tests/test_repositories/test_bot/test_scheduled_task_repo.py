@@ -99,6 +99,29 @@ class TestListByUser:
         assert len(results) == 1
         assert results[0]["prompt"] == "Active task"
 
+    def test_returns_all_fields(self, repo, conn):
+        """list_by_user should return all task fields including status, last_run_at, and linked IDs."""
+        repo.create(
+            user_id="tg:123",
+            prompt="test prompt",
+            schedule_type="cron",
+            schedule_value="0 9 * * *",
+            next_run_at=datetime(2026, 3, 8, 9, 0, 0),
+            subscription_id="sub-123",
+        )
+        conn.commit()
+
+        tasks = repo.list_by_user("tg:123")
+        assert len(tasks) == 1
+        task = tasks[0]
+        assert "status" in task
+        assert "last_run_at" in task
+        assert "subscription_id" in task
+        assert "asset_id" in task
+        assert task["status"] == "active"
+        assert task["subscription_id"] == "sub-123"
+        assert task["asset_id"] is None
+
 
 class TestAdvanceNextRun:
     def test_advances(self, repo, conn):
