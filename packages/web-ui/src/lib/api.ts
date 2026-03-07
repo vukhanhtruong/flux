@@ -14,6 +14,7 @@ import type {
   FinancialHealth,
   UserProfile,
   UserProfileUpdate,
+  ScheduledTask,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -203,6 +204,13 @@ class ApiClient {
       method: "PATCH",
       body: JSON.stringify(data),
     });
+  }
+
+  // Scheduled Tasks
+  async listScheduledTasks(userId: string): Promise<ScheduledTask[]> {
+    const params = new URLSearchParams({ user_id: userId });
+    const result = await this.request<{ tasks: ScheduledTask[] }>(`/scheduled-tasks/?${params}`);
+    return result.tasks;
   }
 }
 

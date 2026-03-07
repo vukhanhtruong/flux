@@ -142,3 +142,18 @@ export interface UserProfileUpdate {
   timezone?: string;
   locale?: string;
 }
+
+// Scheduled task types
+export interface ScheduledTask {
+  id: number;
+  user_id: string;
+  prompt: string;
+  schedule_type: "once" | "cron" | "interval";
+  schedule_value: string;
+  status: "active" | "paused" | "completed";
+  next_run_at: string;
+  last_run_at: string | null;
+  subscription_id: string | null;
+  asset_id: string | null;
+  created_at: string;
+}
