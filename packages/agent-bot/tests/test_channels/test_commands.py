@@ -12,6 +12,7 @@ from flux_bot.channels.commands import (  # noqa: E501
     _OB_CURRENCY,
     _OB_TIMEZONE,
     _OB_USERNAME,
+    _OB_BACKUP,
     _validate_currency,
     _validate_timezone,
     _lookup_timezone_for_location,
@@ -436,28 +437,24 @@ async def test_ob_skip_timezone():
 
 
 async def test_ob_handle_username_valid():
-    from telegram.ext import ConversationHandler
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     update = _make_update(text="My Display Name 123!")
     result = await handlers._ob_handle_username(update, _make_context())
     handlers.profile_repo.update.assert_called_once_with("tg:12345", username="My Display Name 123!")
-    assert result == ConversationHandler.END
+    assert result == _OB_BACKUP
     text = update.message.reply_text.call_args[0][0]
-    assert HELP_TEXT in text
-    assert "✅" in text
+    assert "Auto-backup" in text
 
 
 async def test_ob_skip_username():
-    from telegram.ext import ConversationHandler
     handlers = _make_handlers()
     update = _make_callback_update(callback_data="ob_skip")
     result = await handlers._ob_skip_username(update, MagicMock())
-    assert result == ConversationHandler.END
+    assert result == _OB_BACKUP
     update.callback_query.answer.assert_called_once()
     text = update.callback_query.message.reply_text.call_args[0][0]
-    assert HELP_TEXT in text
-    assert "✅" in text
+    assert "Auto-backup" in text
 
 
 async def test_ob_new_user_handle_currency_stores_in_context():
@@ -492,8 +489,7 @@ async def test_ob_new_user_handle_timezone_stores_in_context():
 
 
 async def test_ob_new_user_completes_creates_profile():
-    """New user completing all 3 steps calls profile_repo.create with correct data."""
-    from telegram.ext import ConversationHandler
+    """New user completing username step calls profile_repo.create, advances to backup."""
     from flux_core.models.user_profile import UserProfileCreate
 
     handlers = _make_handlers(profile=None)
@@ -505,7 +501,7 @@ async def test_ob_new_user_completes_creates_profile():
         "ob_timezone": "UTC",
     })
     result = await handlers._ob_handle_username(update, context)
-    assert result == ConversationHandler.END
+    assert result == _OB_BACKUP
     handlers.profile_repo.create.assert_called_once()
     call_arg = handlers.profile_repo.create.call_args[0][0]
     assert isinstance(call_arg, UserProfileCreate)
@@ -516,8 +512,7 @@ async def test_ob_new_user_completes_creates_profile():
     assert call_arg.channel == "telegram"
     handlers.profile_repo.update.assert_not_called()
     text = update.message.reply_text.call_args[0][0]
-    assert HELP_TEXT in text
-    assert "alice-new" in text
+    assert "Auto-backup" in text
 
 
 async def test_onboard_conversation_has_correct_structure():
@@ -528,6 +523,7 @@ async def test_onboard_conversation_has_correct_structure():
     assert _OB_CURRENCY in conv.states
     assert _OB_TIMEZONE in conv.states
     assert _OB_USERNAME in conv.states
+    assert _OB_BACKUP in conv.states
     assert conv.conversation_timeout == 600
 
 
@@ -668,7 +664,7 @@ async def test_ob_tz_button_existing_user_updates_profile():
 
 async def test_onboard_conversation_handles_ob_tz_callbacks():
     """_OB_TIMEZONE state must include a CallbackQueryHandler for ob_tz: pattern."""
-    from telegram.ext import CallbackQueryHandler as CQH, ConversationHandler
+    from telegram.ext import CallbackQueryHandler as CQH
     handlers = _make_handlers()
     conv = handlers.onboard_conversation()
     tz_state_handlers = conv.states[_OB_TIMEZONE]
@@ -680,3 +676,54 @@ async def test_onboard_conversation_handles_ob_tz_callbacks():
     assert any("ob_tz" in p for p in patterns), (
         f"No ob_tz: CallbackQueryHandler found in _OB_TIMEZONE state. Got patterns: {patterns}"
     )
+
+
+# ---------------------------------------------------------------------------
+# /onboard — backup preference step (4/4)
+# ---------------------------------------------------------------------------
+
+async def test_ob_handle_backup_daily():
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers()
+    update = _make_callback_update(callback_data="ob_backup:daily")
+    result = await handlers._ob_handle_backup(update, _make_context())
+    assert result == ConversationHandler.END
+    update.callback_query.answer.assert_called_once()
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "daily" in text
+    assert HELP_TEXT in text
+
+
+async def test_ob_handle_backup_weekly():
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers()
+    update = _make_callback_update(callback_data="ob_backup:weekly")
+    result = await handlers._ob_handle_backup(update, _make_context())
+    assert result == ConversationHandler.END
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "weekly" in text
+
+
+async def test_ob_handle_backup_never():
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers()
+    update = _make_callback_update(callback_data="ob_backup:never")
+    result = await handlers._ob_handle_backup(update, _make_context())
+    assert result == ConversationHandler.END
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "No auto-backup" in text
+    assert "/backup" in text
+
+
+async def test_onboard_conversation_handles_ob_backup_callbacks():
+    """_OB_BACKUP state must include a CallbackQueryHandler for ob_backup: pattern."""
+    from telegram.ext import CallbackQueryHandler as CQH
+    handlers = _make_handlers()
+    conv = handlers.onboard_conversation()
+    backup_state_handlers = conv.states[_OB_BACKUP]
+    patterns = [
+        h.pattern.pattern
+        for h in backup_state_handlers
+        if isinstance(h, CQH) and h.pattern is not None
+    ]
+    assert any("ob_backup" in p for p in patterns)

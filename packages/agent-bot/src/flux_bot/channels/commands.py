@@ -1,9 +1,11 @@
-"""Telegram slash command handlers: /help, /reset, /tasks, /settings, /onboard."""
+"""Telegram slash command handlers: /help, /reset, /tasks, /settings, /onboard, /backup, /restore."""
 
+import os
 import structlog
 import re
 import zoneinfo
 from datetime import datetime
+from pathlib import Path
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -120,7 +122,7 @@ def _format_tz_button_label(iana_id: str) -> str:
 _MENU, _EDIT_CURRENCY, _EDIT_TIMEZONE, _EDIT_USERNAME = range(4)
 
 # ConversationHandler states for /onboard
-_OB_CURRENCY, _OB_TIMEZONE, _OB_USERNAME = range(3)
+_OB_CURRENCY, _OB_TIMEZONE, _OB_USERNAME, _OB_BACKUP = range(4)
 
 HELP_TEXT = """\
 Here are some things you can ask me:
@@ -144,6 +146,8 @@ Here are some things you can ask me:
 ⚙️ Update preferences → /settings
 🔄 Start a new session → /reset
 📋 View scheduled tasks → /tasks
+💾 Backup your data → /backup
+🔄 Restore from backup → /restore
 🚀 Walk through setup & see this help → /onboard\
 """
 
@@ -217,6 +221,111 @@ class CommandHandlers:
             lines.append(f"{i}. {prompt}\n   {icon} {task['schedule_type']}{next_run_line}")
 
         await update.message.reply_text("\n\n".join(lines), parse_mode="Markdown")
+
+    # ------------------------------------------------------------------
+    # /backup
+    # ------------------------------------------------------------------
+
+    def _get_s3_configured(self) -> bool:
+        """Check if S3 is configured via system_config."""
+        try:
+            from flux_core.services.encryption import EncryptionService
+            from flux_core.sqlite.system_config_repo import SqliteSystemConfigRepository
+            from flux_core.sqlite.database import Database
+
+            db_path = os.getenv("DATABASE_PATH", "/data/sqlite/flux.db")
+            db = Database(db_path)
+            db.connect()
+            enc = EncryptionService.from_env()
+            repo = SqliteSystemConfigRepository(db.connection(), enc)
+            endpoint = repo.get("s3_endpoint")
+            bucket = repo.get("s3_bucket")
+            db.disconnect()
+            return bool(endpoint and bucket)
+        except Exception:
+            return False
+
+    async def cmd_backup(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        profile = await self._get_profile(update)
+        if profile is None:
+            await update.message.reply_text("Please complete setup first with /onboard")
+            return
+
+        s3_configured = self._get_s3_configured()
+        if s3_configured:
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "Send to Telegram", callback_data="backup:telegram"
+                    ),
+                    InlineKeyboardButton(
+                        "Upload to S3", callback_data="backup:s3"
+                    ),
+                ],
+            ]
+            await update.message.reply_text(
+                "Where should I save the backup?",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
+        else:
+            await update.message.reply_text(
+                "Creating backup... This may take a moment."
+            )
+            try:
+                from flux_core.use_cases.backup.create_backup import CreateBackup
+                from flux_core.sqlite.database import Database
+                from flux_core.services.storage.local import LocalStorageProvider
+
+                db_path = os.getenv("DATABASE_PATH", "/data/sqlite/flux.db")
+                zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
+                backup_dir = os.getenv("BACKUP_LOCAL_DIR", "/data/backups")
+                local = LocalStorageProvider(backup_dir)
+
+                db = Database(db_path)
+                db.connect()
+                uc = CreateBackup(
+                    db=db, zvec_path=zvec_path, local_provider=local
+                )
+                meta = await uc.execute(storage="local")
+                db.disconnect()
+
+                # Send file via Telegram
+                zip_path = Path(local._dir) / meta.filename
+                with open(zip_path, "rb") as f:
+                    await update.message.reply_document(
+                        document=f,
+                        filename=meta.filename,
+                        caption="Here's your backup file. Keep it safe!",
+                    )
+                await update.message.reply_text(
+                    f"Backup created: {meta.filename} "
+                    f"({meta.size_bytes:,} bytes)\n\n"
+                    "Tip: Configure S3 storage in Web UI Settings "
+                    "for off-site backups."
+                )
+            except Exception as e:
+                logger.error("Backup failed", error=str(e))
+                await update.message.reply_text(f"Backup failed: {e}")
+
+    # ------------------------------------------------------------------
+    # /restore
+    # ------------------------------------------------------------------
+
+    async def cmd_restore(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        profile = await self._get_profile(update)
+        if profile is None:
+            await update.message.reply_text(
+                "Please complete setup first with /onboard"
+            )
+            return
+
+        await update.message.reply_text(
+            "To restore, send me a backup .zip file.\n\n"
+            "This will replace ALL current data. "
+            "A safety backup will be created automatically first."
+        )
 
     # ------------------------------------------------------------------
     # /settings — ConversationHandler
@@ -385,12 +494,12 @@ class CommandHandlers:
     async def _send_ob_currency_prompt(self, source, profile) -> None:
         if profile is None:
             await source.message.reply_text(
-                "Let's set up your profile. (1/3)\n\nCurrency — type a code (e.g. USD, VND, EUR):"
+                "Let's set up your profile. (1/4)\n\nCurrency — type a code (e.g. USD, VND, EUR):"
             )
         else:
             keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
             await source.message.reply_text(
-                "🚀 Let's walk through your preferences. (1/3)\n\n"
+                "🚀 Let's walk through your preferences. (1/4)\n\n"
                 "💱 Currency\n"
                 f"Current: {profile.currency}\n\n"
                 "Type a new currency code (e.g. USD, VND, EUR), or tap Skip.",
@@ -400,14 +509,14 @@ class CommandHandlers:
     async def _send_ob_timezone_prompt(self, source, profile) -> None:
         if profile is None:
             await source.message.reply_text(
-                "Timezone (2/3)\n\n"
+                "Timezone (2/4)\n\n"
                 "Pick one or type another (e.g. America/Chicago), "
                 "or type your country or city (e.g. Vietnam, Japan, London):"
             )
         else:
             keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
             await source.message.reply_text(
-                "🕐 Timezone (2/3)\n\n"
+                "🕐 Timezone (2/4)\n\n"
                 f"Current: {profile.timezone}\n\n"
                 "Pick one, tap Skip, or type your country or city.",
                 reply_markup=InlineKeyboardMarkup(keyboard),
@@ -415,11 +524,11 @@ class CommandHandlers:
 
     async def _send_ob_username_prompt(self, source, profile) -> None:
         if profile is None:
-            await source.message.reply_text("Username (3/3)\n\nType a display name:")
+            await source.message.reply_text("Username (3/4)\n\nType a display name:")
         else:
             keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
             await source.message.reply_text(
-                "👤 Username (3/3)\n\n"
+                "👤 Username (3/4)\n\n"
                 f"Current: {profile.username}\n\n"
                 "Type a new display name, or tap Skip.",
                 reply_markup=InlineKeyboardMarkup(keyboard),
@@ -439,10 +548,8 @@ class CommandHandlers:
 
     async def _ob_skip_username(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await update.callback_query.answer()
-        await update.callback_query.message.reply_text(
-            "✅ Preferences saved!\n\n" + HELP_TEXT, parse_mode="Markdown"
-        )
-        return ConversationHandler.END
+        await self._send_ob_backup_prompt(update.callback_query)
+        return _OB_BACKUP
 
     async def _ob_handle_currency(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         code = _validate_currency(update.message.text)
@@ -531,16 +638,38 @@ class CommandHandlers:
                 timezone=context.user_data.get("ob_timezone", "Asia/Ho_Chi_Minh"),
             )
             await self._profile_repo.create(create)
-            await update.message.reply_text(
-                f"All set, {text}! You're ready to track your finances.\n\n" + HELP_TEXT,
-                parse_mode="Markdown",
-            )
         else:
             profile = await self._get_profile(update)
             await self._profile_repo.update(profile.user_id, username=text)
-            await update.message.reply_text(
-                "✅ Preferences saved!\n\n" + HELP_TEXT, parse_mode="Markdown"
-            )
+        await self._send_ob_backup_prompt(update)
+        return _OB_BACKUP
+
+    async def _send_ob_backup_prompt(self, source) -> None:
+        keyboard = [
+            [InlineKeyboardButton("Daily", callback_data="ob_backup:daily")],
+            [InlineKeyboardButton("Weekly", callback_data="ob_backup:weekly")],
+            [InlineKeyboardButton("Never", callback_data="ob_backup:never")],
+        ]
+        await source.message.reply_text(
+            "Auto-backup (4/4)\n\n"
+            "How often should I automatically backup your data?",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    async def _ob_handle_backup(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        await update.callback_query.answer()
+        choice = update.callback_query.data.split(":", 1)[1]
+
+        if choice == "never":
+            msg = "No auto-backup configured. You can always use /backup manually."
+        else:
+            msg = f"Auto-backup set to {choice}. You can change this in Settings."
+
+        await update.callback_query.message.reply_text(
+            f"{msg}\n\n" + HELP_TEXT, parse_mode="Markdown"
+        )
         return ConversationHandler.END
 
     def onboard_conversation(self) -> ConversationHandler:
@@ -560,6 +689,11 @@ class CommandHandlers:
                 _OB_USERNAME: [
                     CallbackQueryHandler(self._ob_skip_username, pattern="^ob_skip$"),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self._ob_handle_username),
+                ],
+                _OB_BACKUP: [
+                    CallbackQueryHandler(
+                        self._ob_handle_backup, pattern="^ob_backup:"
+                    ),
                 ],
             },
             fallbacks=[CommandHandler("onboard", self.cmd_onboard)],

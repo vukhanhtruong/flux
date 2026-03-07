@@ -81,6 +81,8 @@ class TelegramChannel(Channel):
         self._app.add_handler(TelegramCommandHandler("help", cmds.cmd_help))
         self._app.add_handler(TelegramCommandHandler("reset", cmds.cmd_reset))
         self._app.add_handler(TelegramCommandHandler("tasks", cmds.cmd_tasks))
+        self._app.add_handler(TelegramCommandHandler("backup", cmds.cmd_backup))
+        self._app.add_handler(TelegramCommandHandler("restore", cmds.cmd_restore))
 
         # Regular messages — exclude raw commands so /help etc. don't fall through
         self._app.add_handler(
