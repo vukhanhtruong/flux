@@ -143,6 +143,17 @@ export interface UserProfileUpdate {
   locale?: string;
 }
 
+// Backup types
+export interface BackupMetadata {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  created_at: string;
+  storage: "local" | "s3";
+  s3_key?: string;
+  local_path?: string;
+}
+
 // Scheduled task types
 export interface ScheduledTask {
   id: number;

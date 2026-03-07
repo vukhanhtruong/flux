@@ -15,6 +15,7 @@ import type {
   UserProfile,
   UserProfileUpdate,
   ScheduledTask,
+  BackupMetadata,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -211,6 +212,37 @@ class ApiClient {
     const params = new URLSearchParams({ user_id: userId });
     const result = await this.request<{ tasks: ScheduledTask[] }>(`/scheduled-tasks/?${params}`);
     return result.tasks;
+  }
+
+  // Backups
+  async createBackup(storage: string = "local"): Promise<BackupMetadata> {
+    const params = new URLSearchParams({ storage });
+    return this.request(`/backups/?${params}`, { method: "POST" });
+  }
+
+  async listBackups(): Promise<BackupMetadata[]> {
+    return this.request("/backups/");
+  }
+
+  async deleteBackup(key: string, storage: string = "local"): Promise<void> {
+    const params = new URLSearchParams({ storage });
+    return this.request(`/backups/${key}?${params}`, { method: "DELETE" });
+  }
+
+  async restoreBackup(file?: File, backupId?: string): Promise<{ status: string; message: string }> {
+    if (file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      const url = `${this.baseUrl}/backups/restore`;
+      const response = await fetch(url, { method: "POST", body: formData });
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      return response.json();
+    }
+    return this.request(`/backups/restore?backup_id=${backupId}`, { method: "POST" });
+  }
+
+  getBackupDownloadUrl(filename: string): string {
+    return `${this.baseUrl}/backups/${filename}/download`;
   }
 }
 

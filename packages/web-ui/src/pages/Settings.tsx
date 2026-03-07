@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { User, Send, Smartphone, Cpu, Database, Globe, Clock, Coins, CalendarClock } from "lucide-react";
+import { DataTab } from "./settings/DataTab";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
 import { api } from "../lib/api";
 import { formatDateTime } from "../lib/format";
 import type { ScheduledTask } from "../types";
 
-type Tab = "general" | "messaging" | "system" | "scheduled-tasks";
+type Tab = "general" | "data" | "messaging" | "system" | "scheduled-tasks";
 
 function formatScheduleValue(type: string, value: string): string {
   if (type === "interval") {
@@ -63,6 +64,7 @@ export function Settings() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "general", label: "General" },
+    { key: "data", label: "Data" },
     { key: "scheduled-tasks", label: "Scheduled Tasks" },
     { key: "messaging", label: "Messaging Platforms" },
     { key: "system", label: "System" },
@@ -176,6 +178,8 @@ export function Settings() {
             </div>
           </div>
         )}
+
+        {activeTab === "data" && <DataTab />}
 
         {activeTab === "messaging" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
