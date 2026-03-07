@@ -1,0 +1,17 @@
+# Dockerfile.test — Runs all tests (unit + E2E + perf)
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY packages/core/ /app/packages/core/
+COPY packages/api-server/ /app/packages/api-server/
+COPY packages/mcp-server/ /app/packages/mcp-server/
+COPY packages/agent-bot/ /app/packages/agent-bot/
+
+RUN pip install --no-cache-dir \
+    /app/packages/core[dev,vector,embeddings] \
+    /app/packages/api-server[dev] \
+    /app/packages/mcp-server[dev] \
+    /app/packages/agent-bot[dev]
+
+CMD ["bash", "-c", "echo 'Use docker-compose.test.yml to run tests'"]

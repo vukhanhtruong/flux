@@ -1,0 +1,37 @@
+# docker-compose.test.yml — Run all tests in a container
+#
+# Usage:
+#   docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+#
+# Runs: unit tests -> E2E tests -> performance benchmarks
+
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: flux-test
+    environment:
+      DATABASE_PATH: /tmp/test.db
+      ZVEC_PATH: /tmp/zvec
+    command: >
+      bash -c "
+        set -e
+        echo '=== Core unit tests ==='
+        cd /app/packages/core && python -m pytest tests/ -v --tb=short
+
+        echo ''
+        echo '=== API server tests ==='
+        cd /app/packages/api-server && python -m pytest tests/ -v --tb=short
+
+        echo ''
+        echo '=== MCP server tests ==='
+        cd /app/packages/mcp-server && python -m pytest tests/ -v --tb=short
+
+        echo ''
+        echo '=== Performance benchmarks ==='
+        cd /app/packages/core && python -m pytest tests/test_perf/ -v --benchmark-only
+
+        echo ''
+        echo '=== All tests passed ==='
+      "
