@@ -1,6 +1,7 @@
 .claude/
 .agent/
 
+.dev-data/
 firebase/
 .worktrees/
 node_modules/
