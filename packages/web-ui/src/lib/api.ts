@@ -16,6 +16,7 @@ import type {
   UserProfileUpdate,
   ScheduledTask,
   BackupMetadata,
+  S3Config,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -229,7 +230,7 @@ class ApiClient {
     return this.request(`/backups/${key}?${params}`, { method: "DELETE" });
   }
 
-  async restoreBackup(file?: File, backupId?: string): Promise<{ status: string; message: string }> {
+  async restoreBackup(file?: File, backupId?: string, storage?: string): Promise<{ status: string; message: string }> {
     if (file) {
       const formData = new FormData();
       formData.append("file", file);
@@ -238,11 +239,25 @@ class ApiClient {
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       return response.json();
     }
-    return this.request(`/backups/restore?backup_id=${backupId}`, { method: "POST" });
+    const params = new URLSearchParams();
+    if (backupId) params.append("backup_id", backupId);
+    if (storage) params.append("storage", storage);
+    return this.request(`/backups/restore?${params}`, { method: "POST" });
   }
 
   getBackupDownloadUrl(filename: string): string {
     return `${this.baseUrl}/backups/${filename}/download`;
+  }
+
+  async getBackupConfig(): Promise<S3Config> {
+    return this.request("/backups/config");
+  }
+
+  async updateBackupConfig(config: S3Config): Promise<S3Config> {
+    return this.request("/backups/config", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    });
   }
 }
 

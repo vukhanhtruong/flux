@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Download, Upload, Trash2, HardDrive, Cloud, RefreshCw } from "lucide-react";
+import { Download, Upload, Trash2, HardDrive, Cloud, RefreshCw, Key, Save } from "lucide-react";
 import { api } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
 import { useProfile } from "../../context/ProfileContext";
-import type { BackupMetadata } from "../../types";
+import type { BackupMetadata, S3Config } from "../../types";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -22,6 +22,44 @@ export function DataTab() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [s3Config, setS3Config] = useState<S3Config>({
+    s3_endpoint: "",
+    s3_bucket: "",
+    s3_region: "",
+    s3_access_key: "",
+    s3_secret_key: "",
+  });
+  const [s3Loading, setS3Loading] = useState(false);
+  const [s3Saving, setS3Saving] = useState(false);
+  const [s3Error, setS3Error] = useState<string | null>(null);
+  const [s3Success, setS3Success] = useState<string | null>(null);
+
+  const loadS3Config = useCallback(async () => {
+    setS3Loading(true);
+    try {
+      const config = await api.getBackupConfig();
+      setS3Config(config);
+    } catch {
+      // FLUX_SECRET_KEY not set or endpoint unavailable — leave defaults
+    } finally {
+      setS3Loading(false);
+    }
+  }, []);
+
+  async function handleSaveS3Config() {
+    setS3Saving(true);
+    setS3Error(null);
+    setS3Success(null);
+    try {
+      await api.updateBackupConfig(s3Config);
+      setS3Success("S3 configuration saved");
+      setTimeout(() => setS3Success(null), 4000);
+    } catch (err) {
+      setS3Error(String(err));
+    } finally {
+      setS3Saving(false);
+    }
+  }
 
   const loadBackups = useCallback(async () => {
     setLoading(true);
@@ -38,19 +76,22 @@ export function DataTab() {
 
   useEffect(() => {
     loadBackups();
-  }, [loadBackups]);
+    loadS3Config();
+  }, [loadBackups, loadS3Config]);
 
   function showSuccess(msg: string) {
     setSuccessMessage(msg);
     setTimeout(() => setSuccessMessage(null), 4000);
   }
 
-  async function handleCreateBackup() {
+  const s3Configured = !!(s3Config.s3_endpoint && s3Config.s3_bucket && s3Config.s3_access_key && s3Config.s3_secret_key);
+
+  async function handleCreateBackup(storage: "local" | "s3" | "both" = "local") {
     setCreating(true);
     setError(null);
     try {
-      const backup = await api.createBackup("local");
-      showSuccess(`Backup created: ${backup.filename}`);
+      const backup = await api.createBackup(storage);
+      showSuccess(`Backup created: ${backup.filename} (${storage})`);
       await loadBackups();
     } catch (err) {
       setError(String(err));
@@ -63,7 +104,8 @@ export function DataTab() {
     setDeletingId(backup.id);
     setError(null);
     try {
-      await api.deleteBackup(backup.id, backup.storage);
+      const key = backup.storage === "s3" && backup.s3_key ? backup.s3_key : backup.filename;
+      await api.deleteBackup(key, backup.storage);
       showSuccess(`Backup deleted: ${backup.filename}`);
       await loadBackups();
     } catch (err) {
@@ -77,7 +119,8 @@ export function DataTab() {
     setRestoring(true);
     setError(null);
     try {
-      const result = await api.restoreBackup(undefined, backup.id);
+      const key = backup.storage === "s3" && backup.s3_key ? backup.s3_key : backup.filename;
+      const result = await api.restoreBackup(undefined, key, backup.storage);
       showSuccess(result.message || "Backup restored successfully");
       await loadBackups();
     } catch (err) {
@@ -143,23 +186,46 @@ export function DataTab() {
             <HardDrive className="w-5 h-5 text-primary" />
             <h2 className="text-xl font-bold text-white tracking-tight">Create Backup</h2>
           </div>
-          <button
-            onClick={handleCreateBackup}
-            disabled={creating}
-            className="btn-primary py-2 px-6 text-sm flex items-center gap-2 disabled:opacity-50"
-          >
+          <div className="flex items-center gap-2">
             {creating ? (
-              <>
+              <button disabled className="btn-primary py-2 px-6 text-sm flex items-center gap-2 opacity-50">
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 Creating...
+              </button>
+            ) : s3Configured ? (
+              <>
+                <button
+                  onClick={() => handleCreateBackup("local")}
+                  className="btn-secondary py-2 px-4 text-sm flex items-center gap-2"
+                >
+                  <HardDrive className="w-4 h-4" />
+                  Local
+                </button>
+                <button
+                  onClick={() => handleCreateBackup("s3")}
+                  className="btn-secondary py-2 px-4 text-sm flex items-center gap-2"
+                >
+                  <Cloud className="w-4 h-4" />
+                  S3
+                </button>
+                <button
+                  onClick={() => handleCreateBackup("both")}
+                  className="btn-primary py-2 px-4 text-sm flex items-center gap-2"
+                >
+                  <HardDrive className="w-4 h-4" />
+                  Both
+                </button>
               </>
             ) : (
-              <>
+              <button
+                onClick={() => handleCreateBackup("local")}
+                className="btn-primary py-2 px-6 text-sm flex items-center gap-2"
+              >
                 <HardDrive className="w-4 h-4" />
                 Backup Now
-              </>
+              </button>
             )}
-          </button>
+          </div>
         </div>
         <p className="text-sm text-slate-400">
           Create a snapshot of your database. Backups include all transactions, budgets, goals,
@@ -287,16 +353,133 @@ export function DataTab() {
             {restoring ? "Restoring..." : "Drag and drop a backup file here, or click to browse"}
           </p>
           <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold">
-            .db files supported
+            .zip files supported
           </p>
           <input
             ref={fileInputRef}
             type="file"
             onChange={handleFileInputChange}
             className="hidden"
-            accept=".db,.sqlite,.backup"
+            accept=".zip"
           />
         </div>
+      </div>
+
+      {/* S3 Configuration */}
+      <div className="glass-card p-10 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Key className="w-5 h-5 text-primary" />
+            <h2 className="text-xl font-bold text-white tracking-tight">S3 Storage</h2>
+          </div>
+        </div>
+        <p className="text-sm text-slate-400">
+          Configure S3-compatible storage (AWS S3, Cloudflare R2, MinIO) for remote backups.
+          Credentials are encrypted with your <code className="text-xs bg-white/5 px-1.5 py-0.5 rounded">FLUX_SECRET_KEY</code>.
+        </p>
+
+        {s3Error && (
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">
+            {s3Error}
+          </div>
+        )}
+        {s3Success && (
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-sm text-emerald-400">
+            {s3Success}
+          </div>
+        )}
+
+        {s3Loading ? (
+          <p className="text-sm text-slate-500 italic">Loading configuration...</p>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Endpoint URL
+                </label>
+                <input
+                  type="text"
+                  value={s3Config.s3_endpoint}
+                  onChange={(e) => setS3Config({ ...s3Config, s3_endpoint: e.target.value })}
+                  placeholder="https://xxx.r2.cloudflarestorage.com"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Bucket Name
+                </label>
+                <input
+                  type="text"
+                  value={s3Config.s3_bucket}
+                  onChange={(e) => setS3Config({ ...s3Config, s3_bucket: e.target.value })}
+                  placeholder="flux-backups"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Region
+                </label>
+                <input
+                  type="text"
+                  value={s3Config.s3_region}
+                  onChange={(e) => setS3Config({ ...s3Config, s3_region: e.target.value })}
+                  placeholder="auto"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Access Key
+                </label>
+                <input
+                  type="password"
+                  value={s3Config.s3_access_key}
+                  onChange={(e) => setS3Config({ ...s3Config, s3_access_key: e.target.value })}
+                  placeholder="••••••••"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Secret Key
+                </label>
+                <input
+                  type="password"
+                  value={s3Config.s3_secret_key}
+                  onChange={(e) => setS3Config({ ...s3Config, s3_secret_key: e.target.value })}
+                  placeholder="••••••••"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveS3Config}
+                disabled={s3Saving}
+                className="btn-primary py-2 px-6 text-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {s3Saving ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save Configuration
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

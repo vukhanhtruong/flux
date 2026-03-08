@@ -83,6 +83,19 @@ def get_s3_storage():
     return None
 
 
+def get_system_config_repo():
+    """Get SystemConfigRepository, or None if FLUX_SECRET_KEY is not set."""
+    try:
+        from flux_core.services.encryption import EncryptionService
+        from flux_core.sqlite.system_config_repo import SqliteSystemConfigRepository
+
+        enc = EncryptionService.from_env()
+        db = get_db()
+        return SqliteSystemConfigRepository(db.connection(), enc)
+    except (ValueError, ImportError):
+        return None
+
+
 def get_embedding_service() -> EmbeddingService:
     """Get the shared EmbeddingService singleton."""
     global _embedding_service

@@ -1,6 +1,6 @@
 """Test backup REST routes."""
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -225,3 +225,101 @@ def test_download_backup(client):
     finally:
         import os
         os.unlink(tmp_path)
+
+
+def test_get_backup_config(client):
+    """Test GET /backups/config returns S3 configuration."""
+    mock_repo = MagicMock()
+    mock_repo.get_by_prefix.return_value = {
+        "s3_endpoint": "https://r2.example.com",
+        "s3_bucket": "my-bucket",
+        "s3_region": "auto",
+        "s3_access_key": "AKID",
+        "s3_secret_key": "secret123",
+    }
+
+    with patch("flux_api.routes.backups.get_system_config_repo", return_value=mock_repo):
+        response = client.get("/backups/config")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["s3_endpoint"] == "https://r2.example.com"
+    assert data["s3_bucket"] == "my-bucket"
+    assert data["s3_access_key"] == "AKID"
+    mock_repo.get_by_prefix.assert_called_once_with("s3_")
+
+
+def test_get_backup_config_no_secret_key(client):
+    """Test GET /backups/config returns empty config when FLUX_SECRET_KEY is not set."""
+    with patch("flux_api.routes.backups.get_system_config_repo", return_value=None):
+        response = client.get("/backups/config")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["s3_endpoint"] == ""
+    assert data["s3_bucket"] == ""
+
+
+def test_update_backup_config(client):
+    """Test PUT /backups/config saves S3 configuration with encryption for sensitive keys."""
+    mock_repo = MagicMock()
+
+    with patch("flux_api.routes.backups.get_system_config_repo", return_value=mock_repo):
+        response = client.put(
+            "/backups/config",
+            json={
+                "s3_endpoint": "https://r2.example.com",
+                "s3_bucket": "my-bucket",
+                "s3_region": "auto",
+                "s3_access_key": "AKID",
+                "s3_secret_key": "secret123",
+            },
+        )
+
+    assert response.status_code == 200
+    # Non-sensitive keys stored without encryption
+    mock_repo.set.assert_any_call("s3_endpoint", "https://r2.example.com", encrypted=False)
+    mock_repo.set.assert_any_call("s3_bucket", "my-bucket", encrypted=False)
+    mock_repo.set.assert_any_call("s3_region", "auto", encrypted=False)
+    # Sensitive keys stored with encryption
+    mock_repo.set.assert_any_call("s3_access_key", "AKID", encrypted=True)
+    mock_repo.set.assert_any_call("s3_secret_key", "secret123", encrypted=True)
+
+
+def test_update_backup_config_no_secret_key(client):
+    """Test PUT /backups/config returns 400 when FLUX_SECRET_KEY is not set."""
+    with patch("flux_api.routes.backups.get_system_config_repo", return_value=None):
+        response = client.put(
+            "/backups/config",
+            json={
+                "s3_endpoint": "https://r2.example.com",
+                "s3_bucket": "my-bucket",
+                "s3_region": "",
+                "s3_access_key": "AKID",
+                "s3_secret_key": "secret123",
+            },
+        )
+
+    assert response.status_code == 400
+    assert "FLUX_SECRET_KEY" in response.json()["detail"]
+
+
+def test_update_backup_config_deletes_empty_values(client):
+    """Test PUT /backups/config deletes keys with empty values."""
+    mock_repo = MagicMock()
+
+    with patch("flux_api.routes.backups.get_system_config_repo", return_value=mock_repo):
+        response = client.put(
+            "/backups/config",
+            json={
+                "s3_endpoint": "https://r2.example.com",
+                "s3_bucket": "",
+                "s3_region": "",
+                "s3_access_key": "",
+                "s3_secret_key": "",
+            },
+        )
+
+    assert response.status_code == 200
+    mock_repo.set.assert_called_once_with("s3_endpoint", "https://r2.example.com", encrypted=False)
+    assert mock_repo.delete.call_count == 4

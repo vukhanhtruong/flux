@@ -154,6 +154,14 @@ export interface BackupMetadata {
   local_path?: string;
 }
 
+export interface S3Config {
+  s3_endpoint: string;
+  s3_bucket: string;
+  s3_region: string;
+  s3_access_key: string;
+  s3_secret_key: string;
+}
+
 // Scheduled task types
 export interface ScheduledTask {
   id: number;
