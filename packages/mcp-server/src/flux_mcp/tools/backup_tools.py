@@ -6,8 +6,12 @@ from typing import Callable
 
 from fastmcp import FastMCP
 from flux_core.sqlite.database import Database
+from pathlib import Path
+
 from flux_core.use_cases.backup.create_backup import CreateBackup
+from flux_core.use_cases.backup.delete_backup import DeleteBackup
 from flux_core.use_cases.backup.list_backups import ListBackups
+from flux_core.use_cases.backup.restore_backup import RestoreBackup
 
 
 async def _create_backup_impl(
@@ -47,6 +51,43 @@ async def _list_backups_impl(local_storage, s3_storage) -> list[dict]:
     ]
 
 
+async def _delete_backup_impl(
+    local_storage,
+    s3_storage,
+    key: str,
+    storage: str = "local",
+) -> dict:
+    """Internal implementation for delete_backup tool."""
+    try:
+        uc = DeleteBackup(local_storage, s3_storage)
+        await uc.execute(key, storage=storage)
+        return {"status": "ok", "key": key, "storage": storage}
+    except (ValueError, OSError) as exc:
+        return {"status": "error", "error": str(exc)}
+
+
+async def _restore_backup_impl(
+    db: Database,
+    zvec_path: str,
+    local_storage,
+    s3_storage,
+    file_path: str | None = None,
+    s3_key: str | None = None,
+) -> dict:
+    """Internal implementation for restore_backup tool."""
+    try:
+        create_uc = CreateBackup(db, zvec_path, local_storage, s3_storage)
+        uc = RestoreBackup(db, zvec_path, create_uc, s3_storage)
+        await uc.execute(
+            file_path=Path(file_path) if file_path else None,
+            s3_key=s3_key,
+        )
+        source = "s3" if s3_key else "local"
+        return {"status": "ok", "source": source}
+    except (ValueError, OSError) as exc:
+        return {"status": "error", "error": str(exc)}
+
+
 def register_backup_tools(
     mcp: FastMCP,
     get_db: Callable[[], Database],
@@ -75,4 +116,41 @@ def register_backup_tools(
         return await _list_backups_impl(
             local_storage=get_local_storage(),
             s3_storage=get_s3_storage(),
+        )
+
+    @mcp.tool()
+    async def delete_backup(key: str, storage: str = "local") -> dict:
+        """Delete a backup by key from the specified storage.
+
+        Args:
+            key: The backup filename/key to delete.
+            storage: Storage location — "local" or "s3".
+        """
+        return await _delete_backup_impl(
+            local_storage=get_local_storage(),
+            s3_storage=get_s3_storage(),
+            key=key,
+            storage=storage,
+        )
+
+    @mcp.tool()
+    async def restore_backup(
+        file_path: str | None = None, s3_key: str | None = None
+    ) -> dict:
+        """Restore database and vector store from a backup.
+
+        Creates a safety backup before restoring. Provide either file_path or s3_key.
+
+        Args:
+            file_path: Local path to the backup zip file.
+            s3_key: S3 key of the backup to restore from.
+        """
+        zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
+        return await _restore_backup_impl(
+            db=get_db(),
+            zvec_path=zvec_path,
+            local_storage=get_local_storage(),
+            s3_storage=get_s3_storage(),
+            file_path=file_path,
+            s3_key=s3_key,
         )

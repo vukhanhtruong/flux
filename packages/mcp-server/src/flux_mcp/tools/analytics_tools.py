@@ -6,6 +6,7 @@ from flux_core.sqlite.database import Database
 from flux_core.sqlite.transaction_repo import SqliteTransactionRepository
 from flux_core.use_cases.analytics.get_category_breakdown import GetCategoryBreakdown
 from flux_core.use_cases.analytics.get_summary import GetSummary
+from flux_core.use_cases.analytics.get_trends import GetTrends
 
 
 def register_analytics_tools(
@@ -51,3 +52,22 @@ def register_analytics_tools(
             "category_breakdown": breakdown,
             "period": {"start": start_date, "end": end_date},
         }
+
+    @mcp.tool()
+    async def get_trends(
+        current_start: str,
+        current_end: str,
+        previous_start: str,
+        previous_end: str,
+    ) -> dict:
+        """Compare spending and income between two periods to identify trends."""
+        db = get_db()
+        repo = SqliteTransactionRepository(db.connection())
+        uc = GetTrends(repo)
+        return await uc.execute(
+            get_user_id(),
+            date.fromisoformat(current_start),
+            date.fromisoformat(current_end),
+            date.fromisoformat(previous_start),
+            date.fromisoformat(previous_end),
+        )

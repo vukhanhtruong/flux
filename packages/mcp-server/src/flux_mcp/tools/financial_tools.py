@@ -13,9 +13,13 @@ from flux_core.sqlite.goal_repo import SqliteGoalRepository
 from flux_core.sqlite.subscription_repo import SqliteSubscriptionRepository
 from flux_core.uow.unit_of_work import UnitOfWork
 from flux_core.use_cases.budgets.list_budgets import ListBudgets
+from flux_core.use_cases.budgets.remove_budget import RemoveBudget
 from flux_core.use_cases.budgets.set_budget import SetBudget
 from flux_core.use_cases.goals.create_goal import CreateGoal
+from flux_core.use_cases.goals.delete_goal import DeleteGoal
+from flux_core.use_cases.goals.deposit_to_goal import DepositToGoal
 from flux_core.use_cases.goals.list_goals import ListGoals
+from flux_core.use_cases.goals.withdraw_from_goal import WithdrawFromGoal
 from flux_core.use_cases.subscriptions.create_subscription import CreateSubscription
 from flux_core.use_cases.subscriptions.delete_subscription import DeleteSubscription
 from flux_core.use_cases.subscriptions.list_subscriptions import ListSubscriptions
@@ -96,6 +100,54 @@ def register_financial_tools(
             }
             for g in results
         ]
+
+    @mcp.tool()
+    async def delete_goal(goal_id: str) -> dict:
+        """Delete a savings goal permanently."""
+        uc = DeleteGoal(get_uow())
+        success = await uc.execute(UUID(goal_id), get_user_id())
+        return {"deleted": success, "goal_id": goal_id}
+
+    @mcp.tool()
+    async def deposit_to_goal(goal_id: str, amount: float) -> dict:
+        """Deposit money into a savings goal."""
+        uc = DepositToGoal(get_uow())
+        try:
+            result = await uc.execute(UUID(goal_id), get_user_id(), Decimal(str(amount)))
+        except ValueError as e:
+            return {"error": str(e)}
+        return {
+            "id": str(result.id),
+            "name": result.name,
+            "target_amount": str(result.target_amount),
+            "current_amount": str(result.current_amount),
+            "deadline": str(result.deadline) if result.deadline else None,
+            "color": result.color,
+        }
+
+    @mcp.tool()
+    async def withdraw_from_goal(goal_id: str, amount: float) -> dict:
+        """Withdraw money from a savings goal."""
+        uc = WithdrawFromGoal(get_uow())
+        try:
+            result = await uc.execute(UUID(goal_id), get_user_id(), Decimal(str(amount)))
+        except ValueError as e:
+            return {"error": str(e)}
+        return {
+            "id": str(result.id),
+            "name": result.name,
+            "target_amount": str(result.target_amount),
+            "current_amount": str(result.current_amount),
+            "deadline": str(result.deadline) if result.deadline else None,
+            "color": result.color,
+        }
+
+    @mcp.tool()
+    async def remove_budget(category: str) -> dict:
+        """Remove a budget for a category."""
+        uc = RemoveBudget(get_uow())
+        success = await uc.execute(get_user_id(), category)
+        return {"deleted": success, "category": category}
 
     @mcp.tool()
     async def create_subscription(

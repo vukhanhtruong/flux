@@ -8,9 +8,12 @@ from flux_core.models.transaction import TransactionType
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.transaction_repo import SqliteTransactionRepository
 from flux_core.uow.unit_of_work import UnitOfWork
+from flux_core.models.transaction import TransactionUpdate
 from flux_core.use_cases.transactions.add_transaction import AddTransaction
+from flux_core.use_cases.transactions.delete_transaction import DeleteTransaction
 from flux_core.use_cases.transactions.list_transactions import ListTransactions
 from flux_core.use_cases.transactions.search_transactions import SearchTransactions
+from flux_core.use_cases.transactions.update_transaction import UpdateTransaction
 from flux_core.vector.store import ZvecStore
 
 
@@ -104,3 +107,53 @@ def register_transaction_tools(
             }
             for t in results
         ]
+
+    @mcp.tool()
+    async def delete_transaction(transaction_id: str) -> dict:
+        """Delete a transaction by ID."""
+        from uuid import UUID
+
+        uc = DeleteTransaction(get_uow())
+        deleted = await uc.execute(UUID(transaction_id), get_user_id())
+        return {"deleted": deleted}
+
+    @mcp.tool()
+    async def update_transaction(
+        transaction_id: str,
+        date: str | None = None,
+        amount: float | None = None,
+        category: str | None = None,
+        description: str | None = None,
+        transaction_type: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict:
+        """Update a transaction. Only provided fields are changed."""
+        from uuid import UUID
+
+        update_data = {}
+        if date is not None:
+            update_data["date"] = date_cls.fromisoformat(date)
+        if amount is not None:
+            update_data["amount"] = Decimal(str(amount))
+        if category is not None:
+            update_data["category"] = category
+        if description is not None:
+            update_data["description"] = description
+        if transaction_type is not None:
+            update_data["type"] = TransactionType(transaction_type)
+        if tags is not None:
+            update_data["tags"] = tags
+
+        updates = TransactionUpdate(**update_data)
+        uc = UpdateTransaction(get_uow(), get_embedding_service())
+        result = await uc.execute(UUID(transaction_id), get_user_id(), updates)
+        return {
+            "id": str(result.id),
+            "date": str(result.date),
+            "amount": str(result.amount),
+            "category": result.category,
+            "description": result.description,
+            "type": result.type.value,
+            "is_recurring": result.is_recurring,
+            "tags": result.tags,
+        }
