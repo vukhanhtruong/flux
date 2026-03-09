@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "flux-core",
     "flux-mcp",
-    "python-telegram-bot>=21.0",
+    "python-telegram-bot[job-queue]>=21.0",
     "claude-agent-sdk",
 ]
 

@@ -23,7 +23,7 @@ services:
         VITE_USER_ID: ${VITE_USER_ID:-demo-user}
     container_name: flux
     ports:
-      - "${PORT:-80}:80"
+      - "${PORT:-5173}:80"
     environment:
       DATABASE_PATH: /data/sqlite/flux.db
       ZVEC_PATH: /data/zvec

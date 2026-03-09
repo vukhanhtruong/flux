@@ -30,7 +30,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g npm@latest \
     && npm install -g @anthropic-ai/claude-code@latest \
+    && NPM_DIR=/usr/lib/node_modules/npm/node_modules \
+    && npm pack minimatch@10.2.3 --pack-destination /tmp && rm -rf $NPM_DIR/minimatch && mkdir -p $NPM_DIR/minimatch && tar xzf /tmp/minimatch-*.tgz -C $NPM_DIR/minimatch --strip-components=1 && rm /tmp/minimatch-*.tgz \
+    && npm pack tar@7.5.10 --pack-destination /tmp && rm -rf $NPM_DIR/tar && mkdir -p $NPM_DIR/tar && tar xzf /tmp/tar-*.tgz -C $NPM_DIR/tar --strip-components=1 && rm /tmp/tar-*.tgz \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -42,10 +46,11 @@ COPY packages/mcp-server/ /app/packages/mcp-server/
 COPY packages/agent-bot/ /app/packages/agent-bot/
 
 RUN pip install --no-cache-dir \
-    /app/packages/core[vector,embeddings] \
+    /app/packages/core[vector,embeddings,backup] \
     /app/packages/api-server \
     /app/packages/mcp-server \
-    /app/packages/agent-bot
+    /app/packages/agent-bot \
+    && pip install --no-cache-dir "pillow>=12.1.1"
 
 # Copy web-ui build output
 COPY --from=node-builder /build/dist /usr/share/nginx/html

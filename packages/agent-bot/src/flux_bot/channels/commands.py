@@ -1,6 +1,7 @@
 """Telegram slash command handlers: /help, /reset, /tasks, /settings, /onboard, /backup, /restore."""
 
 import os
+import warnings
 import structlog
 import re
 import zoneinfo
@@ -16,6 +17,8 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+
+from telegram.warnings import PTBUserWarning
 
 from flux_bot.db.profile import ProfileRepository
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
@@ -459,24 +462,35 @@ class CommandHandlers:
 
     def settings_conversation(self) -> ConversationHandler:
         """Return a configured ConversationHandler for /settings."""
-        return ConversationHandler(
-            entry_points=[CommandHandler("settings", self.cmd_settings)],
-            states={
-                _MENU: [CallbackQueryHandler(self._settings_menu_callback)],
-                _EDIT_CURRENCY: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_currency_input)
-                ],
-                _EDIT_TIMEZONE: [
-                    CallbackQueryHandler(self._settings_timezone_button, pattern="^settings_tz:"),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_timezone_input),
-                ],
-                _EDIT_USERNAME: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_username_input)
-                ],
-            },
-            fallbacks=[CommandHandler("settings", self.cmd_settings)],
-            conversation_timeout=600,  # 10 minutes
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=PTBUserWarning)
+            return ConversationHandler(
+                entry_points=[CommandHandler("settings", self.cmd_settings)],
+                states={
+                    _MENU: [CallbackQueryHandler(self._settings_menu_callback)],
+                    _EDIT_CURRENCY: [
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._handle_currency_input
+                        )
+                    ],
+                    _EDIT_TIMEZONE: [
+                        CallbackQueryHandler(
+                            self._settings_timezone_button, pattern="^settings_tz:"
+                        ),
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._handle_timezone_input
+                        ),
+                    ],
+                    _EDIT_USERNAME: [
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._handle_username_input
+                        )
+                    ],
+                },
+                fallbacks=[CommandHandler("settings", self.cmd_settings)],
+                per_message=False,
+                conversation_timeout=600,  # 10 minutes
+            )
 
     # ------------------------------------------------------------------
     # /onboard — linear preferences walkthrough ConversationHandler
@@ -674,28 +688,37 @@ class CommandHandlers:
 
     def onboard_conversation(self) -> ConversationHandler:
         """Return a configured ConversationHandler for /onboard."""
-        return ConversationHandler(
-            entry_points=[CommandHandler("onboard", self.cmd_onboard)],
-            states={
-                _OB_CURRENCY: [
-                    CallbackQueryHandler(self._ob_skip_currency, pattern="^ob_skip$"),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._ob_handle_currency),
-                ],
-                _OB_TIMEZONE: [
-                    CallbackQueryHandler(self._ob_tz_button, pattern="^ob_tz:"),
-                    CallbackQueryHandler(self._ob_skip_timezone, pattern="^ob_skip$"),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._ob_handle_timezone),
-                ],
-                _OB_USERNAME: [
-                    CallbackQueryHandler(self._ob_skip_username, pattern="^ob_skip$"),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self._ob_handle_username),
-                ],
-                _OB_BACKUP: [
-                    CallbackQueryHandler(
-                        self._ob_handle_backup, pattern="^ob_backup:"
-                    ),
-                ],
-            },
-            fallbacks=[CommandHandler("onboard", self.cmd_onboard)],
-            conversation_timeout=600,
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=PTBUserWarning)
+            return ConversationHandler(
+                entry_points=[CommandHandler("onboard", self.cmd_onboard)],
+                states={
+                    _OB_CURRENCY: [
+                        CallbackQueryHandler(self._ob_skip_currency, pattern="^ob_skip$"),
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._ob_handle_currency
+                        ),
+                    ],
+                    _OB_TIMEZONE: [
+                        CallbackQueryHandler(self._ob_tz_button, pattern="^ob_tz:"),
+                        CallbackQueryHandler(self._ob_skip_timezone, pattern="^ob_skip$"),
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._ob_handle_timezone
+                        ),
+                    ],
+                    _OB_USERNAME: [
+                        CallbackQueryHandler(self._ob_skip_username, pattern="^ob_skip$"),
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._ob_handle_username
+                        ),
+                    ],
+                    _OB_BACKUP: [
+                        CallbackQueryHandler(
+                            self._ob_handle_backup, pattern="^ob_backup:"
+                        ),
+                    ],
+                },
+                fallbacks=[CommandHandler("onboard", self.cmd_onboard)],
+                per_message=False,
+                conversation_timeout=600,
+            )
