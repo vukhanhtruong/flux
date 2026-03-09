@@ -226,6 +226,53 @@ def test_build_system_prompt_includes_current_datetime():
     assert "Current date/time" in prompt
 
 
+async def test_run_prepends_datetime_to_prompt(mcp_config, tmp_path):
+    """The user prompt sent to Claude should be prefixed with current datetime."""
+    import re
+
+    captured_prompt = None
+
+    async def fake_query(prompt, options):
+        nonlocal captured_prompt
+        captured_prompt = prompt
+        yield _make_result_message("OK", "sess-1")
+
+    prompt_file = tmp_path / "system.txt"
+    prompt_file.write_text("You are flux.")
+
+    runner = ClaudeRunner(mcp_config_path=mcp_config, system_prompt=str(prompt_file))
+    profile = _make_profile()  # timezone="Asia/Ho_Chi_Minh"
+
+    with patch("flux_bot.runner.sdk.query", fake_query):
+        await runner.run(prompt="show yesterday report", user_id="tg:1", profile=profile)
+
+    assert captured_prompt is not None
+    assert re.match(r"\[Current date/time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", captured_prompt)
+    assert "show yesterday report" in captured_prompt
+
+
+async def test_run_prepends_datetime_utc_when_no_profile(mcp_config):
+    """Without a profile, datetime should still be prepended using UTC."""
+    import re
+
+    captured_prompt = None
+
+    async def fake_query(prompt, options):
+        nonlocal captured_prompt
+        captured_prompt = prompt
+        yield _make_result_message("OK", "sess-1")
+
+    runner = ClaudeRunner(mcp_config_path=mcp_config, system_prompt=None)
+
+    with patch("flux_bot.runner.sdk.query", fake_query):
+        await runner.run(prompt="hello", user_id="tg:1", profile=None)
+
+    assert captured_prompt is not None
+    assert re.match(r"\[Current date/time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", captured_prompt)
+    assert "+0000" in captured_prompt
+    assert "hello" in captured_prompt
+
+
 def test_setup_env_maps_oauth_token():
     import os
 

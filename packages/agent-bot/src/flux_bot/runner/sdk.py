@@ -55,9 +55,9 @@ class ClaudeRunner:
         self._restore_claude_config_if_missing()
         self._setup_env()
 
-        full_prompt = prompt
+        full_prompt = self._prepend_datetime(prompt, profile)
         if image_path:
-            full_prompt = f"{prompt}\n\n[Image: {image_path}]"
+            full_prompt = f"{full_prompt}\n\n[Image: {image_path}]"
 
         mcp_servers = self._build_mcp_servers(profile)
         system_prompt_text = self._build_system_prompt(profile) or self._load_system_prompt_text()
@@ -125,6 +125,16 @@ class ClaudeRunner:
         if "check stderr output for details" in message.lower():
             return f"{message}\nStderr details: {details}"
         return message
+
+    def _prepend_datetime(self, prompt: str, profile: "UserProfile | None") -> str:
+        """Prepend current date/time to prompt so Claude always knows the real date."""
+        if profile:
+            tz = ZoneInfo(profile.timezone)
+        else:
+            tz = ZoneInfo("UTC")
+        now = datetime.now(tz)
+        header = f"[Current date/time: {now.strftime('%Y-%m-%dT%H:%M:%S%z')}]\n\n"
+        return header + prompt
 
     def _build_mcp_servers(self, profile: "UserProfile | None") -> dict:
         """Build MCP servers dict from config file, injecting user_id into args."""
