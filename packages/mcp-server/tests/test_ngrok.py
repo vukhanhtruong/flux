@@ -1,5 +1,4 @@
 """Unit tests for ngrok TunnelManager."""
-import asyncio
 from unittest.mock import MagicMock, patch
 
 from flux_mcp.ngrok import TunnelManager
