@@ -6,7 +6,6 @@ requires-python = ">=3.12"
 dependencies = [
     "flux-core",
     "fastmcp>=3.0.0rc1",
-    "pyngrok>=7.0",
 ]
 
 [project.optional-dependencies]

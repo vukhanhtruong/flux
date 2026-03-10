@@ -103,7 +103,7 @@ def get_tunnel_manager():
     global _tunnel_manager
     if _tunnel_manager is None:
         from flux_mcp.ngrok import TunnelManager
-        port = int(os.getenv("NGROK_TUNNEL_PORT", "5173"))
+        port = int(os.getenv("NGROK_TUNNEL_PORT", "80"))
         timeout = int(os.getenv("NGROK_TUNNEL_TIMEOUT_MINUTES", "30"))
         _tunnel_manager = TunnelManager(port=port, timeout_minutes=timeout)
     return _tunnel_manager
