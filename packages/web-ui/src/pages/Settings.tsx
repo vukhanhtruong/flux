@@ -79,12 +79,12 @@ export function Settings() {
         </div>
       </div>
 
-      <div className="flex gap-2 p-1 bg-white/5 rounded-xl w-fit border border-white/5">
+      <div className="flex gap-2 p-1 bg-white/5 rounded-xl max-w-full overflow-x-auto custom-scrollbar border border-white/5">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`rounded-lg px-6 py-2 text-sm font-bold transition-all ${activeTab === tab.key
+            className={`whitespace-nowrap shrink-0 rounded-lg px-6 py-2 text-sm font-bold transition-all ${activeTab === tab.key
               ? "bg-primary text-dark"
               : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
@@ -96,8 +96,8 @@ export function Settings() {
 
       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
         {activeTab === "general" && (
-          <div className="space-y-8">
-            <div className="glass-card p-10 space-y-8">
+          <div className="space-y-6 md:space-y-8">
+            <div className="glass-card p-6 md:p-8 lg:p-10 space-y-6 md:space-y-8">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <User className="w-5 h-5 text-primary" />
@@ -108,7 +108,7 @@ export function Settings() {
               {loading && <p className="text-sm text-slate-500 italic">Loading profile...</p>}
               {error && <p className="text-sm text-red-400">{error}</p>}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-10">
                 <div className="space-y-2">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
                     User Identification
@@ -182,8 +182,8 @@ export function Settings() {
         {activeTab === "data" && <DataTab />}
 
         {activeTab === "messaging" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="glass-card p-8 group">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+            <div className="glass-card p-6 md:p-8 group">
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 bg-[#0088cc]/10 rounded-xl group-hover:scale-110 transition-transform">
                   <Send className="w-6 h-6 text-[#0088cc]" />
@@ -219,7 +219,7 @@ export function Settings() {
               </div>
             </div>
 
-            <div className="glass-card p-8 group relative overflow-hidden opacity-60 grayscale-[50%]">
+            <div className="glass-card p-6 md:p-8 group relative overflow-hidden opacity-60 grayscale-[50%]">
               <div className="absolute top-4 right-4 px-2.5 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm shadow-[0_0_15px_rgba(245,158,11,0.2)]">
                 Coming Soon
               </div>
@@ -260,13 +260,13 @@ export function Settings() {
         )}
 
         {activeTab === "system" && (
-          <div className="glass-card p-10 space-y-10">
+          <div className="glass-card p-6 md:p-8 lg:p-10 space-y-6 md:space-y-10">
             <div className="flex items-center gap-3 mb-2">
               <Cpu className="w-5 h-5 text-secondary" />
               <h2 className="text-xl font-bold text-white tracking-tight">System Core</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 lg:gap-10">
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
                   Version
@@ -314,7 +314,7 @@ export function Settings() {
               </div>
             </div>
 
-            <div className="p-6 bg-dark/50 border border-white/5 rounded-2xl">
+            <div className="p-4 md:p-6 bg-dark/50 border border-white/5 rounded-2xl">
               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 text-center">
                 Infrastructure Connection String
               </label>
@@ -326,7 +326,7 @@ export function Settings() {
         )}
 
         {activeTab === "scheduled-tasks" && (
-          <div className="glass-card p-10 space-y-8">
+          <div className="glass-card p-6 md:p-8 lg:p-10 space-y-6 md:space-y-8">
             <div className="flex items-center gap-3 mb-2">
               <CalendarClock className="w-5 h-5 text-primary" />
               <h2 className="text-xl font-bold text-white tracking-tight">Active Scheduled Tasks</h2>

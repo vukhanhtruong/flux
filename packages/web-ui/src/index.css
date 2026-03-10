@@ -31,10 +31,10 @@
   }
 
   .btn-primary {
-    @apply bg-primary hover:bg-primary-dark text-dark font-medium px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer shadow-lg shadow-primary/20;
+    @apply bg-primary hover:bg-primary-dark text-dark font-medium px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer shadow-lg shadow-primary/20 min-h-[44px];
   }
 
   .btn-secondary {
-    @apply bg-secondary hover:bg-secondary-dark text-white font-medium px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer shadow-lg shadow-secondary/20;
+    @apply bg-secondary hover:bg-secondary-dark text-white font-medium px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer shadow-lg shadow-secondary/20 min-h-[44px];
   }
 }

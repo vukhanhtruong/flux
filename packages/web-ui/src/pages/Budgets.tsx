@@ -55,7 +55,7 @@ export function Budgets() {
       </div>
 
       {budgets.length === 0 ? (
-        <div className="glass-card p-20 text-center">
+        <div className="glass-card p-12 md:p-16 lg:p-20 text-center">
           <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
             <Wallet className="w-10 h-10 text-slate-500" />
           </div>
@@ -64,7 +64,7 @@ export function Budgets() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:gap-6 lg:gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {budgets.map((budget) => {
             const spent = spending[budget.category.toLowerCase()] || 0;
             const limit = parseFloat(budget.monthly_limit);
@@ -74,7 +74,7 @@ export function Budgets() {
             return (
               <div
                 key={budget.id}
-                className={`glass-card p-8 flex flex-col hover:border-white/20 transition-all group ${isOver ? "border-red-500/50" : ""
+                className={`glass-card p-4 md:p-6 lg:p-8 flex flex-col hover:border-white/20 transition-all group ${isOver ? "border-red-500/50" : ""
                   }`}
               >
                 <div className="flex items-start justify-between mb-6">

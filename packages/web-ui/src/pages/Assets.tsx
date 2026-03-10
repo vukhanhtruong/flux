@@ -118,9 +118,9 @@ export function Assets() {
         <ChangeMetricCard title="30d Change" metric={monthly} currency={profile.currency} locale={profile.locale} />
       </div>
 
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-3">
-        <div className="glass-card p-6 xl:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
+      <div className="grid grid-cols-1 gap-4 md:gap-6 lg:gap-8 xl:grid-cols-3">
+        <div className="glass-card p-4 md:p-6 xl:col-span-2">
+          <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
             <h2 className="text-xl font-bold text-white">Portfolio Performance</h2>
             <select
               value={range}
@@ -176,7 +176,7 @@ export function Assets() {
           )}
         </div>
 
-        <div className="glass-card p-6">
+        <div className="glass-card p-4 md:p-6">
           <div className="mb-4 flex items-center gap-2">
             <PieIcon className="w-5 h-5 text-primary" />
             <h2 className="text-xl font-bold text-white">Allocation</h2>
@@ -228,22 +228,22 @@ export function Assets() {
       </div>
 
       <div className="glass-card overflow-hidden">
-        <div className="border-b border-white/5 px-6 py-4 bg-white/[0.02]">
+        <div className="border-b border-white/5 px-4 md:px-6 py-4 md:py-5 bg-white/[0.02]">
           <h2 className="text-xl font-bold text-white">Assets List</h2>
         </div>
         {assets.length === 0 ? (
-          <div className="px-6 py-14 text-center text-slate-500 italic">No assets tracked yet.</div>
+          <div className="px-4 md:px-6 py-10 md:py-14 text-center text-slate-500 italic">No assets tracked yet.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-white/5 bg-white/[0.02]">
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Name</th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Type</th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Category</th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Interest</th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Next Date</th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 text-right">Value</th>
+                  <th className="px-4 md:px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Name</th>
+                  <th className="px-4 md:px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Type</th>
+                  <th className="px-4 md:px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Category</th>
+                  <th className="px-4 md:px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Interest</th>
+                  <th className="px-4 md:px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Next Date</th>
+                  <th className="px-4 md:px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 text-right">Value</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -254,16 +254,16 @@ export function Assets() {
                     const interest = Number(asset.interest_rate ?? 0);
                     return (
                       <tr key={asset.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-6 py-4 text-white font-medium">{asset.name}</td>
-                        <td className="px-6 py-4 text-slate-300 capitalize">{asset.asset_type || "-"}</td>
-                        <td className="px-6 py-4 text-slate-300">{asset.category || "-"}</td>
-                        <td className="px-6 py-4 text-slate-300">{Number.isFinite(interest) ? `${interest}%` : "-"}</td>
-                        <td className="px-6 py-4 text-slate-300">
+                        <td className="px-4 md:px-6 py-3 md:py-4 text-white font-medium whitespace-nowrap">{asset.name}</td>
+                        <td className="px-4 md:px-6 py-3 md:py-4 text-slate-300 capitalize whitespace-nowrap">{asset.asset_type || "-"}</td>
+                        <td className="px-4 md:px-6 py-3 md:py-4 text-slate-300 whitespace-nowrap">{asset.category || "-"}</td>
+                        <td className="px-4 md:px-6 py-3 md:py-4 text-slate-300 whitespace-nowrap">{Number.isFinite(interest) ? `${interest}%` : "-"}</td>
+                        <td className="px-4 md:px-6 py-3 md:py-4 text-slate-300 whitespace-nowrap">
                           {asset.next_date
                             ? formatDate(asset.next_date, profile.locale, profile.timezone)
                             : "-"}
                         </td>
-                        <td className="px-6 py-4 text-right text-white font-semibold">
+                        <td className="px-4 md:px-6 py-3 md:py-4 text-right text-white font-semibold whitespace-nowrap">
                           {formatCurrency(Number.isFinite(value) ? value : 0, profile.currency, profile.locale)}
                         </td>
                       </tr>
@@ -280,7 +280,7 @@ export function Assets() {
 
 function MetricCard({ title, value, icon: Icon }: { title: string; value: string; icon: typeof Landmark }) {
   return (
-    <div className="glass-card p-6 border-l-4 border-l-transparent hover:border-l-primary transition-all">
+    <div className="glass-card p-4 md:p-6 border-l-4 border-l-transparent hover:border-l-primary transition-all">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">{title}</h3>
         <div className="rounded-lg bg-primary/10 p-2 text-primary">
@@ -311,7 +311,7 @@ function ChangeMetricCard({
   const pct = metric.deltaPct == null ? "-" : `${(metric.deltaPct * 100).toFixed(2)}%`;
 
   return (
-    <div className="glass-card p-6 border-l-4 border-l-transparent hover:border-l-primary transition-all">
+    <div className="glass-card p-4 md:p-6 border-l-4 border-l-transparent hover:border-l-primary transition-all">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">{title}</h3>
         <div className={`rounded-lg p-2 ${positive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>

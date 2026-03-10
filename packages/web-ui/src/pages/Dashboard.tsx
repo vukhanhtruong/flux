@@ -169,9 +169,9 @@ export function Dashboard() {
 
       <AssetOverviewCard assets={assets} snapshots={assetSnapshots} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 glass-card p-8">
-          <div className="flex items-center justify-between mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
+        <div className="lg:col-span-2 glass-card p-4 md:p-6 lg:p-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 md:mb-8 gap-4 sm:gap-0">
             <h2 className="text-xl font-bold text-white">Financial Overview</h2>
             <select
               value={timeRange}
@@ -262,7 +262,7 @@ export function Dashboard() {
           </div>
           <div className="p-2">
             {transactions.length === 0 ? (
-              <div className="p-8 text-center">
+              <div className="p-6 md:p-8 text-center">
                 <p className="text-slate-500 italic">No recent transactions</p>
               </div>
             ) : (
@@ -337,7 +337,7 @@ function AssetOverviewCard({
     .slice(0, 3);
 
   return (
-    <div className="glass-card p-6 md:p-8">
+    <div className="glass-card p-4 md:p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-bold text-white">Assets Overview</h2>

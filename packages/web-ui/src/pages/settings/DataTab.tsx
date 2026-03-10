@@ -178,8 +178,7 @@ export function DataTab() {
 
   return (
     <div className="space-y-8 relative">
-      {/* Floating Notifications */}
-      <div className="fixed top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+      <div className="fixed top-4 right-4 md:top-6 md:right-6 z-[110] flex flex-col gap-3 pointer-events-none max-w-[calc(100vw-2rem)] sm:max-w-md">
         {successMessage && (
           <div className="animate-in slide-in-from-right-8 fade-in duration-300 flex items-center gap-3 px-4 py-3 bg-dark/95 backdrop-blur-md border border-emerald-500/20 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-xl pointer-events-auto shadow-emerald-500/10">
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
@@ -206,10 +205,9 @@ export function DataTab() {
         )}
       </div>
 
-      {/* Modals */}
       {confirmDelete && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-dark/80 backdrop-blur-sm">
-          <div className="bg-dark border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 duration-200">
+          <div className="bg-dark border border-white/10 rounded-2xl p-5 md:p-6 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 duration-200 mx-auto">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2.5 bg-red-500/10 rounded-xl">
                 <AlertCircle className="w-6 h-6 text-red-400" />
@@ -240,7 +238,7 @@ export function DataTab() {
 
       {(confirmRestore || confirmFileRestore) && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-dark/80 backdrop-blur-sm">
-          <div className="bg-dark border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 duration-200">
+          <div className="bg-dark border border-white/10 rounded-2xl p-5 md:p-6 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 duration-200 mx-auto">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2.5 bg-emerald-500/10 rounded-xl">
                 <RefreshCw className="w-6 h-6 text-emerald-400" />
@@ -286,7 +284,7 @@ export function DataTab() {
       )}
 
       {/* Create Backup */}
-      <div className="glass-card p-10 space-y-6 group">
+      <div className="glass-card p-6 md:p-8 lg:p-10 space-y-6 group">
         <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-1000"></div>
         <div className="relative">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -339,7 +337,7 @@ export function DataTab() {
       </div>
 
       {/* Backup List */}
-      <div className="glass-card p-10 space-y-8">
+      <div className="glass-card p-6 md:p-8 lg:p-10 space-y-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Cloud className="w-5 h-5 text-primary" />
@@ -439,7 +437,7 @@ export function DataTab() {
       </div>
 
       {/* Restore from File */}
-      <div className="glass-card p-10 space-y-6 group">
+      <div className="glass-card p-6 md:p-8 lg:p-10 space-y-6 group">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-secondary/10 rounded-xl group-hover:bg-secondary/20 transition-all duration-300">
             <Upload className="w-5 h-5 text-secondary" />
@@ -454,7 +452,7 @@ export function DataTab() {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={() => fileInputRef.current?.click()}
-          className={`relative overflow-hidden border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 group/dropzone ${
+          className={`relative overflow-hidden border-2 border-dashed rounded-2xl p-8 md:p-12 text-center cursor-pointer transition-all duration-300 group/dropzone ${
             dragOver
               ? "border-secondary bg-secondary/10 scale-[1.02]"
               : "border-white/10 hover:border-white/20 hover:bg-white/5"
@@ -494,7 +492,7 @@ export function DataTab() {
       </div>
 
       {/* S3 Configuration */}
-      <div className="glass-card p-10 space-y-6">
+      <div className="glass-card p-6 md:p-8 lg:p-10 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
           <div className="p-2.5 bg-secondary/10 rounded-xl group-hover:bg-secondary/20 transition-all duration-300">
@@ -514,7 +512,7 @@ export function DataTab() {
           <p className="text-sm text-slate-500 italic">Loading configuration...</p>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div className="space-y-2">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Endpoint URL
@@ -553,7 +551,7 @@ export function DataTab() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div className="space-y-2">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Access Key

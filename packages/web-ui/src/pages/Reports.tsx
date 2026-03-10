@@ -130,7 +130,7 @@ export function Reports() {
       </div>
 
       {loading && (
-        <div className="p-20 text-center animate-pulse glass-card">
+        <div className="p-12 md:p-16 lg:p-20 text-center animate-pulse glass-card">
           <p className="text-lg italic text-slate-500">
             Analyzing your finances...
           </p>
@@ -138,7 +138,7 @@ export function Reports() {
       )}
 
       {error && (
-        <div className="flex gap-4 items-center p-8 border-l-4 duration-500 glass-card border-l-red-500 animate-in fade-in">
+        <div className="flex gap-4 items-center p-4 md:p-6 lg:p-8 border-l-4 duration-500 glass-card border-l-red-500 animate-in fade-in">
           <div className="p-3 rounded-xl bg-red-500/10">
             <TrendingUp className="w-6 h-6 text-red-500 rotate-180" />
           </div>
@@ -148,8 +148,8 @@ export function Reports() {
 
       {!loading && !error && report && (
         <>
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
-            <div className="p-8 transition-all glass-card group hover:border-emerald-500/30">
+          <div className="grid grid-cols-1 gap-4 md:gap-6 lg:gap-8 sm:grid-cols-3">
+            <div className="p-4 md:p-6 lg:p-8 transition-all glass-card group hover:border-emerald-500/30">
               <div className="flex gap-3 items-center mb-4">
                 <div className="p-2 rounded-lg bg-emerald-500/10">
                   <ArrowUpRight className="w-5 h-5 text-emerald-500" />
@@ -167,7 +167,7 @@ export function Reports() {
               </p>
             </div>
 
-            <div className="p-8 transition-all glass-card group hover:border-red-500/30">
+            <div className="p-4 md:p-6 lg:p-8 transition-all glass-card group hover:border-red-500/30">
               <div className="flex gap-3 items-center mb-4">
                 <div className="p-2 rounded-lg bg-red-500/10">
                   <ArrowDownRight className="w-5 h-5 text-red-500" />
@@ -186,7 +186,7 @@ export function Reports() {
             </div>
 
             <div
-              className={`glass-card p-8 hover:border-primary/30 transition-all group ${
+              className={`glass-card p-4 md:p-6 lg:p-8 hover:border-primary/30 transition-all group ${
                 parseFloat(report.net) >= 0
                   ? "border-primary/10"
                   : "border-red-500/10"
@@ -224,9 +224,9 @@ export function Reports() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 md:gap-8 lg:gap-10 lg:grid-cols-2">
             {pieData.length > 0 ? (
-              <div className="p-10 glass-card">
+              <div className="p-6 md:p-8 lg:p-10 glass-card">
                 <div className="flex gap-3 items-center mb-8">
                   <div className="p-2 rounded-lg bg-violet-500/10">
                     <TrendingUp className="w-5 h-5 text-violet-500" />
@@ -287,7 +287,7 @@ export function Reports() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col justify-center items-center p-10 text-center glass-card">
+              <div className="flex flex-col justify-center items-center p-6 md:p-8 lg:p-10 text-center glass-card">
                 <div className="p-4 mb-6 rounded-full bg-white/5">
                   <TrendingUp className="w-10 h-10 text-slate-500" />
                 </div>
@@ -302,7 +302,7 @@ export function Reports() {
             )}
 
             {health && (
-              <div className="flex flex-col p-10 glass-card">
+              <div className="flex flex-col p-6 md:p-8 lg:p-10 glass-card">
                 <div className="flex gap-3 items-center mb-10">
                   <div className="p-2 rounded-lg bg-amber-500/10">
                     <Target className="w-5 h-5 text-amber-500" />
@@ -312,8 +312,8 @@ export function Reports() {
                   </h2>
                 </div>
 
-                <div className="grid flex-1 grid-cols-2 gap-8">
-                  <div className="flex flex-col justify-center p-6 text-center rounded-2xl border transition-all bg-white/5 border-white/5 group/card hover:border-primary/30">
+                <div className="grid flex-1 grid-cols-2 gap-4 md:gap-6 lg:gap-8">
+                  <div className="flex flex-col justify-center p-4 md:p-6 text-center rounded-2xl border transition-all bg-white/5 border-white/5 group/card hover:border-primary/30">
                     <p className="mb-2 font-black tracking-widest uppercase text-[10px] text-slate-500">
                       Health Score
                     </p>
@@ -325,7 +325,7 @@ export function Reports() {
                     </p>
                   </div>
 
-                  <div className="flex flex-col justify-center p-6 text-center rounded-2xl border transition-all bg-white/5 border-white/5 group/card hover:border-emerald-500/30">
+                  <div className="flex flex-col justify-center p-4 md:p-6 text-center rounded-2xl border transition-all bg-white/5 border-white/5 group/card hover:border-emerald-500/30">
                     <p className="mb-2 font-black tracking-widest uppercase text-[10px] text-slate-500">
                       Savings Rate
                     </p>
@@ -336,7 +336,7 @@ export function Reports() {
                     </p>
                   </div>
 
-                  <div className="flex flex-col justify-center p-6 text-center rounded-2xl border transition-all bg-white/5 border-white/5 group/card hover:border-violet-500/30">
+                  <div className="flex flex-col justify-center p-4 md:p-6 text-center rounded-2xl border transition-all bg-white/5 border-white/5 group/card hover:border-violet-500/30">
                     <p className="mb-2 font-black tracking-widest uppercase text-[10px] text-slate-500">
                       Budget Adherence
                     </p>
@@ -351,7 +351,7 @@ export function Reports() {
                     </p>
                   </div>
 
-                  <div className="flex flex-col justify-center p-6 text-center rounded-2xl border transition-all bg-white/5 border-white/5 group/card hover:border-amber-500/30">
+                  <div className="flex flex-col justify-center p-4 md:p-6 text-center rounded-2xl border transition-all bg-white/5 border-white/5 group/card hover:border-amber-500/30">
                     <p className="mb-2 font-black tracking-widest uppercase text-[10px] text-slate-500">
                       Goal Progress
                     </p>
@@ -363,7 +363,7 @@ export function Reports() {
                   </div>
                 </div>
 
-                <div className="p-6 mt-8 rounded-2xl border bg-primary/5 border-primary/20">
+                <div className="p-4 md:p-6 mt-6 md:mt-8 rounded-2xl border bg-primary/5 border-primary/20">
                   <div className="flex gap-4 items-start">
                     <ShieldCheck className="w-6 h-6 text-primary shrink-0" />
                     <div>

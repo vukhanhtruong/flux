@@ -40,14 +40,14 @@ export function Goals() {
       </div>
 
       {goals.length === 0 ? (
-        <div className="glass-card p-20 text-center">
+        <div className="glass-card p-12 md:p-16 lg:p-20 text-center">
           <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
             <Target className="w-10 h-10 text-slate-500" />
           </div>
           <p className="text-slate-500 text-lg italic">No goals yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:gap-6 lg:gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {goals.map((goal) => {
             const current = parseFloat(goal.current_amount);
             const target = parseFloat(goal.target_amount);
@@ -56,7 +56,7 @@ export function Goals() {
             return (
               <div
                 key={goal.id}
-                className="glass-card p-8 flex flex-col h-full hover:border-white/20 transition-all group"
+                className="glass-card p-4 md:p-6 lg:p-8 flex flex-col h-full hover:border-white/20 transition-all group"
               >
                 <div className="flex items-start justify-between mb-6">
                   <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">
