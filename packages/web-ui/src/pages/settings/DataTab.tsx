@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Download, Upload, Trash2, HardDrive, Cloud, RefreshCw, Key, Save } from "lucide-react";
+import { Download, Upload, Trash2, HardDrive, Cloud, RefreshCw, Key, Save, Eye, EyeOff, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { api } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
 import { useProfile } from "../../context/ProfileContext";
@@ -31,8 +31,8 @@ export function DataTab() {
   });
   const [s3Loading, setS3Loading] = useState(false);
   const [s3Saving, setS3Saving] = useState(false);
-  const [s3Error, setS3Error] = useState<string | null>(null);
-  const [s3Success, setS3Success] = useState<string | null>(null);
+  const [showAccessKey, setShowAccessKey] = useState(false);
+  const [showSecretKey, setShowSecretKey] = useState(false);
 
   const loadS3Config = useCallback(async () => {
     setS3Loading(true);
@@ -48,14 +48,13 @@ export function DataTab() {
 
   async function handleSaveS3Config() {
     setS3Saving(true);
-    setS3Error(null);
-    setS3Success(null);
+    setError(null);
+    setSuccessMessage(null);
     try {
       await api.updateBackupConfig(s3Config);
-      setS3Success("S3 configuration saved");
-      setTimeout(() => setS3Success(null), 4000);
+      showSuccess("S3 configuration saved successfully");
     } catch (err) {
-      setS3Error(String(err));
+      setError(String(err));
     } finally {
       setS3Saving(false);
     }
@@ -86,7 +85,7 @@ export function DataTab() {
 
   const s3Configured = !!(s3Config.s3_endpoint && s3Config.s3_bucket && s3Config.s3_access_key && s3Config.s3_secret_key);
 
-  async function handleCreateBackup(storage: "local" | "s3" | "both" = "local") {
+  async function handleCreateBackup(storage: "local" | "s3" = "local") {
     setCreating(true);
     setError(null);
     try {
@@ -167,70 +166,86 @@ export function DataTab() {
   }
 
   return (
-    <div className="space-y-8">
-      {successMessage && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-sm text-emerald-400">
-          {successMessage}
-        </div>
-      )}
-      {error && (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">
-          {error}
-        </div>
-      )}
+    <div className="space-y-8 relative">
+      {/* Floating Notifications */}
+      <div className="fixed top-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+        {successMessage && (
+          <div className="animate-in slide-in-from-right-8 fade-in duration-300 flex items-center gap-3 px-4 py-3 bg-dark/95 backdrop-blur-md border border-emerald-500/20 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-xl pointer-events-auto shadow-emerald-500/10">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <p className="text-sm font-medium text-slate-200 pr-4">{successMessage}</p>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="p-1 hover:bg-white/10 rounded-md transition-colors text-slate-400 hover:text-white ml-auto"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        {error && (
+          <div className="animate-in slide-in-from-right-8 fade-in duration-300 flex items-center gap-3 px-4 py-3 bg-dark/95 backdrop-blur-md border border-red-500/20 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-xl pointer-events-auto shadow-red-500/10">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <p className="text-sm font-medium text-slate-200 pr-4">{error}</p>
+            <button
+              onClick={() => setError(null)}
+              className="p-1 hover:bg-white/10 rounded-md transition-colors text-slate-400 hover:text-white ml-auto"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Create Backup */}
-      <div className="glass-card p-10 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <HardDrive className="w-5 h-5 text-primary" />
-            <h2 className="text-xl font-bold text-white tracking-tight">Create Backup</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            {creating ? (
-              <button disabled className="btn-primary py-2 px-6 text-sm flex items-center gap-2 opacity-50">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                Creating...
-              </button>
-            ) : s3Configured ? (
-              <>
+      <div className="glass-card p-10 space-y-6 group">
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/10 to-secondary/10 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-1000"></div>
+        <div className="relative">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-primary/10 rounded-xl group-hover:scale-110 group-hover:bg-primary/20 transition-all duration-300">
+                  <HardDrive className="w-5 h-5 text-primary" />
+                </div>
+                <h2 className="text-xl font-bold text-white tracking-tight">Create Backup</h2>
+              </div>
+              <p className="text-sm text-slate-400 pl-14">
+                Create a snapshot of your database including all transactions, budgets, goals, and settings.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 md:pl-0 pl-14">
+              {creating ? (
+                <button disabled className="btn-primary py-2.5 px-6 text-sm flex items-center gap-2 opacity-50 cursor-not-allowed">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Creating...
+                </button>
+              ) : s3Configured ? (
+                <>
+                  <button
+                    onClick={() => handleCreateBackup("local")}
+                    className="bg-dark border border-white/10 hover:bg-white/5 hover:border-white/20 text-white font-medium px-5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-2.5 hover:-translate-y-0.5"
+                  >
+                    <HardDrive className="w-4 h-4 text-slate-400" />
+                    Local Drive
+                  </button>
+                  <button
+                    onClick={() => handleCreateBackup("s3")}
+                    className="btn-primary py-2.5 px-6 text-sm flex items-center gap-2.5 hover:-translate-y-0.5"
+                  >
+                    <Cloud className="w-4 h-4" />
+                    S3 Bucket
+                  </button>
+                </>
+              ) : (
                 <button
                   onClick={() => handleCreateBackup("local")}
-                  className="btn-secondary py-2 px-4 text-sm flex items-center gap-2"
+                  className="btn-primary py-2.5 px-6 text-sm flex items-center gap-2 hover:-translate-y-0.5"
                 >
                   <HardDrive className="w-4 h-4" />
-                  Local
+                  Backup Now
                 </button>
-                <button
-                  onClick={() => handleCreateBackup("s3")}
-                  className="btn-secondary py-2 px-4 text-sm flex items-center gap-2"
-                >
-                  <Cloud className="w-4 h-4" />
-                  S3
-                </button>
-                <button
-                  onClick={() => handleCreateBackup("both")}
-                  className="btn-primary py-2 px-4 text-sm flex items-center gap-2"
-                >
-                  <HardDrive className="w-4 h-4" />
-                  Both
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => handleCreateBackup("local")}
-                className="btn-primary py-2 px-6 text-sm flex items-center gap-2"
-              >
-                <HardDrive className="w-4 h-4" />
-                Backup Now
-              </button>
-            )}
+              )}
+            </div>
           </div>
         </div>
-        <p className="text-sm text-slate-400">
-          Create a snapshot of your database. Backups include all transactions, budgets, goals,
-          subscriptions, and settings.
-        </p>
       </div>
 
       {/* Backup List */}
@@ -253,9 +268,14 @@ export function DataTab() {
         {loading && <p className="text-sm text-slate-500 italic">Loading backups...</p>}
 
         {!loading && backups.length === 0 && (
-          <div className="text-center py-16">
-            <HardDrive className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-500 text-sm">No backups found. Create your first backup above.</p>
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center border border-dashed border-white/5 rounded-2xl bg-dark/20 backdrop-blur-sm">
+            <div className="p-4 bg-white/5 rounded-full mb-4">
+              <HardDrive className="w-8 h-8 text-slate-500" />
+            </div>
+            <h3 className="text-white font-semibold mb-1">No backups available</h3>
+            <p className="text-slate-500 text-sm max-w-sm">
+              Create your first database snapshot to ensure your financial data is safely stored.
+            </p>
           </div>
         )}
 
@@ -273,7 +293,7 @@ export function DataTab() {
               </thead>
               <tbody>
                 {backups.map((backup) => (
-                  <tr key={backup.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                  <tr key={backup.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
                     <td className="py-3 pr-4 text-slate-300 font-mono text-xs max-w-[250px] truncate" title={backup.filename}>
                       {backup.filename}
                     </td>
@@ -293,11 +313,11 @@ export function DataTab() {
                     <td className="py-3 pr-4 text-slate-400 text-xs">
                       {formatDateTime(backup.created_at, profile.locale, profile.timezone)}
                     </td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
+                    <td className="py-4">
+                      <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                         <a
                           href={api.getBackupDownloadUrl(backup.filename)}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                          className="p-2 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all"
                           title="Download"
                         >
                           <Download className="w-4 h-4" />
@@ -305,15 +325,15 @@ export function DataTab() {
                         <button
                           onClick={() => handleRestore(backup)}
                           disabled={restoring}
-                          className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-primary transition-colors disabled:opacity-50"
+                          className="p-2 rounded-xl hover:bg-emerald-500/10 text-slate-400 hover:text-emerald-400 transition-all disabled:opacity-50"
                           title="Restore"
                         >
-                          <RefreshCw className={`w-4 h-4 ${restoring ? "animate-spin" : ""}`} />
+                          <RefreshCw className={`w-4 h-4 ${restoring ? "animate-spin text-emerald-400" : ""}`} />
                         </button>
                         <button
                           onClick={() => handleDelete(backup)}
                           disabled={deletingId === backup.id}
-                          className="p-1.5 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-colors disabled:opacity-50"
+                          className="p-2 rounded-xl hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-all disabled:opacity-50"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -329,30 +349,48 @@ export function DataTab() {
       </div>
 
       {/* Restore from File */}
-      <div className="glass-card p-10 space-y-6">
+      <div className="glass-card p-10 space-y-6 group">
         <div className="flex items-center gap-3">
-          <Upload className="w-5 h-5 text-primary" />
+          <div className="p-2.5 bg-secondary/10 rounded-xl group-hover:bg-secondary/20 transition-all duration-300">
+            <Upload className="w-5 h-5 text-secondary" />
+          </div>
           <h2 className="text-xl font-bold text-white tracking-tight">Restore from File</h2>
         </div>
         <p className="text-sm text-slate-400">
-          Upload a backup file to restore your data. This will replace all current data.
+          Upload a backup file to restore your data. This will carefully replace all current data.
         </p>
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all ${
+          className={`relative overflow-hidden border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 group/dropzone ${
             dragOver
-              ? "border-primary bg-primary/5"
+              ? "border-secondary bg-secondary/10 scale-[1.02]"
               : "border-white/10 hover:border-white/20 hover:bg-white/5"
           }`}
         >
-          <Upload className={`w-10 h-10 mx-auto mb-4 ${dragOver ? "text-primary" : "text-slate-600"}`} />
-          <p className="text-sm text-slate-400 mb-1">
-            {restoring ? "Restoring..." : "Drag and drop a backup file here, or click to browse"}
+          {dragOver && (
+            <div className="absolute inset-0 bg-gradient-to-t from-secondary/10 to-transparent animate-pulse pointer-events-none"></div>
+          )}
+          
+          <div className={`transform transition-all duration-300 ${dragOver ? "-translate-y-2 text-secondary" : "group-hover/dropzone:-translate-y-2 text-slate-600 group-hover/dropzone:text-slate-400"}`}>
+            <Upload className="w-10 h-10 mx-auto mb-4" />
+          </div>
+          
+          <p className="text-sm text-slate-300 mb-2 font-medium">
+            {restoring ? (
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Restoring database...
+              </span>
+            ) : dragOver ? (
+              "Drop to restore..."
+            ) : (
+              "Drag and drop a backup file here, or click to browse"
+            )}
           </p>
-          <p className="text-[10px] text-slate-600 uppercase tracking-widest font-bold">
+          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
             .zip files supported
           </p>
           <input
@@ -369,7 +407,9 @@ export function DataTab() {
       <div className="glass-card p-10 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Key className="w-5 h-5 text-primary" />
+          <div className="p-2.5 bg-secondary/10 rounded-xl group-hover:bg-secondary/20 transition-all duration-300">
+            <Key className="w-5 h-5 text-secondary" />
+          </div>
             <h2 className="text-xl font-bold text-white tracking-tight">S3 Storage</h2>
           </div>
         </div>
@@ -378,16 +418,7 @@ export function DataTab() {
           Credentials are encrypted with your <code className="text-xs bg-white/5 px-1.5 py-0.5 rounded">FLUX_SECRET_KEY</code>.
         </p>
 
-        {s3Error && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">
-            {s3Error}
-          </div>
-        )}
-        {s3Success && (
-          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-sm text-emerald-400">
-            {s3Success}
-          </div>
-        )}
+        {/* Removed static S3 alerts since floating alerts are used globally */}
 
         {s3Loading ? (
           <p className="text-sm text-slate-500 italic">Loading configuration...</p>
@@ -403,7 +434,7 @@ export function DataTab() {
                   value={s3Config.s3_endpoint}
                   onChange={(e) => setS3Config({ ...s3Config, s3_endpoint: e.target.value })}
                   placeholder="https://xxx.r2.cloudflarestorage.com"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm"
+                  className="w-full bg-dark border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 focus:bg-white/5 transition-colors text-sm"
                 />
               </div>
               <div className="space-y-2">
@@ -415,7 +446,7 @@ export function DataTab() {
                   value={s3Config.s3_bucket}
                   onChange={(e) => setS3Config({ ...s3Config, s3_bucket: e.target.value })}
                   placeholder="flux-backups"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm"
+                  className="w-full bg-dark border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 focus:bg-white/5 transition-colors text-sm"
                 />
               </div>
               <div className="space-y-2">
@@ -427,7 +458,7 @@ export function DataTab() {
                   value={s3Config.s3_region}
                   onChange={(e) => setS3Config({ ...s3Config, s3_region: e.target.value })}
                   placeholder="auto"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm"
+                  className="w-full bg-dark border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 focus:bg-white/5 transition-colors text-sm"
                 />
               </div>
             </div>
@@ -437,25 +468,43 @@ export function DataTab() {
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Access Key
                 </label>
-                <input
-                  type="password"
-                  value={s3Config.s3_access_key}
-                  onChange={(e) => setS3Config({ ...s3Config, s3_access_key: e.target.value })}
-                  placeholder="••••••••"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm font-mono"
-                />
+                <div className="relative">
+                  <input
+                    type={showAccessKey ? "text" : "password"}
+                    value={s3Config.s3_access_key}
+                    onChange={(e) => setS3Config({ ...s3Config, s3_access_key: e.target.value })}
+                    placeholder="••••••••••••••••"
+                    className="w-full bg-dark border border-white/10 rounded-xl pl-4 pr-10 py-3 text-white outline-none focus:border-primary/50 focus:bg-white/5 transition-colors text-sm font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAccessKey(!showAccessKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    {showAccessKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Secret Key
                 </label>
-                <input
-                  type="password"
-                  value={s3Config.s3_secret_key}
-                  onChange={(e) => setS3Config({ ...s3Config, s3_secret_key: e.target.value })}
-                  placeholder="••••••••"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors text-sm font-mono"
-                />
+                <div className="relative">
+                  <input
+                    type={showSecretKey ? "text" : "password"}
+                    value={s3Config.s3_secret_key}
+                    onChange={(e) => setS3Config({ ...s3Config, s3_secret_key: e.target.value })}
+                    placeholder="••••••••••••••••"
+                    className="w-full bg-dark border border-white/10 rounded-xl pl-4 pr-10 py-3 text-white outline-none focus:border-primary/50 focus:bg-white/5 transition-colors text-sm font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSecretKey(!showSecretKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    {showSecretKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             </div>
 
