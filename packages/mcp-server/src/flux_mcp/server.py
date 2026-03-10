@@ -17,6 +17,7 @@ from flux_mcp.tools.ipc_tools import register_ipc_tools
 from flux_mcp.tools.memory_tools import register_memory_tools
 from flux_mcp.tools.profile_tools import register_profile_tools
 from flux_mcp.tools.savings_tools import register_savings_tools
+from flux_mcp.tools.ngrok_tools import register_ngrok_tools
 from flux_mcp.tools.transaction_tools import register_transaction_tools
 
 mcp = FastMCP("flux")
@@ -26,6 +27,7 @@ _vector_store: ZvecStore | None = None
 _event_bus: EventBus | None = None
 _embedding_service: EmbeddingService | None = None
 _session_user_id: str = ""
+_tunnel_manager = None
 
 
 def get_session_user_id() -> str:
@@ -97,6 +99,16 @@ def get_s3_storage():
     return None
 
 
+def get_tunnel_manager():
+    global _tunnel_manager
+    if _tunnel_manager is None:
+        from flux_mcp.ngrok import TunnelManager
+        port = int(os.getenv("NGROK_TUNNEL_PORT", "5173"))
+        timeout = int(os.getenv("NGROK_TUNNEL_TIMEOUT_MINUTES", "30"))
+        _tunnel_manager = TunnelManager(port=port, timeout_minutes=timeout)
+    return _tunnel_manager
+
+
 _user_timezone: str | None = None
 
 
@@ -128,6 +140,7 @@ register_profile_tools(mcp, get_db, get_uow, get_session_user_id)
 register_ipc_tools(mcp, get_uow, get_session_user_id, get_user_timezone)
 register_savings_tools(mcp, get_uow, get_session_user_id, get_user_timezone)
 register_backup_tools(mcp, get_db, get_local_storage, get_s3_storage)
+register_ngrok_tools(mcp, get_tunnel_manager, get_session_user_id)
 
 
 if __name__ == "__main__":
