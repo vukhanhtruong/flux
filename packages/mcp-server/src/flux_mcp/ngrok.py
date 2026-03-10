@@ -41,8 +41,8 @@ class TunnelManager:
             return {"status": "ok", "url": info.url}
 
         try:
-            self._ensure_auth()
-            tunnel = ngrok.connect(self._port, bind_tls=True)
+            await asyncio.to_thread(self._ensure_auth)
+            tunnel = await asyncio.to_thread(ngrok.connect, self._port, bind_tls=True)
             url = tunnel.public_url
 
             expire_task = None
@@ -65,11 +65,11 @@ class TunnelManager:
         info = self._tunnels.pop(user_id)
         if info.expire_task:
             info.expire_task.cancel()
-        ngrok.disconnect(info.url)
+        await asyncio.to_thread(ngrok.disconnect, info.url)
         return {"status": "ok"}
 
     async def _auto_expire(self, user_id: str) -> None:
         await asyncio.sleep(self._timeout_minutes * 60)
         if user_id in self._tunnels:
             info = self._tunnels.pop(user_id)
-            ngrok.disconnect(info.url)
+            await asyncio.to_thread(ngrok.disconnect, info.url)
