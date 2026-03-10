@@ -73,10 +73,12 @@ async def test_new_user_starts_onboarding():
 
 
 async def test_send_message_uses_platform_id():
-    """send_message routes via numeric platform_id as chat_id."""
+    """send_message converts Markdown and sends with MarkdownV2 parse_mode."""
     ch, _, _ = _make_channel()
     await ch.send_message(platform_id="12345", text="Hello!")
-    ch._app.bot.send_message.assert_called_once_with(chat_id=12345, text="Hello!")
+    call_kwargs = ch._app.bot.send_message.call_args[1]
+    assert call_kwargs["chat_id"] == 12345
+    assert call_kwargs["parse_mode"] == "MarkdownV2"
 
 
 async def test_allowlist_blocks_unauthorized():
@@ -142,19 +144,25 @@ async def test_send_typing_action_calls_send_chat_action():
 
 
 async def test_send_outbound_no_sender():
-    """send_outbound delivers plain text when sender is None (no parse_mode kwarg)."""
+    """send_outbound converts to MarkdownV2 when sender is None."""
     ch, _, _ = _make_channel()
     await ch.send_outbound("12345", "Hello from agent!", None)
-    ch._app.bot.send_message.assert_called_once_with(chat_id=12345, text="Hello from agent!")
+    call_kwargs = ch._app.bot.send_message.call_args[1]
+    assert call_kwargs["chat_id"] == 12345
+    assert call_kwargs["parse_mode"] == "MarkdownV2"
 
 
 async def test_send_outbound_with_sender():
-    """send_outbound prepends sender name in Markdown bold when provided."""
+    """send_outbound prepends sender name in bold and converts to MarkdownV2."""
     ch, _, _ = _make_channel()
     await ch.send_outbound("12345", "Update!", "Researcher")
-    ch._app.bot.send_message.assert_called_once_with(
-        chat_id=12345, text="*Researcher*: Update!", parse_mode="Markdown"
-    )
+    call_kwargs = ch._app.bot.send_message.call_args[1]
+    assert call_kwargs["chat_id"] == 12345
+    # Sender should be in the text (converted to MarkdownV2 bold)
+    assert "Researcher" in call_kwargs["text"]
+    assert call_kwargs["parse_mode"] == "MarkdownV2"
+    # Should NOT use legacy Markdown parse_mode
+    assert call_kwargs["parse_mode"] != "Markdown"
 
 
 async def test_send_outbound_raises_if_not_started():

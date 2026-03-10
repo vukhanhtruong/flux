@@ -18,6 +18,7 @@ from telegram.request import HTTPXRequest
 
 from flux_bot.channels.base import Channel
 from flux_bot.channels.commands import CommandHandlers
+from flux_bot.channels.formatting import convert_markdown
 from flux_bot.db.messages import MessageRepository
 from flux_bot.db.profile import ProfileRepository
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
@@ -120,15 +121,18 @@ class TelegramChannel(Channel):
                 delay *= 2
 
     async def send_message(self, platform_id: str, text: str) -> None:
-        """Send a message to a Telegram user, splitting if it exceeds Telegram's 4096-char limit."""
+        """Send a message to a Telegram user with Markdown formatting."""
         if not self._app:
             return
+        converted = convert_markdown(text)
         chunks = [
-            text[i : i + self._MAX_MESSAGE_LEN]
-            for i in range(0, len(text), self._MAX_MESSAGE_LEN)
+            converted[i : i + self._MAX_MESSAGE_LEN]
+            for i in range(0, len(converted), self._MAX_MESSAGE_LEN)
         ]
         for chunk in chunks:
-            await self._send_with_retry(int(platform_id), chunk)
+            await self._send_with_retry(
+                int(platform_id), chunk, parse_mode="MarkdownV2"
+            )
 
     async def send_typing_action(self, platform_id: str) -> None:
         """Send a typing indicator to the Telegram user."""
@@ -139,15 +143,16 @@ class TelegramChannel(Channel):
         """Deliver an outbound message queued by the agent. Called by OutboundWorker."""
         if not self._app:
             raise RuntimeError("Telegram bot not initialized — cannot deliver outbound message")
-        full_text = f"*{sender}*: {text}" if sender else text
-        parse_mode = "Markdown" if sender else None
+        full_text = f"**{sender}**: {text}" if sender else text
+        converted = convert_markdown(full_text)
         chunks = [
-            full_text[i : i + self._MAX_MESSAGE_LEN]
-            for i in range(0, len(full_text), self._MAX_MESSAGE_LEN)
+            converted[i : i + self._MAX_MESSAGE_LEN]
+            for i in range(0, len(converted), self._MAX_MESSAGE_LEN)
         ]
-        extra = {"parse_mode": parse_mode} if parse_mode else {}
         for chunk in chunks:
-            await self._send_with_retry(int(platform_id), chunk, **extra)
+            await self._send_with_retry(
+                int(platform_id), chunk, parse_mode="MarkdownV2"
+            )
 
     async def _handle_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
