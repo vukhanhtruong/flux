@@ -82,13 +82,20 @@ async def test_auto_expire():
     with patch("flux_mcp.ngrok.ngrok") as mock_ngrok:
         mock_ngrok.connect.return_value = mock_tunnel
 
-        manager = TunnelManager(port=5173, timeout_minutes=0)
+        manager = TunnelManager(port=5173, timeout_minutes=1)
         await manager.start_tunnel("tg:123")
 
-        await asyncio.sleep(0.1)
+        # Manually run the expire coroutine instead of waiting
+        expire_task = manager._tunnels["tg:123"].expire_task
+        assert expire_task is not None
+
+    # Cancel the real task and run expire directly
+    expire_task.cancel()
+    with patch("flux_mcp.ngrok.ngrok") as mock_ngrok:
+        await manager._auto_expire("tg:123")
 
     assert "tg:123" not in manager._tunnels
-    mock_ngrok.disconnect.assert_called_once_with(mock_tunnel.public_url)
+    mock_ngrok.disconnect.assert_called_once_with("https://abc123.ngrok-free.app")
 
 
 async def test_set_authtoken():

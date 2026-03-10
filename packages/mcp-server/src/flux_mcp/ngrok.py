@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from dataclasses import dataclass
 
 from pyngrok import ngrok
@@ -12,6 +13,7 @@ from pyngrok import ngrok
 class _TunnelInfo:
     tunnel: object
     url: str
+    created_at: float
     expire_task: asyncio.Task | None
 
 
@@ -44,11 +46,12 @@ class TunnelManager:
             url = tunnel.public_url
 
             expire_task = None
-            if self._timeout_minutes >= 0:
+            if self._timeout_minutes > 0:
                 expire_task = asyncio.create_task(self._auto_expire(user_id))
 
             self._tunnels[user_id] = _TunnelInfo(
-                tunnel=tunnel, url=url, expire_task=expire_task
+                tunnel=tunnel, url=url, created_at=time.monotonic(),
+                expire_task=expire_task,
             )
             return {"status": "ok", "url": url}
         except Exception as exc:
