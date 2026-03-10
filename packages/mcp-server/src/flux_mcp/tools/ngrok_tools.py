@@ -7,9 +7,11 @@ from fastmcp import FastMCP
 from flux_mcp.ngrok import TunnelManager
 
 
-async def _start_tunnel_impl(manager: TunnelManager, user_id: str) -> dict:
+async def _start_tunnel_impl(
+    manager: TunnelManager, user_id: str, force_new: bool = False,
+) -> dict:
     """Internal implementation for start_web_ui_tunnel tool."""
-    return await manager.start_tunnel(user_id)
+    return await manager.start_tunnel(user_id, force_new=force_new)
 
 
 async def _stop_tunnel_impl(manager: TunnelManager, user_id: str) -> dict:
@@ -23,15 +25,19 @@ def register_ngrok_tools(
     get_session_user_id: Callable[[], str],
 ):
     @mcp.tool()
-    async def start_web_ui_tunnel() -> dict:
+    async def start_web_ui_tunnel(force_new: bool = False) -> dict:
         """Start an ngrok tunnel to expose the web UI and return the public URL.
 
         Use this when the user wants to see their dashboard, view the web interface,
         or access the UI. Returns a public HTTPS URL that expires after 30 minutes.
         The user can ask to stop it early.
+
+        Args:
+            force_new: If True, kills any existing tunnel and creates a fresh one
+                       with a new URL. Use when the user asks for a new/fresh link.
         """
         user_id = get_session_user_id()
-        return await _start_tunnel_impl(get_tunnel_manager(), user_id)
+        return await _start_tunnel_impl(get_tunnel_manager(), user_id, force_new=force_new)
 
     @mcp.tool()
     async def stop_web_ui_tunnel() -> dict:

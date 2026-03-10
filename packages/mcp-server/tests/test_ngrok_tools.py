@@ -16,7 +16,21 @@ async def test_start_tunnel_impl():
 
     assert result["status"] == "ok"
     assert result["url"] == "https://abc123.ngrok-free.app"
-    mock_manager.start_tunnel.assert_awaited_once_with("tg:123")
+    mock_manager.start_tunnel.assert_awaited_once_with("tg:123", force_new=False)
+
+
+async def test_start_tunnel_impl_force_new():
+    """start_web_ui_tunnel passes force_new to TunnelManager."""
+    mock_manager = AsyncMock()
+    mock_manager.start_tunnel.return_value = {
+        "status": "ok",
+        "url": "https://fresh.ngrok-free.app",
+    }
+
+    result = await _start_tunnel_impl(mock_manager, "tg:123", force_new=True)
+
+    assert result["url"] == "https://fresh.ngrok-free.app"
+    mock_manager.start_tunnel.assert_awaited_once_with("tg:123", force_new=True)
 
 
 async def test_start_tunnel_impl_error():

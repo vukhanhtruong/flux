@@ -142,6 +142,43 @@ async def test_stale_tunnel_cleaned_up():
     assert result["url"] == "https://new.ngrok-free.app"
 
 
+async def test_start_tunnel_force_new():
+    """force_new=True kills existing tunnel and creates a fresh one."""
+    manager = TunnelManager(port=80, timeout_minutes=30)
+
+    # First, create a tunnel
+    with (
+        patch.object(manager, "_start_ngrok_process", return_value=12345),
+        patch.object(manager, "_wait_for_tunnel_url",
+                     return_value="https://old.ngrok-free.app"),
+        patch.object(manager, "_get_existing_tunnel", return_value=None),
+    ):
+        await manager.start_tunnel("tg:123")
+
+    # Now force a new one
+    with (
+        patch.object(manager, "_kill_all_ngrok") as mock_kill_all,
+        patch.object(manager, "_start_ngrok_process", return_value=99999),
+        patch.object(manager, "_wait_for_tunnel_url",
+                     return_value="https://fresh.ngrok-free.app"),
+    ):
+        result = await manager.start_tunnel("tg:123", force_new=True)
+
+    assert result["status"] == "ok"
+    assert result["url"] == "https://fresh.ngrok-free.app"
+    mock_kill_all.assert_awaited_once()
+
+
+async def test_kill_all_ngrok():
+    """_kill_all_ngrok runs pkill to terminate all ngrok processes."""
+    manager = TunnelManager(port=80, timeout_minutes=30)
+
+    with patch("flux_mcp.ngrok.subprocess.run") as mock_run:
+        await manager._kill_all_ngrok()
+
+    mock_run.assert_called_once_with(["pkill", "-f", "ngrok"], capture_output=True)
+
+
 # --- Internal method tests ---
 
 

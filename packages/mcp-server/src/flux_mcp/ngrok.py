@@ -38,17 +38,26 @@ class TunnelManager:
         self._timeout_minutes = timeout_minutes
         self._tunnels: dict[str, _TunnelInfo] = {}
 
-    async def start_tunnel(self, user_id: str) -> dict:
-        """Start an ngrok tunnel. Returns existing tunnel if already active."""
-        if user_id in self._tunnels:
+    async def start_tunnel(self, user_id: str, force_new: bool = False) -> dict:
+        """Start an ngrok tunnel. Returns existing tunnel if already active.
+
+        If force_new is True, kills any existing tunnel first and creates a fresh one.
+        """
+        if force_new:
+            await self._kill_all_ngrok()
+            self._tunnels.pop(user_id, None)
+        elif user_id in self._tunnels:
             info = self._tunnels[user_id]
             if self._is_process_alive(info.pid):
                 return {"status": "ok", "url": info.url}
             # Process died — clean up stale entry
             self._tunnels.pop(user_id, None)
 
-        # Check if ngrok is already running (e.g. from a previous MCP session)
-        existing_url = await asyncio.to_thread(self._get_existing_tunnel)
+        if not force_new:
+            # Check if ngrok is already running (e.g. from a previous MCP session)
+            existing_url = await asyncio.to_thread(self._get_existing_tunnel)
+        else:
+            existing_url = None
         if existing_url:
             self._tunnels[user_id] = _TunnelInfo(
                 pid=0, url=existing_url, created_at=time.monotonic(),
@@ -123,6 +132,14 @@ class TunnelManager:
         except (OSError, json.JSONDecodeError, KeyError):
             return None
         return None
+
+    async def _kill_all_ngrok(self) -> None:
+        """Kill all ngrok processes."""
+        await asyncio.to_thread(
+            subprocess.run, ["pkill", "-f", "ngrok"], capture_output=True
+        )
+        # Give the process time to die so the port is freed
+        await asyncio.sleep(0.5)
 
     def _kill_ngrok(self, pid: int) -> None:
         """Kill the ngrok process if it's still alive."""
