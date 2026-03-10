@@ -8,6 +8,7 @@ dependencies = [
     "flux-mcp",
     "python-telegram-bot[job-queue]>=21.0",
     "claude-agent-sdk",
+    "telegramify-markdown>=0.5.4",
 ]
 
 [project.optional-dependencies]

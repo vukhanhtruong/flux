@@ -20,6 +20,9 @@ export function DataTab() {
   const [restoring, setRestoring] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<BackupMetadata | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState<BackupMetadata | null>(null);
+  const [confirmFileRestore, setConfirmFileRestore] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [s3Config, setS3Config] = useState<S3Config>({
@@ -99,7 +102,8 @@ export function DataTab() {
     }
   }
 
-  async function handleDelete(backup: BackupMetadata) {
+  async function executeDelete(backup: BackupMetadata) {
+    setConfirmDelete(null);
     setDeletingId(backup.id);
     setError(null);
     try {
@@ -114,7 +118,8 @@ export function DataTab() {
     }
   }
 
-  async function handleRestore(backup: BackupMetadata) {
+  async function executeRestore(backup: BackupMetadata) {
+    setConfirmRestore(null);
     setRestoring(true);
     setError(null);
     try {
@@ -129,7 +134,8 @@ export function DataTab() {
     }
   }
 
-  async function handleFileUpload(file: File) {
+  async function executeFileRestore(file: File) {
+    setConfirmFileRestore(null);
     setRestoring(true);
     setError(null);
     try {
@@ -140,7 +146,12 @@ export function DataTab() {
       setError(String(err));
     } finally {
       setRestoring(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  function handleFileUpload(file: File) {
+    setConfirmFileRestore(file);
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -194,6 +205,85 @@ export function DataTab() {
           </div>
         )}
       </div>
+
+      {/* Modals */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-dark/80 backdrop-blur-sm">
+          <div className="bg-dark border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-red-500/10 rounded-xl">
+                <AlertCircle className="w-6 h-6 text-red-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white tracking-tight">Delete Backup?</h3>
+            </div>
+            <p className="text-slate-400 mb-6">
+              Are you sure you want to permanently delete the backup <span className="text-white font-mono text-xs">{confirmDelete.filename}</span>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 mt-8">
+              <button 
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeDelete(confirmDelete)}
+                className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-colors flex items-center gap-2 text-sm font-medium"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Backup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(confirmRestore || confirmFileRestore) && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-dark/80 backdrop-blur-sm">
+          <div className="bg-dark border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-emerald-500/10 rounded-xl">
+                <RefreshCw className="w-6 h-6 text-emerald-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white tracking-tight">Restore Database?</h3>
+            </div>
+            <p className="text-slate-400 mb-6">
+              Are you sure you want to restore {confirmRestore ? <span className="text-white font-mono text-xs">{confirmRestore.filename}</span> : <span className="text-white font-mono text-xs">{confirmFileRestore?.name}</span>}?
+            </p>
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl mb-8">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="text-sm text-emerald-200/90">
+                  <strong className="text-emerald-400 font-semibold block mb-1">Safety First</strong>
+                  A new local backup of your current database state will be automatically created before restoration begins.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-4">
+              <button 
+                onClick={() => {
+                  setConfirmRestore(null);
+                  setConfirmFileRestore(null);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }}
+                className="px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (confirmRestore) executeRestore(confirmRestore);
+                  else if (confirmFileRestore) executeFileRestore(confirmFileRestore);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors flex items-center gap-2 text-sm font-medium"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Restore Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Backup */}
       <div className="glass-card p-10 space-y-6 group">
@@ -323,7 +413,7 @@ export function DataTab() {
                           <Download className="w-4 h-4" />
                         </a>
                         <button
-                          onClick={() => handleRestore(backup)}
+                          onClick={() => setConfirmRestore(backup)}
                           disabled={restoring}
                           className="p-2 rounded-xl hover:bg-emerald-500/10 text-slate-400 hover:text-emerald-400 transition-all disabled:opacity-50"
                           title="Restore"
@@ -331,7 +421,7 @@ export function DataTab() {
                           <RefreshCw className={`w-4 h-4 ${restoring ? "animate-spin text-emerald-400" : ""}`} />
                         </button>
                         <button
-                          onClick={() => handleDelete(backup)}
+                          onClick={() => setConfirmDelete(backup)}
                           disabled={deletingId === backup.id}
                           className="p-2 rounded-xl hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-all disabled:opacity-50"
                           title="Delete"
