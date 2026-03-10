@@ -63,6 +63,64 @@ async def test_scheduled_task_lifecycle(seeded_server):
     assert cancel_data["status"] == "cancelled"
 
 
+async def test_list_scheduled_tasks_converts_times_to_user_timezone(
+    seeded_db, vector_store, event_bus, mock_embedding_service, monkeypatch
+):
+    """list_scheduled_tasks returns next_run_at/created_at in user's timezone, not UTC."""
+    import flux_mcp.server as server_module
+    from flux_core.uow.unit_of_work import UnitOfWork
+
+    user_tz = "Asia/Ho_Chi_Minh"  # UTC+7
+    test_user = "test:e2e-user"
+
+    monkeypatch.setattr(server_module, "_db", seeded_db)
+    monkeypatch.setattr(server_module, "_vector_store", vector_store)
+    monkeypatch.setattr(server_module, "_event_bus", event_bus)
+    monkeypatch.setattr(server_module, "_embedding_service", mock_embedding_service)
+    monkeypatch.setattr(server_module, "_session_user_id", test_user)
+    monkeypatch.setattr(server_module, "_user_timezone", user_tz)
+    monkeypatch.setattr(server_module, "get_db", lambda: seeded_db)
+    monkeypatch.setattr(server_module, "get_vector_store", lambda: vector_store)
+    monkeypatch.setattr(server_module, "get_event_bus", lambda: event_bus)
+    monkeypatch.setattr(
+        server_module, "get_embedding_service", lambda: mock_embedding_service
+    )
+    monkeypatch.setattr(server_module, "get_session_user_id", lambda: test_user)
+    monkeypatch.setattr(server_module, "get_user_timezone", lambda: user_tz)
+    monkeypatch.setattr(
+        server_module, "get_uow",
+        lambda: UnitOfWork(seeded_db, vector_store, event_bus),
+    )
+
+    from flux_mcp.server import mcp
+
+    # Create a task (interval, so next_run_at is ~1h from now in UTC)
+    create_result = await mcp.call_tool(
+        "schedule_task",
+        {
+            "prompt": "TZ test task",
+            "schedule_type": "interval",
+            "schedule_value": "3600000",
+        },
+    )
+    task_id = _extract_json(create_result)["task_id"]
+
+    # List tasks — times should include +0700 offset
+    list_result = await mcp.call_tool("list_scheduled_tasks", {})
+    list_data = _extract_json(list_result)
+    tasks = list_data["tasks"]
+    task = next(t for t in tasks if t["id"] == task_id)
+
+    # next_run_at should contain the +0700 offset, not be a bare UTC string
+    assert "+0700" in task["next_run_at"], (
+        f"Expected +0700 offset in next_run_at, got: {task['next_run_at']}"
+    )
+    # created_at should also be converted
+    assert "+0700" in task["created_at"], (
+        f"Expected +0700 offset in created_at, got: {task['created_at']}"
+    )
+
+
 async def test_send_message_with_sender(seeded_server):
     """send_message passes sender through to the use case."""
     result = await seeded_server.call_tool(

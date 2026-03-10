@@ -52,11 +52,27 @@ def register_ipc_tools(
     @mcp.tool()
     async def list_scheduled_tasks() -> dict:
         """List all your scheduled tasks."""
+        from datetime import UTC, datetime
+        from zoneinfo import ZoneInfo
+
         from flux_mcp.server import get_db
+
         db = get_db()
         repo = SqliteBotScheduledTaskRepository(db.connection())
         uc = ListTasks(repo)
-        return await uc.execute(get_user_id())
+        result = await uc.execute(get_user_id())
+
+        tz = ZoneInfo(get_user_timezone())
+        _DT_FIELDS = ("next_run_at", "last_run_at", "created_at")
+        for task in result.get("tasks", []):
+            for field in _DT_FIELDS:
+                val = task.get(field)
+                if not val:
+                    continue
+                utc_dt = datetime.strptime(val, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+                task[field] = utc_dt.astimezone(tz).strftime("%Y-%m-%dT%H:%M:%S%z")
+
+        return result
 
     @mcp.tool()
     async def pause_scheduled_task(task_id: int) -> dict:
