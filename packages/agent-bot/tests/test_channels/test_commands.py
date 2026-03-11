@@ -13,6 +13,7 @@ from flux_bot.channels.commands import (  # noqa: E501
     _OB_TIMEZONE,
     _OB_USERNAME,
     _OB_BACKUP,
+    _OB_BACKUP_CONFIRM,
     _validate_currency,
     _validate_timezone,
     _lookup_timezone_for_location,
@@ -687,6 +688,7 @@ async def test_ob_handle_backup_daily_creates_scheduled_task():
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     handlers.task_repo.create = AsyncMock(return_value=1)
+    handlers.task_repo.list_by_user = AsyncMock(return_value=[])  # no existing backup
     update = _make_callback_update(callback_data="ob_backup:daily")
     result = await handlers._ob_handle_backup(update, _make_context())
     assert result == ConversationHandler.END
@@ -708,6 +710,7 @@ async def test_ob_handle_backup_weekly_creates_scheduled_task():
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     handlers.task_repo.create = AsyncMock(return_value=2)
+    handlers.task_repo.list_by_user = AsyncMock(return_value=[])  # no existing backup
     update = _make_callback_update(callback_data="ob_backup:weekly")
     result = await handlers._ob_handle_backup(update, _make_context())
     assert result == ConversationHandler.END
@@ -735,6 +738,73 @@ async def test_ob_handle_backup_never_does_not_create_task():
     handlers.task_repo.create.assert_not_called()
 
 
+async def test_ob_handle_backup_daily_existing_asks_confirm():
+    """Selecting daily when a backup task exists → asks user to replace or keep."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    handlers.task_repo.create = AsyncMock(return_value=1)
+    handlers.task_repo.list_by_user = AsyncMock(return_value=[
+        {"id": 99, "prompt": "Create a backup of my data", "schedule_type": "cron",
+         "schedule_value": "0 2 * * 0", "next_run_at": None, "status": "active"},
+    ])
+    update = _make_callback_update(callback_data="ob_backup:daily")
+    context = _make_context()
+    from flux_bot.channels.commands import _OB_BACKUP_CONFIRM
+    result = await handlers._ob_handle_backup(update, context)
+    assert result == _OB_BACKUP_CONFIRM
+    # Should NOT create a task yet
+    handlers.task_repo.create.assert_not_called()
+    # Should show replace/keep buttons
+    call_kwargs = update.callback_query.message.reply_text.call_args[1]
+    assert "reply_markup" in call_kwargs
+    # Choice stored in context for the confirm handler
+    assert context.user_data["ob_backup_choice"] == "daily"
+    assert context.user_data["ob_backup_existing_id"] == 99
+
+
+async def test_ob_handle_backup_confirm_replace_deletes_old_creates_new():
+    """User picks 'Replace' → old task deleted, new one created."""
+    from telegram.ext import ConversationHandler
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    handlers.task_repo.create = AsyncMock(return_value=2)
+    handlers.task_repo.delete = AsyncMock()
+    update = _make_callback_update(callback_data="ob_backup_confirm:replace")
+    context = _make_context({
+        "ob_backup_choice": "daily",
+        "ob_backup_existing_id": 99,
+    })
+    result = await handlers._ob_handle_backup_confirm(update, context)
+    assert result == ConversationHandler.END
+    handlers.task_repo.delete.assert_called_once_with(99)
+    handlers.task_repo.create.assert_called_once()
+    call_kwargs = handlers.task_repo.create.call_args[1]
+    assert call_kwargs["schedule_value"] == "0 2 * * *"
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "daily" in text.lower()
+    assert HELP_TEXT in text
+
+
+async def test_ob_handle_backup_confirm_keep_skips_creation():
+    """User picks 'Keep existing' → no delete, no create."""
+    from telegram.ext import ConversationHandler
+    handlers = _make_handlers()
+    handlers.task_repo.create = AsyncMock()
+    handlers.task_repo.delete = AsyncMock()
+    update = _make_callback_update(callback_data="ob_backup_confirm:keep")
+    context = _make_context({
+        "ob_backup_choice": "weekly",
+        "ob_backup_existing_id": 99,
+    })
+    result = await handlers._ob_handle_backup_confirm(update, context)
+    assert result == ConversationHandler.END
+    handlers.task_repo.delete.assert_not_called()
+    handlers.task_repo.create.assert_not_called()
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "keep" in text.lower() or "existing" in text.lower()
+    assert HELP_TEXT in text
+
+
 async def test_onboard_conversation_handles_ob_backup_callbacks():
     """_OB_BACKUP state must include a CallbackQueryHandler for ob_backup: pattern."""
     from telegram.ext import CallbackQueryHandler as CQH
@@ -747,3 +817,19 @@ async def test_onboard_conversation_handles_ob_backup_callbacks():
         if isinstance(h, CQH) and h.pattern is not None
     ]
     assert any("ob_backup" in p for p in patterns)
+
+
+async def test_onboard_conversation_handles_ob_backup_confirm_callbacks():
+    """_OB_BACKUP_CONFIRM state must include a CallbackQueryHandler for ob_backup_confirm:."""
+    from telegram.ext import CallbackQueryHandler as CQH
+    from flux_bot.channels.commands import _OB_BACKUP_CONFIRM
+    handlers = _make_handlers()
+    conv = handlers.onboard_conversation()
+    assert _OB_BACKUP_CONFIRM in conv.states
+    confirm_handlers = conv.states[_OB_BACKUP_CONFIRM]
+    patterns = [
+        h.pattern.pattern
+        for h in confirm_handlers
+        if isinstance(h, CQH) and h.pattern is not None
+    ]
+    assert any("ob_backup_confirm" in p for p in patterns)

@@ -66,6 +66,11 @@ class ScheduledTaskRepository:
         self._repo().advance_next_run(task_id, next_run_at)
         self._db.connection().commit()
 
+    async def delete(self, task_id: int) -> None:
+        """Delete a scheduled task by ID."""
+        self._repo().delete(task_id)
+        self._db.connection().commit()
+
     async def list_by_user(self, user_id: str) -> list[dict]:
         """Return active scheduled tasks for a user, ordered by next_run_at."""
         return self._repo().list_by_user(user_id)

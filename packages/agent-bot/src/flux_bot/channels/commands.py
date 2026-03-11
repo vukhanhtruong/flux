@@ -123,7 +123,7 @@ def _format_tz_button_label(iana_id: str) -> str:
 _MENU, _EDIT_CURRENCY, _EDIT_TIMEZONE, _EDIT_USERNAME = range(4)
 
 # ConversationHandler states for /onboard
-_OB_CURRENCY, _OB_TIMEZONE, _OB_USERNAME, _OB_BACKUP = range(4)
+_OB_CURRENCY, _OB_TIMEZONE, _OB_USERNAME, _OB_BACKUP, _OB_BACKUP_CONFIRM = range(5)
 
 HELP_TEXT = """\
 Here are some things you can ask me:
@@ -568,28 +568,86 @@ class CommandHandlers:
         choice = update.callback_query.data.split(":", 1)[1]
 
         if choice == "never":
-            msg = "No auto-backup configured. You can enable it later in Settings."
-        else:
-            cron_map = {"daily": "0 2 * * *", "weekly": "0 2 * * 0"}
-            cron_expr = cron_map[choice]
-            profile = await self._get_profile(update)
-            if profile:
-                from croniter import croniter
-                from datetime import UTC
-                next_run = croniter(cron_expr, datetime.now(UTC)).get_next(datetime)
-                await self._task_repo.create(
-                    user_id=profile.user_id,
-                    prompt="Create a backup of my data",
-                    schedule_type="cron",
-                    schedule_value=cron_expr,
-                    next_run_at=next_run,
+            await update.callback_query.message.reply_text(
+                "No auto-backup configured. You can enable it later in Settings.\n\n"
+                + HELP_TEXT,
+                parse_mode="Markdown",
+            )
+            return ConversationHandler.END
+
+        # Check for existing backup tasks
+        profile = await self._get_profile(update)
+        if profile:
+            existing = await self._task_repo.list_by_user(profile.user_id)
+            backup_tasks = [t for t in existing if "backup" in t.get("prompt", "").lower()]
+            if backup_tasks:
+                context.user_data["ob_backup_choice"] = choice
+                context.user_data["ob_backup_existing_id"] = backup_tasks[0]["id"]
+                existing_type = (
+                    "daily" if backup_tasks[0].get("schedule_value") == "0 2 * * *" else "weekly"
                 )
+                keyboard = [
+                    [InlineKeyboardButton(
+                        f"Replace ({existing_type} → {choice})",
+                        callback_data="ob_backup_confirm:replace",
+                    )],
+                    [InlineKeyboardButton(
+                        "Keep existing",
+                        callback_data="ob_backup_confirm:keep",
+                    )],
+                ]
+                await update.callback_query.message.reply_text(
+                    f"You already have a {existing_type} backup scheduled.\n"
+                    f"Would you like to replace it with {choice}?",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                )
+                return _OB_BACKUP_CONFIRM
+
+        await self._create_backup_task(profile, choice)
+        await update.callback_query.message.reply_text(
+            f"Auto-backup set to {choice}. You can change this in Settings.\n\n" + HELP_TEXT,
+            parse_mode="Markdown",
+        )
+        return ConversationHandler.END
+
+    async def _ob_handle_backup_confirm(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        await update.callback_query.answer()
+        action = update.callback_query.data.split(":", 1)[1]
+        choice = context.user_data.get("ob_backup_choice", "daily")
+        existing_id = context.user_data.get("ob_backup_existing_id")
+
+        if action == "replace":
+            if existing_id:
+                await self._task_repo.delete(existing_id)
+            profile = await self._get_profile(update)
+            await self._create_backup_task(profile, choice)
             msg = f"Auto-backup set to {choice}. You can change this in Settings."
+        else:
+            msg = "Keeping your existing backup schedule."
 
         await update.callback_query.message.reply_text(
             f"{msg}\n\n" + HELP_TEXT, parse_mode="Markdown"
         )
         return ConversationHandler.END
+
+    async def _create_backup_task(self, profile, choice: str) -> None:
+        """Create a backup scheduled task for the given frequency choice."""
+        if not profile:
+            return
+        cron_map = {"daily": "0 2 * * *", "weekly": "0 2 * * 0"}
+        cron_expr = cron_map[choice]
+        from croniter import croniter
+        from datetime import UTC
+        next_run = croniter(cron_expr, datetime.now(UTC)).get_next(datetime)
+        await self._task_repo.create(
+            user_id=profile.user_id,
+            prompt="Create a backup of my data",
+            schedule_type="cron",
+            schedule_value=cron_expr,
+            next_run_at=next_run,
+        )
 
     def onboard_conversation(self) -> ConversationHandler:
         """Return a configured ConversationHandler for /onboard."""
@@ -620,6 +678,11 @@ class CommandHandlers:
                     _OB_BACKUP: [
                         CallbackQueryHandler(
                             self._ob_handle_backup, pattern="^ob_backup:"
+                        ),
+                    ],
+                    _OB_BACKUP_CONFIRM: [
+                        CallbackQueryHandler(
+                            self._ob_handle_backup_confirm, pattern="^ob_backup_confirm:"
                         ),
                     ],
                 },
