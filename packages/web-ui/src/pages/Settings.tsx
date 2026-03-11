@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { User, Send, Smartphone, Cpu, Database, Globe, Clock, Coins, CalendarClock } from "lucide-react";
+import { User, Send, Smartphone, Cpu, Database, Globe, Clock, Coins, CalendarClock, Trash2, AlertTriangle, X, CheckCircle } from "lucide-react";
 import { DataTab } from "./settings/DataTab";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
@@ -28,16 +28,41 @@ export function Settings() {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState<string | null>(null);
+  const [confirmDeleteTask, setConfirmDeleteTask] = useState<ScheduledTask | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<number | null>(null);
+  const [taskSuccess, setTaskSuccess] = useState<string | null>(null);
+
+  async function loadTasks() {
+    setTasksLoading(true);
+    setTasksError(null);
+    try {
+      setTasks(await api.listScheduledTasks(USER_ID));
+    } catch (err) {
+      setTasksError(String(err));
+    } finally {
+      setTasksLoading(false);
+    }
+  }
+
+  async function executeDeleteTask(task: ScheduledTask) {
+    setConfirmDeleteTask(null);
+    setDeletingTaskId(task.id);
+    setTasksError(null);
+    try {
+      await api.deleteScheduledTask(task.id, USER_ID);
+      setTaskSuccess("Task removed successfully.");
+      setTimeout(() => setTaskSuccess(null), 4000);
+      await loadTasks();
+    } catch (err) {
+      setTasksError(String(err));
+    } finally {
+      setDeletingTaskId(null);
+    }
+  }
 
   useEffect(() => {
     if (activeTab !== "scheduled-tasks") return;
-    setTasksLoading(true);
-    setTasksError(null);
-    api
-      .listScheduledTasks(USER_ID)
-      .then(setTasks)
-      .catch((err) => setTasksError(String(err)))
-      .finally(() => setTasksLoading(false));
+    loadTasks();
   }, [activeTab]);
 
   const formData = {
@@ -353,7 +378,8 @@ export function Settings() {
                       <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Status</th>
                       <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Next Run</th>
                       <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Last Run</th>
-                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3">Linked Entity</th>
+                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3 pr-4">Linked Entity</th>
+                      <th className="text-[10px] font-black uppercase tracking-widest text-slate-500 pb-3"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -374,13 +400,76 @@ export function Settings() {
                         </td>
                         <td className="py-3 pr-4 text-slate-400 text-xs">{formatDateTime(task.next_run_at, profile.locale, profile.timezone)}</td>
                         <td className="py-3 pr-4 text-slate-400 text-xs">{task.last_run_at ? formatDateTime(task.last_run_at, profile.locale, profile.timezone) : "—"}</td>
-                        <td className="py-3 text-slate-400 text-xs">
+                        <td className="py-3 pr-4 text-slate-400 text-xs">
                           {task.subscription_id ? `Subscription` : task.asset_id ? `Savings` : "—"}
+                        </td>
+                        <td className="py-3 text-right">
+                          <button
+                            onClick={() => setConfirmDeleteTask(task)}
+                            disabled={deletingTaskId === task.id}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                            title="Remove task"
+                          >
+                            {deletingTaskId === task.id ? (
+                              <span className="w-4 h-4 block border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Success toast */}
+            {taskSuccess && (
+              <div className="fixed bottom-6 right-6 z-[110] animate-in slide-in-from-bottom-4 duration-300">
+                <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-xl rounded-xl px-5 py-3 shadow-lg">
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="text-sm text-emerald-300 font-medium">{taskSuccess}</span>
+                  <button onClick={() => setTaskSuccess(null)} className="text-emerald-400/60 hover:text-emerald-300 transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Delete confirmation modal */}
+            {confirmDeleteTask && (
+              <div className="fixed inset-0 z-[100] bg-dark/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl p-6 max-w-md w-full animate-in zoom-in-95 duration-200 shadow-2xl">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-red-500/10 rounded-xl">
+                      <AlertTriangle className="w-5 h-5 text-red-400" />
+                    </div>
+                    <h3 className="text-lg font-bold text-white">Remove Scheduled Task?</h3>
+                  </div>
+                  <p className="text-sm text-slate-400 mb-2">
+                    Are you sure you want to remove this task?
+                  </p>
+                  <p className="text-sm text-slate-300 font-mono bg-white/5 rounded-lg px-3 py-2 mb-4 truncate">
+                    {confirmDeleteTask.prompt}
+                  </p>
+                  <p className="text-xs text-red-400/80 mb-6">This action cannot be undone.</p>
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => setConfirmDeleteTask(null)}
+                      className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => executeDeleteTask(confirmDeleteTask)}
+                      className="px-4 py-2 text-sm font-bold text-white bg-red-500/80 hover:bg-red-500 rounded-xl transition-colors flex items-center gap-2"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Remove Task
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

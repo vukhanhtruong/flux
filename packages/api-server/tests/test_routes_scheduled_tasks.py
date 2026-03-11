@@ -52,3 +52,40 @@ def test_list_scheduled_tasks_missing_user_id(client):
     """Test GET /scheduled-tasks/ without user_id returns 422."""
     response = client.get("/scheduled-tasks/")
     assert response.status_code == 422
+
+
+def test_delete_scheduled_task(client):
+    """Test DELETE /scheduled-tasks/{task_id} returns 204 on success."""
+    with (
+        patch("flux_api.routes.scheduled_tasks.get_uow") as mock_get_uow,
+        patch("flux_api.routes.scheduled_tasks.CancelTask") as MockUC,
+    ):
+        mock_get_uow.return_value = MagicMock()
+        MockUC.return_value.execute = AsyncMock(
+            return_value={"status": "cancelled", "task_id": 1}
+        )
+        response = client.delete("/scheduled-tasks/1?user_id=user-1")
+
+    assert response.status_code == 204
+    MockUC.return_value.execute.assert_called_once_with("user-1", 1)
+
+
+def test_delete_scheduled_task_not_found(client):
+    """Test DELETE /scheduled-tasks/{task_id} returns 404 when task not found."""
+    with (
+        patch("flux_api.routes.scheduled_tasks.get_uow") as mock_get_uow,
+        patch("flux_api.routes.scheduled_tasks.CancelTask") as MockUC,
+    ):
+        mock_get_uow.return_value = MagicMock()
+        MockUC.return_value.execute = AsyncMock(
+            return_value={"status": "error", "message": "Task 999 not found."}
+        )
+        response = client.delete("/scheduled-tasks/999?user_id=user-1")
+
+    assert response.status_code == 404
+
+
+def test_delete_scheduled_task_missing_user_id(client):
+    """Test DELETE /scheduled-tasks/{task_id} without user_id returns 422."""
+    response = client.delete("/scheduled-tasks/1")
+    assert response.status_code == 422

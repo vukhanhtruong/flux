@@ -215,6 +215,13 @@ class ApiClient {
     return result.tasks;
   }
 
+  async deleteScheduledTask(taskId: number, userId: string): Promise<void> {
+    const params = new URLSearchParams({ user_id: userId });
+    return this.request(`/scheduled-tasks/${taskId}?${params}`, {
+      method: "DELETE",
+    });
+  }
+
   // Backups
   async createBackup(storage: string = "local"): Promise<BackupMetadata> {
     const params = new URLSearchParams({ storage });
