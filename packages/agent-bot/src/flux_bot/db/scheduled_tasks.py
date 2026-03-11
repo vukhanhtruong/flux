@@ -13,6 +13,26 @@ class ScheduledTaskRepository:
     def _repo(self) -> SqliteBotScheduledTaskRepository:
         return SqliteBotScheduledTaskRepository(self._db.connection())
 
+    async def create(
+        self,
+        *,
+        user_id: str,
+        prompt: str,
+        schedule_type: str,
+        schedule_value: str,
+        next_run_at: datetime,
+    ) -> int:
+        """Create a new scheduled task and return its ID."""
+        task_id = self._repo().create(
+            user_id=user_id,
+            prompt=prompt,
+            schedule_type=schedule_type,
+            schedule_value=schedule_value,
+            next_run_at=next_run_at,
+        )
+        self._db.connection().commit()
+        return task_id
+
     async def fetch_due_tasks(self) -> list[dict]:
         """Fetch active tasks whose next_run_at is now or in the past."""
         return self._repo().fetch_due_tasks()

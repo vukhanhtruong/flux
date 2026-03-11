@@ -679,6 +679,20 @@ class CommandHandlers:
         if choice == "never":
             msg = "No auto-backup configured. You can always use /backup manually."
         else:
+            cron_map = {"daily": "0 2 * * *", "weekly": "0 2 * * 0"}
+            cron_expr = cron_map[choice]
+            profile = await self._get_profile(update)
+            if profile:
+                from croniter import croniter
+                from datetime import UTC
+                next_run = croniter(cron_expr, datetime.now(UTC)).get_next(datetime)
+                await self._task_repo.create(
+                    user_id=profile.user_id,
+                    prompt="Create a backup of my data",
+                    schedule_type="cron",
+                    schedule_value=cron_expr,
+                    next_run_at=next_run,
+                )
             msg = f"Auto-backup set to {choice}. You can change this in Settings."
 
         await update.callback_query.message.reply_text(

@@ -682,37 +682,58 @@ async def test_onboard_conversation_handles_ob_tz_callbacks():
 # /onboard — backup preference step (4/4)
 # ---------------------------------------------------------------------------
 
-async def test_ob_handle_backup_daily():
+async def test_ob_handle_backup_daily_creates_scheduled_task():
     from telegram.ext import ConversationHandler
-    handlers = _make_handlers()
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    handlers.task_repo.create = AsyncMock(return_value=1)
     update = _make_callback_update(callback_data="ob_backup:daily")
     result = await handlers._ob_handle_backup(update, _make_context())
     assert result == ConversationHandler.END
     update.callback_query.answer.assert_called_once()
     text = update.callback_query.message.reply_text.call_args[0][0]
-    assert "daily" in text
+    assert "daily" in text.lower()
     assert HELP_TEXT in text
+    # Must actually create a scheduled task
+    handlers.task_repo.create.assert_called_once()
+    call_kwargs = handlers.task_repo.create.call_args
+    assert call_kwargs[1]["user_id"] == "tg:12345"
+    assert call_kwargs[1]["schedule_type"] == "cron"
+    assert call_kwargs[1]["schedule_value"] == "0 2 * * *"
+    assert "backup" in call_kwargs[1]["prompt"].lower()
 
 
-async def test_ob_handle_backup_weekly():
+async def test_ob_handle_backup_weekly_creates_scheduled_task():
     from telegram.ext import ConversationHandler
-    handlers = _make_handlers()
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    handlers.task_repo.create = AsyncMock(return_value=2)
     update = _make_callback_update(callback_data="ob_backup:weekly")
     result = await handlers._ob_handle_backup(update, _make_context())
     assert result == ConversationHandler.END
     text = update.callback_query.message.reply_text.call_args[0][0]
-    assert "weekly" in text
+    assert "weekly" in text.lower()
+    # Must actually create a scheduled task
+    handlers.task_repo.create.assert_called_once()
+    call_kwargs = handlers.task_repo.create.call_args
+    assert call_kwargs[1]["user_id"] == "tg:12345"
+    assert call_kwargs[1]["schedule_type"] == "cron"
+    assert call_kwargs[1]["schedule_value"] == "0 2 * * 0"
+    assert "backup" in call_kwargs[1]["prompt"].lower()
 
 
-async def test_ob_handle_backup_never():
+async def test_ob_handle_backup_never_does_not_create_task():
     from telegram.ext import ConversationHandler
     handlers = _make_handlers()
+    handlers.task_repo.create = AsyncMock()
     update = _make_callback_update(callback_data="ob_backup:never")
     result = await handlers._ob_handle_backup(update, _make_context())
     assert result == ConversationHandler.END
     text = update.callback_query.message.reply_text.call_args[0][0]
     assert "No auto-backup" in text
     assert "/backup" in text
+    # Must NOT create a scheduled task
+    handlers.task_repo.create.assert_not_called()
 
 
 async def test_onboard_conversation_handles_ob_backup_callbacks():
