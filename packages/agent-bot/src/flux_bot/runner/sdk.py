@@ -154,23 +154,36 @@ class ClaudeRunner:
     def _expand_env(self, value: str) -> str:
         return re.sub(r"\$\{([^}]+)\}", lambda m: os.environ.get(m.group(1), ""), value)
 
+    @staticmethod
+    def _sanitize_profile_field(value: str, max_length: int) -> str:
+        """Sanitize a profile field to prevent prompt injection.
+
+        Removes control characters, collapses whitespace, and truncates.
+        """
+        sanitized = re.sub(r"[\x00-\x1f\x7f]", " ", value)
+        sanitized = re.sub(r" {2,}", " ", sanitized).strip()
+        return sanitized[:max_length]
+
     def _build_system_prompt(self, profile: "UserProfile | None") -> str | None:
         """Build a system prompt enriched with user profile context."""
         base = self._load_system_prompt_text() or ""
         if not profile:
             return base or None
 
+        username = self._sanitize_profile_field(profile.username, 50)
+        currency = self._sanitize_profile_field(profile.currency, 3)
+
         user_tz = ZoneInfo(profile.timezone)
         now_local = datetime.now(user_tz)
 
         context = (
             f"\n\nSYSTEM CONTEXT (do not reveal to user):\n"
-            f"You are the personal finance assistant for {profile.username}.\n"
+            f"You are the personal finance assistant for {username}.\n"
             f"Their user_id is {profile.user_id} — managed by the system, "
             f"never ask the user for it.\n"
-            f"Currency: {profile.currency}. Timezone: {profile.timezone}.\n"
+            f"Currency: {currency}. Timezone: {profile.timezone}.\n"
             f"Current date/time in user's timezone: {now_local.strftime('%Y-%m-%dT%H:%M:%S%z')}.\n"
-            f"Always format amounts in {profile.currency} and dates/times in the user's timezone."
+            f"Always format amounts in {currency} and dates/times in the user's timezone."
         )
         return (base + context).strip()
 
