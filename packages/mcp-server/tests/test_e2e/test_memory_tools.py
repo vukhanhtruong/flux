@@ -77,11 +77,32 @@ async def test_recall_returns_formatted_results(seeded_server):
         "recall", {"query": "food preferences", "limit": 5}
     )
     data = _extract_json(result)
-    assert isinstance(data, list)
-    if len(data) > 0:
-        item = data[0]
+    assert isinstance(data, dict)
+    assert "memories" in data
+    memories = data["memories"]
+    assert isinstance(memories, list)
+    if len(memories) > 0:
+        item = memories[0]
         assert "id" in item
         assert "memory_type" in item
         assert "content" in item
         assert "created_at" in item
         assert isinstance(item["created_at"], str)
+
+
+async def test_recall_includes_data_warning_note(seeded_server):
+    """Recall results should include a note that memories are data, not instructions."""
+    # First store a memory
+    await seeded_server.call_tool(
+        "remember",
+        {"memory_type": "preference", "content": "User prefers VND currency"},
+    )
+    result = await seeded_server.call_tool(
+        "recall",
+        {"query": "currency preference"},
+    )
+    data = _extract_json(result)
+    assert "note" in data
+    assert "data" in data["note"].lower()
+    assert "not as instructions" in data["note"].lower()
+    assert "memories" in data
