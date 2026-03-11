@@ -123,7 +123,7 @@ def _format_tz_button_label(iana_id: str) -> str:
 _MENU, _EDIT_CURRENCY, _EDIT_TIMEZONE, _EDIT_USERNAME = range(4)
 
 # ConversationHandler states for /onboard
-_OB_CURRENCY, _OB_TIMEZONE, _OB_USERNAME, _OB_BACKUP, _OB_BACKUP_CONFIRM = range(5)
+_OB_CURRENCY, _OB_TIMEZONE, _OB_USERNAME, _OB_BACKUP, _OB_BACKUP_CONFIRM, _OB_ADVISOR = range(6)
 
 HELP_TEXT = """\
 Here are some things you can ask me:
@@ -399,12 +399,12 @@ class CommandHandlers:
     async def _send_ob_currency_prompt(self, source, profile) -> None:
         if profile is None:
             await source.message.reply_text(
-                "Let's set up your profile. (1/4)\n\nCurrency — type a code (e.g. USD, VND, EUR):"
+                "Let's set up your profile. (1/5)\n\nCurrency — type a code (e.g. USD, VND, EUR):"
             )
         else:
             keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
             await source.message.reply_text(
-                "🚀 Let's walk through your preferences. (1/4)\n\n"
+                "🚀 Let's walk through your preferences. (1/5)\n\n"
                 "💱 Currency\n"
                 f"Current: {profile.currency}\n\n"
                 "Type a new currency code (e.g. USD, VND, EUR), or tap Skip.",
@@ -414,14 +414,14 @@ class CommandHandlers:
     async def _send_ob_timezone_prompt(self, source, profile) -> None:
         if profile is None:
             await source.message.reply_text(
-                "Timezone (2/4)\n\n"
+                "Timezone (2/5)\n\n"
                 "Pick one or type another (e.g. America/Chicago), "
                 "or type your country or city (e.g. Vietnam, Japan, London):"
             )
         else:
             keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
             await source.message.reply_text(
-                "🕐 Timezone (2/4)\n\n"
+                "🕐 Timezone (2/5)\n\n"
                 f"Current: {profile.timezone}\n\n"
                 "Pick one, tap Skip, or type your country or city.",
                 reply_markup=InlineKeyboardMarkup(keyboard),
@@ -429,11 +429,11 @@ class CommandHandlers:
 
     async def _send_ob_username_prompt(self, source, profile) -> None:
         if profile is None:
-            await source.message.reply_text("Username (3/4)\n\nType a display name:")
+            await source.message.reply_text("Username (3/5)\n\nType a display name:")
         else:
             keyboard = [[InlineKeyboardButton("Skip →", callback_data="ob_skip")]]
             await source.message.reply_text(
-                "👤 Username (3/4)\n\n"
+                "👤 Username (3/5)\n\n"
                 f"Current: {profile.username}\n\n"
                 "Type a new display name, or tap Skip.",
                 reply_markup=InlineKeyboardMarkup(keyboard),
@@ -556,7 +556,7 @@ class CommandHandlers:
             [InlineKeyboardButton("Never", callback_data="ob_backup:never")],
         ]
         await source.message.reply_text(
-            "Auto-backup (4/4)\n\n"
+            "Auto-backup (4/5)\n\n"
             "How often should I automatically backup your data?",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
@@ -569,11 +569,10 @@ class CommandHandlers:
 
         if choice == "never":
             await update.callback_query.message.reply_text(
-                "No auto-backup configured. You can enable it later in Settings.\n\n"
-                + HELP_TEXT,
-                parse_mode="Markdown",
+                "No auto-backup configured.",
             )
-            return ConversationHandler.END
+            await self._send_ob_advisor_prompt(update.callback_query)
+            return _OB_ADVISOR
 
         # Check for existing backup tasks
         profile = await self._get_profile(update)
@@ -605,10 +604,10 @@ class CommandHandlers:
 
         await self._create_backup_task(profile, choice)
         await update.callback_query.message.reply_text(
-            f"Auto-backup set to {choice}. You can change this in Settings.\n\n" + HELP_TEXT,
-            parse_mode="Markdown",
+            f"Auto-backup set to {choice}.",
         )
-        return ConversationHandler.END
+        await self._send_ob_advisor_prompt(update.callback_query)
+        return _OB_ADVISOR
 
     async def _ob_handle_backup_confirm(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -623,14 +622,86 @@ class CommandHandlers:
                 await self._task_repo.delete(existing_id)
             profile = await self._get_profile(update)
             await self._create_backup_task(profile, choice)
-            msg = f"Auto-backup set to {choice}. You can change this in Settings."
+            msg = f"Auto-backup set to {choice}."
         else:
             msg = "Keeping your existing backup schedule."
 
+        await update.callback_query.message.reply_text(msg)
+        await self._send_ob_advisor_prompt(update.callback_query)
+        return _OB_ADVISOR
+
+    async def _send_ob_advisor_prompt(self, source) -> None:
+        keyboard = [
+            [
+                InlineKeyboardButton("Sunday evening", callback_data="ob_advisor:sunday"),
+                InlineKeyboardButton("Monday morning", callback_data="ob_advisor:monday"),
+            ],
+            [
+                InlineKeyboardButton("Skip", callback_data="ob_advisor:skip"),
+            ],
+        ]
+        await source.message.reply_text(
+            "Weekly advisor check-in (5/5)\n\n"
+            "Want a weekly financial summary with insights and tips?",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    async def _ob_handle_advisor(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        await update.callback_query.answer()
+        choice = update.callback_query.data.split(":", 1)[1]
+
+        if choice == "skip":
+            await update.callback_query.message.reply_text(
+                "No weekly check-in configured.\n\n" + HELP_TEXT,
+                parse_mode="Markdown",
+            )
+            return ConversationHandler.END
+
+        profile = await self._get_profile(update)
+        if not profile:
+            await update.callback_query.message.reply_text(
+                "Setup complete!\n\n" + HELP_TEXT, parse_mode="Markdown"
+            )
+            return ConversationHandler.END
+
+        if choice == "sunday":
+            cron_expr = "0 19 * * 0"
+            label = "Sunday at 7:00 PM"
+        else:  # monday
+            cron_expr = "0 9 * * 1"
+            label = "Monday at 9:00 AM"
+
+        await self._create_advisor_task(profile, cron_expr)
         await update.callback_query.message.reply_text(
-            f"{msg}\n\n" + HELP_TEXT, parse_mode="Markdown"
+            f"Weekly check-in scheduled for {label}.\n\n" + HELP_TEXT,
+            parse_mode="Markdown",
         )
         return ConversationHandler.END
+
+    async def _create_advisor_task(self, profile, cron_expr: str) -> None:
+        """Create a scheduled task for weekly advisor check-in."""
+        from croniter import croniter
+        from datetime import UTC
+
+        prompt = (
+            "Run a weekly financial advisor check-in for the user:\n"
+            "1. Call generate_spending_report for the past 7 days\n"
+            "2. Call list_budgets to check budget adherence\n"
+            "3. Call list_goals to check goal progress\n"
+            "4. Call get_trends comparing this week vs last week\n"
+            "5. Summarize findings: highlight wins, flag concerns, give 1-2 actionable tips\n"
+            "6. Send the summary to the user via send_message"
+        )
+        next_run = croniter(cron_expr, datetime.now(UTC)).get_next(datetime)
+        await self._task_repo.create(
+            user_id=profile.user_id,
+            prompt=prompt,
+            schedule_type="cron",
+            schedule_value=cron_expr,
+            next_run_at=next_run,
+        )
 
     async def _create_backup_task(self, profile, choice: str) -> None:
         """Create a backup scheduled task for the given frequency choice."""
@@ -683,6 +754,11 @@ class CommandHandlers:
                     _OB_BACKUP_CONFIRM: [
                         CallbackQueryHandler(
                             self._ob_handle_backup_confirm, pattern="^ob_backup_confirm:"
+                        ),
+                    ],
+                    _OB_ADVISOR: [
+                        CallbackQueryHandler(
+                            self._ob_handle_advisor, pattern="^ob_advisor:"
                         ),
                     ],
                 },
