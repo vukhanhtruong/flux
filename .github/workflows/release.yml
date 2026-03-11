@@ -1,0 +1,145 @@
+name: Release to Docker Hub
+
+on:
+  release:
+    types: [published]
+
+env:
+  DOCKERHUB_REPO: ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.DOCKERHUB_REPO || 'flux' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('packages/*/pyproject.toml') }}
+          restore-keys: pip-
+
+      - name: Install all packages
+        run: |
+          pip install --upgrade pip
+          pip install \
+            "./packages/core[dev,vector,embeddings,backup]" \
+            "./packages/api-server[dev]" \
+            "./packages/mcp-server[dev]" \
+            "./packages/agent-bot[dev]"
+
+      - name: Run tests with coverage
+        env:
+          DATABASE_PATH: /tmp/flux-test/flux.db
+          ZVEC_PATH: /tmp/flux-test/zvec
+        run: |
+          mkdir -p /tmp/flux-test/sqlite /tmp/flux-test/zvec
+
+          PACKAGES=(core api-server mcp-server agent-bot)
+          FAILED=()
+
+          for pkg in "${PACKAGES[@]}"; do
+            echo "::group::Testing packages/$pkg"
+            if ! pytest "packages/$pkg/tests/" -v --tb=short \
+              --cov="packages/$pkg/src" --cov-report=term-missing \
+              --cov-report=xml:"coverage-$pkg.xml" \
+              --cov-fail-under=90; then
+              FAILED+=("$pkg")
+            fi
+            echo "::endgroup::"
+          done
+
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo "::error::Tests failed in: ${FAILED[*]}"
+            exit 1
+          fi
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: coverage-*.xml
+          retention-days: 30
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Scan Python dependencies for known vulnerabilities
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit Python dependencies
+        run: |
+          pip install \
+            "./packages/core[vector,embeddings,backup]" \
+            "./packages/api-server" \
+            "./packages/mcp-server" \
+            "./packages/agent-bot"
+          pip-audit --strict --desc
+
+      # Scan Dockerfile and filesystem for misconfigurations
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: 1
+          format: table
+
+  build-and-push:
+    name: Build & Push Docker Image
+    needs: [test, security]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker meta (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKERHUB_REPO }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VITE_API_BASE_URL=/api
+            VITE_USER_ID=tg:demo-user

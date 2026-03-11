@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+
+# CI/CD
+.github
+
+# Development
+.venv
+.worktrees
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+.mypy_cache
+htmlcov
+.coverage
+*.egg-info
+
+# Node
+packages/web-ui/node_modules
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Documentation (not needed in image)
+docs/
+*.md
+!packages/*/README.md
+
+# Environment / secrets
+.env
+.env.*
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Firebase legacy
+firebase/
+
+# Misc
+LICENSE
+test-all.sh
+dev.sh
