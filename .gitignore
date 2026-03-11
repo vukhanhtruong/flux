@@ -19,4 +19,6 @@ dist/
 finbot/
 docs/plans
 design-system/
+/agent-hallucination-04.md ...
 .coverage
+coverage/

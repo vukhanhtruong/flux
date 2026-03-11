@@ -21,6 +21,10 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Cache pip packages
         uses: actions/cache@v4
         with:
@@ -63,6 +67,12 @@ jobs:
             exit 1
           fi
 
+      - name: Run web-ui tests
+        run: |
+          cd packages/web-ui
+          npm install
+          npm run test -- --coverage
+          
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4

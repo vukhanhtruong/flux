@@ -64,6 +64,25 @@ for pkg in "${PACKAGES[@]}"; do
     fi
 done
 
+# --- Run tests for web-ui (React/Vitest) -------------------------------------
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Testing: web-ui"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if ! (cd "$ROOT/packages/web-ui" && npm install); then
+    FAILED+=("web-ui (install)")
+else
+    if $COVERAGE; then
+        if ! (cd "$ROOT/packages/web-ui" && npm run test -- --coverage); then
+            FAILED+=("web-ui")
+        fi
+    else
+        if ! (cd "$ROOT/packages/web-ui" && npm run test); then
+            FAILED+=("web-ui")
+        fi
+    fi
+fi
+
 # --- Performance benchmarks --------------------------------------------------
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

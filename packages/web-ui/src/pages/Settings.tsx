@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { User, Send, Smartphone, Cpu, Database, Globe, Clock, Coins, CalendarClock, Trash2, AlertTriangle, X, CheckCircle } from "lucide-react";
 import { DataTab } from "./settings/DataTab";
 import { USER_ID } from "../lib/constants";
@@ -20,6 +20,14 @@ function formatScheduleValue(type: string, value: string): string {
   return value;
 }
 
+const TABS: { key: Tab; label: string }[] = [
+  { key: "general", label: "General" },
+  { key: "data", label: "Data" },
+  { key: "scheduled-tasks", label: "Scheduled Tasks" },
+  { key: "messaging", label: "Messaging Platforms" },
+  { key: "system", label: "System" },
+];
+
 export function Settings() {
   const { profile, loading, error } = useProfile();
   const [activeTab, setActiveTab] = useState<Tab>("general");
@@ -32,19 +40,22 @@ export function Settings() {
   const [deletingTaskId, setDeletingTaskId] = useState<number | null>(null);
   const [taskSuccess, setTaskSuccess] = useState<string | null>(null);
 
-  async function loadTasks() {
+  const loadTasks = useCallback(async (signal?: AbortSignal) => {
     setTasksLoading(true);
     setTasksError(null);
     try {
-      setTasks(await api.listScheduledTasks(USER_ID));
+      const data = await api.listScheduledTasks(USER_ID);
+      if (signal?.aborted) return;
+      setTasks(data);
     } catch (err) {
+      if (signal?.aborted) return;
       setTasksError(String(err));
     } finally {
-      setTasksLoading(false);
+      if (!signal?.aborted) setTasksLoading(false);
     }
-  }
+  }, []);
 
-  async function executeDeleteTask(task: ScheduledTask) {
+  const executeDeleteTask = useCallback(async (task: ScheduledTask) => {
     setConfirmDeleteTask(null);
     setDeletingTaskId(task.id);
     setTasksError(null);
@@ -58,22 +69,24 @@ export function Settings() {
     } finally {
       setDeletingTaskId(null);
     }
-  }
+  }, [loadTasks]);
 
   useEffect(() => {
     if (activeTab !== "scheduled-tasks") return;
-    loadTasks();
-  }, [activeTab]);
+    const controller = new AbortController();
+    loadTasks(controller.signal);
+    return () => controller.abort();
+  }, [activeTab, loadTasks]);
 
-  const formData = {
+  const formData = useMemo(() => ({
     currency: profile.currency,
     timezone: profile.timezone,
     locale: profile.locale,
-  };
+  }), [profile.currency, profile.timezone, profile.locale]);
 
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-  async function checkHealth() {
+  const checkHealth = useCallback(async () => {
     try {
       const res = await fetch(`${apiBaseUrl}/health`);
       if (res.ok) {
@@ -85,15 +98,7 @@ export function Settings() {
     } catch (err) {
       setHealthStatus(`Unreachable - ${err}`);
     }
-  }
-
-  const tabs: { key: Tab; label: string }[] = [
-    { key: "general", label: "General" },
-    { key: "data", label: "Data" },
-    { key: "scheduled-tasks", label: "Scheduled Tasks" },
-    { key: "messaging", label: "Messaging Platforms" },
-    { key: "system", label: "System" },
-  ];
+  }, [apiBaseUrl]);
 
   return (
     <div className="space-y-10">
@@ -105,7 +110,7 @@ export function Settings() {
       </div>
 
       <div className="flex gap-2 p-1 bg-white/5 rounded-xl max-w-full overflow-x-auto custom-scrollbar border border-white/5">
-        {tabs.map((tab) => (
+        {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}

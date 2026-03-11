@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   AreaChart,
   Area,
@@ -44,6 +44,8 @@ export function Dashboard() {
   const [chartData, setChartData] = useState<{ name: string; expense: number; income: number; fullDate: string }[]>([]);
 
   useEffect(() => {
+    const abortController = new AbortController();
+
     async function fetchData() {
       setLoading(true);
       try {
@@ -53,11 +55,15 @@ export function Dashboard() {
           .split("T")[0];
         const endDate = new Date().toISOString().split("T")[0];
 
+        // We wrap fetching but abort won't natively cancel fetch inside api wrapper unless
+        // we pass signal, but it will prevent state setting on unmount.
         const [allTxns, healthData, assetsData] = await Promise.all([
           api.listTransactions(USER_ID, 200),
           api.getFinancialHealth(USER_ID, startDate, endDate),
           api.listAssets(USER_ID),
         ]);
+
+        if (abortController.signal.aborted) return;
 
         setTransactions(allTxns.slice(0, 5));
         setHealth(healthData);
@@ -91,15 +97,28 @@ export function Dashboard() {
           }))
           .sort((a, b) => a.fullDate.localeCompare(b.fullDate));
 
+        if (abortController.signal.aborted) return;
         setChartData(formattedData);
       } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
+        if (!abortController.signal.aborted) {
+          console.error("Failed to fetch dashboard data:", error);
+        }
       } finally {
-        setLoading(false);
+        if (!abortController.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
     fetchData();
-  }, [timeRange, profile.locale]);
+
+    return () => {
+      abortController.abort();
+    };
+  }, [timeRange, profile.locale, profile.timezone]);
+
+  const handleTimeRangeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setTimeRange(e.target.value as "7d" | "30d");
+  }, []);
 
   if (loading) {
     return (
@@ -175,7 +194,7 @@ export function Dashboard() {
             <h2 className="text-xl font-bold text-white">Financial Overview</h2>
             <select
               value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value as "7d" | "30d")}
+              onChange={handleTimeRangeChange}
               className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-slate-300 outline-none focus:border-primary/50 transition-colors cursor-pointer"
             >
               <option value="7d" className="bg-dark">
@@ -312,7 +331,7 @@ export function Dashboard() {
   );
 }
 
-function AssetOverviewCard({
+const AssetOverviewCard = React.memo(function AssetOverviewCard({
   assets,
   snapshots,
 }: {
@@ -332,9 +351,11 @@ function AssetOverviewCard({
     }),
   }));
 
-  const topAssets = [...assets]
-    .sort((a, b) => Number(b.value ?? b.amount ?? 0) - Number(a.value ?? a.amount ?? 0))
-    .slice(0, 3);
+  const topAssets = useMemo(() => {
+    return [...assets]
+      .sort((a, b) => Number(b.value ?? b.amount ?? 0) - Number(a.value ?? a.amount ?? 0))
+      .slice(0, 3);
+  }, [assets]);
 
   return (
     <div className="glass-card p-4 md:p-6 lg:p-8">
@@ -417,9 +438,10 @@ function AssetOverviewCard({
       </div>
     </div>
   );
-}
+  }
+);
 
-function HealthCard({ title, value, icon: Icon, color, bgColor }: any) {
+const HealthCard = React.memo(function HealthCard({ title, value, icon: Icon, color, bgColor }: any) {
   return (
     <div className="glass-card p-6 border-l-4 border-l-transparent hover:border-l-primary transition-all duration-300">
       <div className="flex items-center justify-between mb-4">
@@ -431,4 +453,4 @@ function HealthCard({ title, value, icon: Icon, color, bgColor }: any) {
       <p className="text-3xl font-bold text-white tracking-tight">{value}</p>
     </div>
   );
-}
+});
