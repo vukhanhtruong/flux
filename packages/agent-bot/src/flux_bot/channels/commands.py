@@ -673,6 +673,12 @@ class CommandHandlers:
             cron_expr = "0 9 * * 1"
             label = "Monday at 9:00 AM"
 
+        # Remove existing advisor tasks to prevent duplicates on re-onboard
+        existing = await self._task_repo.list_by_user(profile.user_id)
+        for t in existing:
+            if "weekly financial advisor check-in" in t.get("prompt", "").lower():
+                await self._task_repo.delete(t["id"])
+
         await self._create_advisor_task(profile, cron_expr)
         await update.callback_query.message.reply_text(
             f"Weekly check-in scheduled for {label}.\n\n" + HELP_TEXT,

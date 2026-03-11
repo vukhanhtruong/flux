@@ -1,6 +1,14 @@
 from typing import Callable
 
 from fastmcp import FastMCP
+from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
+from flux_core.uow.unit_of_work import UnitOfWork
+from flux_core.use_cases.bot.cancel_task import CancelTask
+from flux_core.use_cases.bot.list_tasks import ListTasks
+from flux_core.use_cases.bot.pause_task import PauseTask
+from flux_core.use_cases.bot.resume_task import ResumeTask
+from flux_core.use_cases.bot.schedule_task import ScheduleTask
+from flux_core.use_cases.bot.send_message import SendMessage
 
 _MAX_PROMPT_LENGTH = 2000
 
@@ -19,14 +27,6 @@ _BLOCKED_PHRASES = [
     "pretend you",
     "you are now",
 ]
-from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
-from flux_core.uow.unit_of_work import UnitOfWork
-from flux_core.use_cases.bot.cancel_task import CancelTask
-from flux_core.use_cases.bot.list_tasks import ListTasks
-from flux_core.use_cases.bot.pause_task import PauseTask
-from flux_core.use_cases.bot.resume_task import ResumeTask
-from flux_core.use_cases.bot.schedule_task import ScheduleTask
-from flux_core.use_cases.bot.send_message import SendMessage
 
 
 def register_ipc_tools(
