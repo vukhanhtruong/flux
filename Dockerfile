@@ -24,11 +24,16 @@ RUN npm run build
 # --- Stage 2: Runtime ---------------------------------------------------------
 FROM python:3.12-slim
 
-# Install Nginx + Node.js (for Claude CLI used by agent-bot)
+# Install Nginx + Node.js (for Claude CLI used by agent-bot) + ngrok (for web UI tunnel)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         curl \
         gosu \
+        gnupg \
+        procps \
+    && curl -fsSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | gpg --dearmor -o /usr/share/keyrings/ngrok.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/ngrok.gpg] https://ngrok-agent.s3.amazonaws.com buster main" > /etc/apt/sources.list.d/ngrok.list \
+    && apt-get update && apt-get install -y --no-install-recommends ngrok \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g npm@latest \

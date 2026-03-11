@@ -83,13 +83,15 @@ class TunnelManager:
 
     async def stop_tunnel(self, user_id: str) -> dict:
         """Stop an active tunnel for the given user."""
-        if user_id not in self._tunnels:
-            return {"status": "error", "error": "No active tunnel for this user."}
+        if user_id in self._tunnels:
+            info = self._tunnels.pop(user_id)
+            if info.expire_task:
+                info.expire_task.cancel()
+            await asyncio.to_thread(self._kill_ngrok, info.pid)
+            return {"status": "ok"}
 
-        info = self._tunnels.pop(user_id)
-        if info.expire_task:
-            info.expire_task.cancel()
-        await asyncio.to_thread(self._kill_ngrok, info.pid)
+        # No tracked tunnel — kill any ngrok process (may be orphaned from previous session)
+        await self._kill_all_ngrok()
         return {"status": "ok"}
 
     def _start_ngrok_process(self) -> int:

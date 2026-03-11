@@ -84,13 +84,15 @@ async def test_stop_tunnel():
     mock_kill.assert_called_once_with(12345)
 
 
-async def test_stop_tunnel_no_active():
-    """stop_tunnel returns error when no tunnel is active for user."""
+async def test_stop_tunnel_no_tracked_kills_all():
+    """stop_tunnel always runs pkill when no tunnel is tracked (best-effort kill)."""
     manager = TunnelManager(port=80, timeout_minutes=30)
-    result = await manager.stop_tunnel("tg:123")
 
-    assert result["status"] == "error"
-    assert "No active tunnel" in result["error"]
+    with patch.object(manager, "_kill_all_ngrok") as mock_kill_all:
+        result = await manager.stop_tunnel("tg:123")
+
+    assert result["status"] == "ok"
+    mock_kill_all.assert_awaited_once()
 
 
 async def test_auto_expire():

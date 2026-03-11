@@ -36,7 +36,7 @@ services:
       MCP_CONFIG_PATH: /app/mcp-config.json
       BACKUP_LOCAL_DIR: /data/backups
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
-      NGROK_TUNNEL_PORT: ${NGROK_TUNNEL_PORT:-}
+      NGROK_TUNNEL_PORT: 80
     volumes:
       - flux_data:/data
     restart: unless-stopped

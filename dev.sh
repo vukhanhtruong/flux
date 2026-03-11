@@ -122,6 +122,10 @@ info "  API:    http://localhost:8000"
 info "  Docs:   http://localhost:8000/docs"
 info "  Web UI: http://localhost:5173"
 info "  Data:   $DATA"
+if ! command -v ngrok &>/dev/null; then
+    warn "ngrok is not installed — web UI tunnel (start_web_ui_tunnel) will not work."
+    warn "Install it: https://ngrok.com/download"
+fi
 info ""
 info "Press Ctrl+C to stop all services."
 echo ""
