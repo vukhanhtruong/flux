@@ -60,9 +60,13 @@ class RestoreBackup:
                 if "flux.db" not in names:
                     raise ValueError("Invalid backup: missing flux.db")
 
-            # 4. Extract to temp
+            # 4. Extract to temp (with path traversal protection)
             extract_dir = tmp / "extracted"
             with zipfile.ZipFile(zip_path) as zf:
+                for member in zf.namelist():
+                    member_path = (extract_dir / member).resolve()
+                    if not str(member_path).startswith(str(extract_dir.resolve())):
+                        raise ValueError(f"Invalid archive member: {member}")
                 zf.extractall(extract_dir)
 
             # 5. Validate SQLite integrity

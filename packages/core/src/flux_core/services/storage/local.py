@@ -14,14 +14,21 @@ class LocalStorageProvider:
         self._dir = Path(backup_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
 
+    def _safe_path(self, key: str) -> Path:
+        """Resolve key within backup dir, rejecting path traversal."""
+        target = (self._dir / key).resolve()
+        if not str(target).startswith(str(self._dir.resolve())):
+            raise ValueError(f"Invalid storage key: {key}")
+        return target
+
     async def upload(self, file_path: Path, key: str) -> str:
-        dest = self._dir / key
+        dest = self._safe_path(key)
         shutil.copy2(file_path, dest)
         return key
 
     async def download(self, key: str, dest: Path) -> Path:
         dest.mkdir(parents=True, exist_ok=True)
-        src = self._dir / key
+        src = self._safe_path(key)
         target = dest / key
         shutil.copy2(src, target)
         return target
@@ -45,6 +52,6 @@ class LocalStorageProvider:
         return backups
 
     async def delete(self, key: str) -> None:
-        path = self._dir / key
+        path = self._safe_path(key)
         if path.exists():
             path.unlink()
