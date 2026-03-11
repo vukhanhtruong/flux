@@ -2,7 +2,28 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from fastmcp import FastMCP
 from flux_core.models.backup import BackupMetadata
+
+
+async def test_restore_backup_tool_not_registered():
+    """restore_backup should NOT be registered as an MCP tool (admin-only via CLI)."""
+    mcp = FastMCP("test")
+    from flux_mcp.tools.backup_tools import register_backup_tools
+
+    register_backup_tools(
+        mcp=mcp,
+        get_db=MagicMock,
+        get_local_storage=MagicMock,
+        get_s3_storage=MagicMock,
+    )
+    tools = await mcp.list_tools()
+    tool_names = [t.name for t in tools]
+    assert "restore_backup" not in tool_names
+    # Verify other backup tools are still registered
+    assert "create_backup" in tool_names
+    assert "list_backups" in tool_names
+    assert "delete_backup" in tool_names
 
 
 async def test_create_backup_tool():

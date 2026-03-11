@@ -135,24 +135,3 @@ def register_backup_tools(
             storage=storage,
         )
 
-    @mcp.tool()
-    async def restore_backup(
-        file_path: str | None = None, s3_key: str | None = None
-    ) -> dict:
-        """Restore database and vector store from a backup.
-
-        Creates a safety backup before restoring. Provide either file_path or s3_key.
-
-        Args:
-            file_path: Local path to the backup zip file.
-            s3_key: S3 key of the backup to restore from.
-        """
-        zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
-        return await _restore_backup_impl(
-            db=get_db(),
-            zvec_path=zvec_path,
-            local_storage=get_local_storage(),
-            s3_storage=get_s3_storage(),
-            file_path=file_path,
-            s3_key=s3_key,
-        )
