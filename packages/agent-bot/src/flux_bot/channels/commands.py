@@ -1,12 +1,10 @@
-"""Telegram slash command handlers: /help, /reset, /tasks, /settings, /onboard, /backup, /restore."""
+"""Telegram slash command handlers: /help, /reset, /tasks, /settings, /onboard."""
 
-import os
 import warnings
 import structlog
 import re
 import zoneinfo
 from datetime import datetime
-from pathlib import Path
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -149,8 +147,6 @@ Here are some things you can ask me:
 ⚙️ Update preferences → /settings
 🔄 Start a new session → /reset
 📋 View scheduled tasks → /tasks
-💾 Backup your data → /backup
-🔄 Restore from backup → /restore
 🚀 Walk through setup & see this help → /onboard\
 """
 
@@ -224,111 +220,6 @@ class CommandHandlers:
             lines.append(f"{i}. {prompt}\n   {icon} {task['schedule_type']}{next_run_line}")
 
         await update.message.reply_text("\n\n".join(lines), parse_mode="Markdown")
-
-    # ------------------------------------------------------------------
-    # /backup
-    # ------------------------------------------------------------------
-
-    def _get_s3_configured(self) -> bool:
-        """Check if S3 is configured via system_config."""
-        try:
-            from flux_core.services.encryption import EncryptionService
-            from flux_core.sqlite.system_config_repo import SqliteSystemConfigRepository
-            from flux_core.sqlite.database import Database
-
-            db_path = os.getenv("DATABASE_PATH", "/data/sqlite/flux.db")
-            db = Database(db_path)
-            db.connect()
-            enc = EncryptionService.from_env()
-            repo = SqliteSystemConfigRepository(db.connection(), enc)
-            endpoint = repo.get("s3_endpoint")
-            bucket = repo.get("s3_bucket")
-            db.disconnect()
-            return bool(endpoint and bucket)
-        except Exception:
-            return False
-
-    async def cmd_backup(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        profile = await self._get_profile(update)
-        if profile is None:
-            await update.message.reply_text("Please complete setup first with /onboard")
-            return
-
-        s3_configured = self._get_s3_configured()
-        if s3_configured:
-            keyboard = [
-                [
-                    InlineKeyboardButton(
-                        "Send to Telegram", callback_data="backup:telegram"
-                    ),
-                    InlineKeyboardButton(
-                        "Upload to S3", callback_data="backup:s3"
-                    ),
-                ],
-            ]
-            await update.message.reply_text(
-                "Where should I save the backup?",
-                reply_markup=InlineKeyboardMarkup(keyboard),
-            )
-        else:
-            await update.message.reply_text(
-                "Creating backup... This may take a moment."
-            )
-            try:
-                from flux_core.use_cases.backup.create_backup import CreateBackup
-                from flux_core.sqlite.database import Database
-                from flux_core.services.storage.local import LocalStorageProvider
-
-                db_path = os.getenv("DATABASE_PATH", "/data/sqlite/flux.db")
-                zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
-                backup_dir = os.getenv("BACKUP_LOCAL_DIR", "/data/backups")
-                local = LocalStorageProvider(backup_dir)
-
-                db = Database(db_path)
-                db.connect()
-                uc = CreateBackup(
-                    db=db, zvec_path=zvec_path, local_provider=local
-                )
-                meta = await uc.execute(storage="local")
-                db.disconnect()
-
-                # Send file via Telegram
-                zip_path = Path(local._dir) / meta.filename
-                with open(zip_path, "rb") as f:
-                    await update.message.reply_document(
-                        document=f,
-                        filename=meta.filename,
-                        caption="Here's your backup file. Keep it safe!",
-                    )
-                await update.message.reply_text(
-                    f"Backup created: {meta.filename} "
-                    f"({meta.size_bytes:,} bytes)\n\n"
-                    "Tip: Configure S3 storage in Web UI Settings "
-                    "for off-site backups."
-                )
-            except Exception as e:
-                logger.error("Backup failed", error=str(e))
-                await update.message.reply_text(f"Backup failed: {e}")
-
-    # ------------------------------------------------------------------
-    # /restore
-    # ------------------------------------------------------------------
-
-    async def cmd_restore(
-        self, update: Update, context: ContextTypes.DEFAULT_TYPE
-    ) -> None:
-        profile = await self._get_profile(update)
-        if profile is None:
-            await update.message.reply_text(
-                "Please complete setup first with /onboard"
-            )
-            return
-
-        await update.message.reply_text(
-            "To restore, send me a backup .zip file.\n\n"
-            "This will replace ALL current data. "
-            "A safety backup will be created automatically first."
-        )
 
     # ------------------------------------------------------------------
     # /settings — ConversationHandler
@@ -677,7 +568,7 @@ class CommandHandlers:
         choice = update.callback_query.data.split(":", 1)[1]
 
         if choice == "never":
-            msg = "No auto-backup configured. You can always use /backup manually."
+            msg = "No auto-backup configured. You can enable it later in Settings."
         else:
             cron_map = {"daily": "0 2 * * *", "weekly": "0 2 * * 0"}
             cron_expr = cron_map[choice]

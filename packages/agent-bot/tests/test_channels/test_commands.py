@@ -731,7 +731,6 @@ async def test_ob_handle_backup_never_does_not_create_task():
     assert result == ConversationHandler.END
     text = update.callback_query.message.reply_text.call_args[0][0]
     assert "No auto-backup" in text
-    assert "/backup" in text
     # Must NOT create a scheduled task
     handlers.task_repo.create.assert_not_called()
 
