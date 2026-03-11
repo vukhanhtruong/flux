@@ -103,7 +103,7 @@ async def test_allowlist_blocks_unauthorized():
     update.message.reply_text.assert_called_once()
 
 
-async def test_handle_photo_message_stores_image_path():
+async def test_handle_photo_message_stores_image_path(tmp_path):
     """Photo message downloads image and stores path in bot_messages."""
     profile = UserProfile(
         user_id="tg:photo-user", username="photo-user",
@@ -112,9 +112,16 @@ async def test_handle_photo_message_stores_image_path():
         locale="vi-VN",
     )
     ch, msg_repo, _ = _make_channel(profile=profile)
+    ch.image_dir = str(tmp_path)
 
     mock_file = AsyncMock()
-    mock_file.download_to_drive = AsyncMock()
+
+    async def _fake_download(path):
+        # Write a valid JPEG file so validation passes
+        with open(path, 'wb') as f:
+            f.write(b'\xff\xd8\xff\xe0' + b'\x00' * 100)
+
+    mock_file.download_to_drive = _fake_download
 
     update = MagicMock()
     update.message.text = None
@@ -227,3 +234,28 @@ async def test_telegram_channel_accepts_session_and_task_repos():
         image_dir="/tmp",
     )
     assert ch is not None
+
+
+class TestImageValidation:
+    def test_validate_image_accepts_jpeg(self, tmp_path):
+        img = tmp_path / "test.jpg"
+        img.write_bytes(b'\xff\xd8\xff\xe0' + b'\x00' * 100)
+        assert TelegramChannel._validate_image_file(str(img)) is True
+
+    def test_validate_image_accepts_png(self, tmp_path):
+        img = tmp_path / "test.png"
+        img.write_bytes(b'\x89PNG\r\n\x1a\n' + b'\x00' * 100)
+        assert TelegramChannel._validate_image_file(str(img)) is True
+
+    def test_validate_image_rejects_non_image(self, tmp_path):
+        txt = tmp_path / "test.txt"
+        txt.write_text("This is not an image")
+        assert TelegramChannel._validate_image_file(str(txt)) is False
+
+    def test_validate_image_rejects_oversized(self, tmp_path):
+        img = tmp_path / "huge.jpg"
+        img.write_bytes(b'\xff\xd8\xff\xe0' + b'\x00' * (11 * 1024 * 1024))
+        assert TelegramChannel._validate_image_file(str(img)) is False
+
+    def test_validate_image_rejects_missing_file(self):
+        assert TelegramChannel._validate_image_file("/nonexistent/file.jpg") is False

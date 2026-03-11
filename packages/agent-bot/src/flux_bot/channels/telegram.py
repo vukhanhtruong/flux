@@ -30,6 +30,31 @@ _MAX_SEND_RETRIES = 3
 
 
 class TelegramChannel(Channel):
+    # Image validation constants
+    _MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+    _IMAGE_MAGIC_BYTES = {
+        b'\xff\xd8\xff': 'jpeg',
+        b'\x89PNG\r\n\x1a\n': 'png',
+    }
+
+    @staticmethod
+    def _validate_image_file(file_path: str) -> bool:
+        """Validate that a file is a real image (JPEG/PNG) and under size limit."""
+        path = Path(file_path)
+        if not path.exists():
+            return False
+        if path.stat().st_size > TelegramChannel._MAX_IMAGE_SIZE:
+            return False
+        try:
+            with open(path, 'rb') as f:
+                header = f.read(8)
+        except OSError:
+            return False
+        for magic, _ in TelegramChannel._IMAGE_MAGIC_BYTES.items():
+            if header.startswith(magic):
+                return True
+        return False
+
     def __init__(
         self,
         bot_token: str,
@@ -172,6 +197,13 @@ class TelegramChannel(Channel):
             file = await context.bot.get_file(photo.file_id)
             image_path = os.path.join(self.image_dir, f"{photo.file_id}.jpg")
             await file.download_to_drive(image_path)
+            if not self._validate_image_file(image_path):
+                logger.warning(f"Invalid image file from {platform_id}: {image_path}")
+                try:
+                    os.remove(image_path)
+                except OSError:
+                    pass
+                image_path = None
 
         if not text and not image_path:
             return
