@@ -19,10 +19,12 @@ async def _create_backup_impl(
     zvec_path: str,
     local_storage,
     s3_storage,
-    storage: str = "local",
+    storage: str = "auto",
 ) -> dict:
     """Internal implementation for create_backup tool."""
     try:
+        if storage == "auto":
+            storage = "s3" if s3_storage is not None else "local"
         uc = CreateBackup(db, zvec_path, local_storage, s3_storage)
         meta = await uc.execute(storage=storage)
         return {
@@ -95,11 +97,11 @@ def register_backup_tools(
     get_s3_storage: Callable,
 ):
     @mcp.tool()
-    async def create_backup(storage: str = "local") -> dict:
+    async def create_backup(storage: str = "auto") -> dict:
         """Create a backup of the database and vector store.
 
         Args:
-            storage: Where to store the backup — "local", "s3", or "both".
+            storage: Where to store — "auto" (S3 if configured, else local), "local", "s3", or "both".
         """
         zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
         return await _create_backup_impl(

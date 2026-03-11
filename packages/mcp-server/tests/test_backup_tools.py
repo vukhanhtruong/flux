@@ -47,6 +47,79 @@ async def test_create_backup_tool():
     mock_uc.execute.assert_awaited_once_with(storage="local")
 
 
+async def test_create_backup_auto_prefers_s3():
+    """create_backup with storage='auto' uses S3 when available."""
+    meta = BackupMetadata(
+        id="2026-03-11T120000",
+        filename="flux-backup-2026-03-11T120000.zip",
+        size_bytes=2048,
+        created_at=datetime(2026, 3, 11, 12, 0, 0, tzinfo=UTC),
+        storage="s3",
+        s3_key="backups/flux-backup-2026-03-11T120000.zip",
+    )
+
+    mock_db = MagicMock()
+    mock_local_storage = MagicMock()
+    mock_s3_storage = MagicMock()
+
+    with patch(
+        "flux_mcp.tools.backup_tools.CreateBackup"
+    ) as MockCreateBackup:
+        mock_uc = AsyncMock()
+        mock_uc.execute.return_value = meta
+        MockCreateBackup.return_value = mock_uc
+
+        from flux_mcp.tools.backup_tools import _create_backup_impl
+
+        result = await _create_backup_impl(
+            db=mock_db,
+            zvec_path="/data/zvec",
+            local_storage=mock_local_storage,
+            s3_storage=mock_s3_storage,
+            storage="auto",
+        )
+
+    assert result["status"] == "ok"
+    assert result["storage"] == "s3"
+    mock_uc.execute.assert_awaited_once_with(storage="s3")
+
+
+async def test_create_backup_auto_falls_back_to_local():
+    """create_backup with storage='auto' falls back to local when S3 unavailable."""
+    meta = BackupMetadata(
+        id="2026-03-11T120000",
+        filename="flux-backup-2026-03-11T120000.zip",
+        size_bytes=1024,
+        created_at=datetime(2026, 3, 11, 12, 0, 0, tzinfo=UTC),
+        storage="local",
+        local_path="/data/backups/flux-backup-2026-03-11T120000.zip",
+    )
+
+    mock_db = MagicMock()
+    mock_local_storage = MagicMock()
+
+    with patch(
+        "flux_mcp.tools.backup_tools.CreateBackup"
+    ) as MockCreateBackup:
+        mock_uc = AsyncMock()
+        mock_uc.execute.return_value = meta
+        MockCreateBackup.return_value = mock_uc
+
+        from flux_mcp.tools.backup_tools import _create_backup_impl
+
+        result = await _create_backup_impl(
+            db=mock_db,
+            zvec_path="/data/zvec",
+            local_storage=mock_local_storage,
+            s3_storage=None,
+            storage="auto",
+        )
+
+    assert result["status"] == "ok"
+    assert result["storage"] == "local"
+    mock_uc.execute.assert_awaited_once_with(storage="local")
+
+
 async def test_create_backup_tool_error():
     """create_backup tool returns error dict on failure."""
     mock_db = MagicMock()
