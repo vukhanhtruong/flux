@@ -1,6 +1,24 @@
 from typing import Callable
 
 from fastmcp import FastMCP
+
+_MAX_PROMPT_LENGTH = 2000
+
+_BLOCKED_PHRASES = [
+    "ignore instructions",
+    "ignore previous",
+    "ignore your",
+    "override",
+    "system prompt",
+    "forget rules",
+    "forget your",
+    "disregard",
+    "new instructions",
+    "change your behavior",
+    "act as",
+    "pretend you",
+    "you are now",
+]
 from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
 from flux_core.uow.unit_of_work import UnitOfWork
 from flux_core.use_cases.bot.cancel_task import CancelTask
@@ -42,6 +60,22 @@ def register_ipc_tools(
           - once: for relative delays ("in 5 min"), use milliseconds like "300000".
                   For absolute times, use local timestamp like "2026-02-01T15:30:00" (no Z suffix).
         """
+        # Validate prompt length
+        if len(prompt) > _MAX_PROMPT_LENGTH:
+            return {
+                "status": "error",
+                "error": f"Prompt too long ({len(prompt)} chars). Maximum is {_MAX_PROMPT_LENGTH} characters.",
+            }
+
+        # Check for injection keywords
+        prompt_lower = prompt.lower()
+        for phrase in _BLOCKED_PHRASES:
+            if phrase in prompt_lower:
+                return {
+                    "status": "error",
+                    "error": "Prompt contains prohibited phrase. Scheduled task prompts must describe financial operations only.",
+                }
+
         from zoneinfo import ZoneInfo
         tz = ZoneInfo(get_user_timezone())
         uc = ScheduleTask(get_uow())
