@@ -101,6 +101,9 @@ class ClaudeRunner:
             logger.error(f"Claude SDK timed out for user={user_id}")
             return ClaudeResult(text=None, session_id=session_id, error="Timeout")
         except Exception as e:
+            # Wait briefly for stderr async task to drain (race condition in SDK:
+            # ProcessError is raised before _handle_stderr task finishes reading)
+            await asyncio.sleep(0.5)
             logger.error(f"Claude SDK error for user={user_id}: {e}")
             return ClaudeResult(
                 text=None,

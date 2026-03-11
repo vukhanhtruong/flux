@@ -71,7 +71,13 @@ db.disconnect()
 print('Migrations complete.')
 "
 
-# --- 5. Start services ------------------------------------------------------
+# --- 5. Derive VITE_USER_ID from TELEGRAM_ALLOW_FROM ----------------------
+if [ -n "${TELEGRAM_ALLOW_FROM:-}" ]; then
+    export VITE_USER_ID="tg:${TELEGRAM_ALLOW_FROM}"
+    info "Web UI user: $VITE_USER_ID"
+fi
+
+# --- 6. Start services ------------------------------------------------------
 PIDS=()
 
 cleanup() {

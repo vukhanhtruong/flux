@@ -28,6 +28,18 @@ _USAGE_LIMIT_ERROR_PATTERNS = (
 )
 
 
+_SESSION_RETRY_PATTERNS = (
+    _THINKING_SIGNATURE_ERROR,
+    "command failed with exit code 1",
+)
+
+
+def _should_retry_without_session(error: str) -> bool:
+    """Check if the error is likely caused by a stale/invalid session."""
+    err = error.lower()
+    return any(pattern.lower() in err for pattern in _SESSION_RETRY_PATTERNS)
+
+
 def _should_notify_usage_limit(error: str) -> bool:
     err = error.lower()
     return any(pattern in err for pattern in _USAGE_LIMIT_ERROR_PATTERNS)
@@ -71,11 +83,11 @@ def make_handle_message(*, runner, msg_repo, session_repo, profile_repo, channel
                 profile=profile,
             )
 
-            # Thinking block signatures expire when a session is resumed after a long
-            # idle period. Clear the stale session and retry fresh.
-            if result.error and _THINKING_SIGNATURE_ERROR in result.error:
+            # Stale/invalid sessions cause CLI exit code 1 or thinking signature
+            # errors. Clear the session and retry fresh.
+            if result.error and session_id and _should_retry_without_session(result.error):
                 logger.warning(
-                    f"Message {msg['id']}: thinking signature expired, "
+                    f"Message {msg['id']}: session error (likely stale), "
                     "clearing session and retrying"
                 )
                 await session_repo.delete(user_id)

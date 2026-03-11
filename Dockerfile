@@ -15,7 +15,7 @@ RUN npm ci --silent
 
 COPY packages/web-ui/ ./
 ARG VITE_API_BASE_URL=/api
-ARG VITE_USER_ID=demo-user
+ARG VITE_USER_ID=tg:demo-user
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ENV VITE_USER_ID=${VITE_USER_ID}
 RUN npm run build
@@ -28,6 +28,7 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         curl \
+        gosu \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g npm@latest \
@@ -52,14 +53,20 @@ RUN pip install --no-cache-dir \
     /app/packages/agent-bot \
     && pip install --no-cache-dir "pillow>=12.1.1"
 
+# Copy MCP config for agent-bot
+COPY packages/agent-bot/src/flux_bot/mcp-config.json /app/mcp-config.json
+
 # Copy web-ui build output
 COPY --from=node-builder /build/dist /usr/share/nginx/html
 
 # Copy nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Create data directories
-RUN mkdir -p /data/sqlite /data/zvec
+# Create non-root user for Claude CLI (refuses --dangerously-skip-permissions as root)
+RUN useradd -r -m -s /bin/bash flux
+
+# Create data directories (owned by flux user)
+RUN mkdir -p /data/sqlite /data/zvec /data/backups && chown -R flux:flux /data
 
 # Entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh

@@ -8,7 +8,7 @@
 # Environment variables (set in .env or export):
 #   TELEGRAM_BOT_TOKEN   — enables agent bot
 #   CLAUDE_AUTH_TOKEN     — required for agent bot
-#   VITE_USER_ID          — web UI user ID (default: demo-user)
+#   VITE_USER_ID is derived from TELEGRAM_ALLOW_FROM (tg:<id>)
 
 services:
   flux:
@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: /api
-        VITE_USER_ID: ${VITE_USER_ID:-demo-user}
+        VITE_USER_ID: tg:${TELEGRAM_ALLOW_FROM:-demo-user}
     container_name: flux
     ports:
       - "${PORT:-5173}:80"
@@ -33,6 +33,8 @@ services:
       CLAUDE_AUTH_TOKEN: ${CLAUDE_AUTH_TOKEN:-}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-}
       CLAUDE_TIMEOUT: ${CLAUDE_TIMEOUT:-300}
+      MCP_CONFIG_PATH: /app/mcp-config.json
+      BACKUP_LOCAL_DIR: /data/backups
     volumes:
       - flux_data:/data
     restart: unless-stopped
