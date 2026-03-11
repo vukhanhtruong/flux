@@ -17,7 +17,7 @@ services:
         required: false
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
       args:
         VITE_API_BASE_URL: /api
         VITE_USER_ID: tg:${TELEGRAM_ALLOW_FROM:-demo-user}

@@ -37,7 +37,7 @@ docs/
 .env.*
 
 # Docker
-Dockerfile
+docker/Dockerfile
 docker-compose.yml
 .dockerignore
 

@@ -17,6 +17,6 @@ dist/
 .ruff_cache/
 .pytest_cache/
 finbot/
-docs/
+docs/plans
 design-system/
 .coverage

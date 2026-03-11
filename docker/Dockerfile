@@ -65,7 +65,7 @@ COPY packages/agent-bot/src/flux_bot/mcp-config.json /app/mcp-config.json
 COPY --from=node-builder /build/dist /usr/share/nginx/html
 
 # Copy nginx config
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 # Create non-root user for Claude CLI (refuses --dangerously-skip-permissions as root)
 RUN useradd -r -m -s /bin/bash flux
@@ -74,7 +74,7 @@ RUN useradd -r -m -s /bin/bash flux
 RUN mkdir -p /data/sqlite /data/zvec /data/backups && chown -R flux:flux /data
 
 # Entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
+COPY docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Expose HTTP port (Nginx)
