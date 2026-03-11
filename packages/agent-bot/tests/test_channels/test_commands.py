@@ -819,3 +819,91 @@ async def test_onboard_conversation_handles_ob_backup_confirm_callbacks():
         if isinstance(h, CQH) and h.pattern is not None
     ]
     assert any("ob_backup_confirm" in p for p in patterns)
+
+
+# ---------------------------------------------------------------------------
+# /onboard — advisor check-in step (5/5)
+# ---------------------------------------------------------------------------
+
+
+async def test_ob_handle_advisor_sunday_creates_scheduled_task():
+    """Choosing 'Sunday evening' creates a cron task at 0 19 * * 0."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    handlers.task_repo.create = AsyncMock(return_value=1)
+    handlers.task_repo.list_by_user = AsyncMock(return_value=[])
+    update = _make_callback_update(callback_data="ob_advisor:sunday")
+    result = await handlers._ob_handle_advisor(update, _make_context())
+    from telegram.ext import ConversationHandler
+    assert result == ConversationHandler.END
+    handlers.task_repo.create.assert_called_once()
+    call_kwargs = handlers.task_repo.create.call_args[1]
+    assert call_kwargs["schedule_type"] == "cron"
+    assert call_kwargs["schedule_value"] == "0 19 * * 0"
+    assert "advisor" in call_kwargs["prompt"].lower() or "check-in" in call_kwargs["prompt"].lower()
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "Sunday" in text
+    assert HELP_TEXT in text
+
+
+async def test_ob_handle_advisor_monday_creates_scheduled_task():
+    """Choosing 'Monday morning' creates a cron task at 0 9 * * 1."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    handlers.task_repo.create = AsyncMock(return_value=2)
+    handlers.task_repo.list_by_user = AsyncMock(return_value=[])
+    update = _make_callback_update(callback_data="ob_advisor:monday")
+    result = await handlers._ob_handle_advisor(update, _make_context())
+    from telegram.ext import ConversationHandler
+    assert result == ConversationHandler.END
+    handlers.task_repo.create.assert_called_once()
+    call_kwargs = handlers.task_repo.create.call_args[1]
+    assert call_kwargs["schedule_value"] == "0 9 * * 1"
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "Monday" in text
+
+
+async def test_ob_handle_advisor_skip_does_not_create_task():
+    """Choosing 'Skip' ends onboarding without creating an advisor task."""
+    handlers = _make_handlers()
+    handlers.task_repo.create = AsyncMock()
+    update = _make_callback_update(callback_data="ob_advisor:skip")
+    result = await handlers._ob_handle_advisor(update, _make_context())
+    from telegram.ext import ConversationHandler
+    assert result == ConversationHandler.END
+    handlers.task_repo.create.assert_not_called()
+    text = update.callback_query.message.reply_text.call_args[0][0]
+    assert "No weekly check-in" in text
+
+
+async def test_ob_handle_advisor_deduplicates_existing_tasks():
+    """Re-onboarding deletes existing advisor tasks before creating a new one."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    handlers.task_repo.create = AsyncMock(return_value=3)
+    handlers.task_repo.delete = AsyncMock()
+    handlers.task_repo.list_by_user = AsyncMock(return_value=[
+        {"id": 42, "prompt": "Run a weekly financial advisor check-in for the user",
+         "schedule_type": "cron", "schedule_value": "0 19 * * 0"},
+    ])
+    update = _make_callback_update(callback_data="ob_advisor:monday")
+    result = await handlers._ob_handle_advisor(update, _make_context())
+    from telegram.ext import ConversationHandler
+    assert result == ConversationHandler.END
+    handlers.task_repo.delete.assert_called_once_with(42)
+    handlers.task_repo.create.assert_called_once()
+
+
+async def test_onboard_conversation_handles_ob_advisor_callbacks():
+    """_OB_ADVISOR state must include a CallbackQueryHandler for ob_advisor: pattern."""
+    from telegram.ext import CallbackQueryHandler as CQH
+    handlers = _make_handlers()
+    conv = handlers.onboard_conversation()
+    assert _OB_ADVISOR in conv.states
+    advisor_handlers = conv.states[_OB_ADVISOR]
+    patterns = [
+        h.pattern.pattern
+        for h in advisor_handlers
+        if isinstance(h, CQH) and h.pattern is not None
+    ]
+    assert any("ob_advisor" in p for p in patterns)
