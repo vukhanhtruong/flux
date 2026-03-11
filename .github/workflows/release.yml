@@ -1,8 +1,11 @@
 name: Release to Docker Hub
 
 on:
+  push:
+    branches: [main]
   release:
     types: [published]
+  workflow_dispatch:
 
 env:
   DOCKERHUB_REPO: ${{ vars.DOCKERHUB_USERNAME }}/${{ vars.DOCKERHUB_REPO || 'flux' }}
@@ -11,75 +14,78 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Test & Coverage
+  test-python:
+    name: Test ${{ matrix.package }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: core
+            install: "'./packages/core[dev,vector,embeddings,backup]'"
+            cov_source: flux_core
+          - package: api-server
+            install: "'./packages/core[vector,embeddings,backup]' './packages/api-server[dev]'"
+            cov_source: flux_api
+          - package: mcp-server
+            install: "'./packages/core[vector,embeddings]' './packages/mcp-server[dev]'"
+            cov_source: flux_mcp
+          - package: agent-bot
+            install: "'./packages/core' './packages/mcp-server' './packages/agent-bot[dev]'"
+            cov_source: src
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: packages/*/pyproject.toml
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ hashFiles('packages/*/pyproject.toml') }}
-          restore-keys: pip-
-
-      - name: Install all packages
+      - name: Install packages
         run: |
           pip install --upgrade pip
-          pip install \
-            "./packages/core[dev,vector,embeddings,backup]" \
-            "./packages/api-server[dev]" \
-            "./packages/mcp-server[dev]" \
-            "./packages/agent-bot[dev]"
+          pip install ${{ matrix.install }}
 
       - name: Run tests with coverage
         env:
           DATABASE_PATH: /tmp/flux-test/flux.db
           ZVEC_PATH: /tmp/flux-test/zvec
+        working-directory: packages/${{ matrix.package }}
         run: |
           mkdir -p /tmp/flux-test/sqlite /tmp/flux-test/zvec
+          pytest tests/ -v --tb=short \
+            --cov=${{ matrix.cov_source }} --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-fail-under=90
 
-          PACKAGES=(core api-server mcp-server agent-bot)
-          FAILED=()
-
-          for pkg in "${PACKAGES[@]}"; do
-            echo "::group::Testing packages/$pkg"
-            if ! pytest "packages/$pkg/tests/" -v --tb=short \
-              --cov="packages/$pkg/src" --cov-report=term-missing \
-              --cov-report=xml:"coverage-$pkg.xml" \
-              --cov-fail-under=90; then
-              FAILED+=("$pkg")
-            fi
-            echo "::endgroup::"
-          done
-
-          if [ ${#FAILED[@]} -gt 0 ]; then
-            echo "::error::Tests failed in: ${FAILED[*]}"
-            exit 1
-          fi
-
-      - name: Run web-ui tests
-        run: |
-          cd packages/web-ui
-          npm install
-          npm run test -- --coverage
-          
-      - name: Upload coverage reports
+      - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-reports
-          path: coverage-*.xml
+          name: coverage-${{ matrix.package }}
+          path: packages/${{ matrix.package }}/coverage.xml
           retention-days: 30
+
+  test-web-ui:
+    name: Test web-ui
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: packages/web-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: packages/web-ui
+
+      - name: Run web-ui tests
+        run: npm run test -- --coverage
+        working-directory: packages/web-ui
 
   security:
     name: Security Scan
@@ -91,6 +97,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: packages/*/pyproject.toml
 
       - name: Install pip-audit
         run: pip install pip-audit
@@ -98,15 +106,16 @@ jobs:
       - name: Audit Python dependencies
         run: |
           pip install \
-            "./packages/core[vector,embeddings,backup]" \
-            "./packages/api-server" \
-            "./packages/mcp-server" \
-            "./packages/agent-bot"
-          pip-audit --strict --desc
+            -e "./packages/core[vector,embeddings,backup]" \
+            -e "./packages/api-server" \
+            -e "./packages/mcp-server" \
+            -e "./packages/agent-bot"
+          pip-audit --desc --skip-editable \
+            --ignore-vuln CVE-2026-25990  # pillow <12; blocked by fastembed pinning pillow<12.0
 
       # Scan Dockerfile and filesystem for misconfigurations
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: fs
           scan-ref: .
@@ -116,7 +125,7 @@ jobs:
 
   build-and-push:
     name: Build & Push Docker Image
-    needs: [test, security]
+    needs: [test-python, test-web-ui, security]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,10 +136,11 @@ jobs:
         with:
           images: ${{ env.DOCKERHUB_REPO }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=sha,format=short
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -153,4 +163,3 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             VITE_API_BASE_URL=/api
-            VITE_USER_ID=tg:demo-user

@@ -262,6 +262,99 @@ def test_download_backup_from_s3(client):
     assert call_args[0][0] == "backups/flux-backup-2026-03-07.zip"
 
 
+def test_download_backup_from_s3_error(client):
+    """Test GET /backups/{filename}/download?storage=s3 returns 404 on S3 error."""
+    mock_s3 = MagicMock()
+    mock_s3.download = AsyncMock(side_effect=Exception("S3 error"))
+
+    with (
+        patch("flux_api.routes.backups.get_local_storage") as mock_get_local,
+        patch("flux_api.routes.backups.get_s3_storage", return_value=mock_s3),
+    ):
+        mock_get_local.return_value = MagicMock()
+        response = client.get(
+            "/backups/missing.zip/download",
+            params={"storage": "s3"},
+        )
+
+    assert response.status_code == 404
+    assert "not found in S3" in response.json()["detail"]
+
+
+def test_download_backup_local_not_found(client):
+    """Test GET /backups/{filename}/download returns 404 when local file missing."""
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("flux_api.routes.backups.get_local_storage") as mock_get_local:
+            mock_local = MagicMock()
+            mock_local._dir = Path(tmpdir)
+            mock_get_local.return_value = mock_local
+
+            response = client.get("/backups/nonexistent.zip/download")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+
+
+def test_restore_backup_with_file_upload(client):
+    """Test POST /backups/restore with file upload."""
+    import io
+
+    with (
+        patch("flux_api.routes.backups.get_db") as mock_get_db,
+        patch("flux_api.routes.backups.get_local_storage") as mock_get_local,
+        patch("flux_api.routes.backups.get_s3_storage", return_value=None),
+        patch("flux_api.routes.backups.CreateBackup"),
+        patch("flux_api.routes.backups.RestoreBackup") as MockUC,
+    ):
+        mock_get_db.return_value = MagicMock()
+        mock_get_local.return_value = MagicMock()
+        mock_uc = AsyncMock()
+        mock_uc.execute = AsyncMock(return_value=None)
+        MockUC.return_value = mock_uc
+
+        response = client.post(
+            "/backups/restore",
+            files={"file": ("backup.zip", io.BytesIO(b"fake zip"), "application/zip")},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "restored"
+    assert data["source"] == "upload"
+
+
+def test_restore_backup_from_s3(client):
+    """Test POST /backups/restore with backup_id and storage=s3."""
+    mock_s3 = MagicMock()
+    mock_s3.download = AsyncMock(return_value="/tmp/backup.zip")
+
+    with (
+        patch("flux_api.routes.backups.get_db") as mock_get_db,
+        patch("flux_api.routes.backups.get_local_storage") as mock_get_local,
+        patch("flux_api.routes.backups.get_s3_storage", return_value=mock_s3),
+        patch("flux_api.routes.backups.CreateBackup"),
+        patch("flux_api.routes.backups.RestoreBackup") as MockUC,
+    ):
+        mock_get_db.return_value = MagicMock()
+        mock_get_local.return_value = MagicMock()
+        mock_uc = AsyncMock()
+        mock_uc.execute = AsyncMock(return_value=None)
+        MockUC.return_value = mock_uc
+
+        response = client.post(
+            "/backups/restore",
+            params={"backup_id": "backups/test.zip", "storage": "s3"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "restored"
+    assert data["source"] == "s3"
+
+
 def test_download_backup_from_s3_no_provider(client):
     """Test GET /backups/{filename}/download?storage=s3 returns 400 when S3 not configured."""
     with (

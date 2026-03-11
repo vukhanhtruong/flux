@@ -128,6 +128,24 @@ def test_deposit_to_goal(client, mock_uow):
     assert data["current_amount"] == "600.00"
 
 
+def test_deposit_to_goal_not_found(client, mock_uow):
+    """Test POST /goals/{goal_id}/deposit returns 404 when goal not found."""
+    with (
+        patch("flux_api.routes.goals.get_uow", return_value=mock_uow),
+        patch("flux_api.routes.goals.DepositToGoal") as MockUC,
+    ):
+        MockUC.return_value.execute = AsyncMock(
+            side_effect=ValueError("Goal not found")
+        )
+        response = client.post(
+            "/goals/99999999-aaaa-aaaa-aaaa-999999999999/deposit",
+            params={"user_id": "user-1", "amount": 100.00},
+        )
+
+    assert response.status_code == 404
+    assert "Goal not found" in response.json()["detail"]
+
+
 def test_delete_goal(client, mock_uow):
     """Test DELETE /goals/{goal_id} returns 204."""
     with (

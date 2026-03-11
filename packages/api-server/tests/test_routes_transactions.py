@@ -168,6 +168,79 @@ def test_get_transaction(client, mock_repo):
     assert data["amount"] == "50.00"
 
 
+def test_get_transaction_not_found(client, mock_repo):
+    """Test GET /transactions/{id} returns 404 when not found."""
+    with (
+        patch("flux_api.routes.transactions.get_db") as mock_get_db,
+        patch(
+            "flux_api.routes.transactions.SqliteTransactionRepository",
+            return_value=mock_repo,
+        ),
+    ):
+        mock_get_db.return_value = MagicMock()
+        mock_repo.get_by_id.return_value = None
+        response = client.get(
+            "/transactions/33333333-3333-3333-3333-333333333333?user_id=user-1"
+        )
+
+    assert response.status_code == 404
+
+
+def test_search_transactions(client, mock_repo, mock_embedding_service):
+    """Test GET /transactions/search returns matching transactions."""
+    mock_transactions = [_make_txn_out(description="Coffee")]
+
+    with (
+        patch("flux_api.routes.transactions.get_db") as mock_get_db,
+        patch(
+            "flux_api.routes.transactions.SqliteTransactionRepository",
+            return_value=mock_repo,
+        ),
+        patch("flux_api.routes.transactions.get_vector_store") as mock_get_vs,
+        patch(
+            "flux_api.routes.transactions.get_embedding_service",
+            return_value=mock_embedding_service,
+        ),
+        patch("flux_api.routes.transactions.SearchTransactions") as MockUC,
+    ):
+        mock_get_db.return_value = MagicMock()
+        mock_get_vs.return_value = MagicMock()
+        MockUC.return_value.execute = AsyncMock(return_value=mock_transactions)
+        response = client.get(
+            "/transactions/search?user_id=user-1&query=coffee"
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["description"] == "Coffee"
+
+
+def test_update_transaction(client, mock_uow, mock_embedding_service):
+    """Test PATCH /transactions/{id} updates a transaction."""
+    expected = _make_txn_out(category="dining")
+
+    with (
+        patch("flux_api.routes.transactions.get_uow", return_value=mock_uow),
+        patch(
+            "flux_api.routes.transactions.get_embedding_service",
+            return_value=mock_embedding_service,
+        ),
+        patch("flux_api.routes.transactions.UpdateTransaction") as MockUC,
+    ):
+        mock_uc = AsyncMock()
+        mock_uc.execute = AsyncMock(return_value=expected)
+        MockUC.return_value = mock_uc
+
+        response = client.patch(
+            "/transactions/12345678-1234-5678-1234-567812345678?user_id=user-1",
+            json={"category": "dining"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["category"] == "dining"
+
+
 def test_delete_transaction(client, mock_uow):
     """Test DELETE /transactions/{id} deletes a transaction."""
     with (

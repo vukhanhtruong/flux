@@ -55,8 +55,7 @@ RUN pip install --no-cache-dir \
     /app/packages/core[vector,embeddings,backup] \
     /app/packages/api-server \
     /app/packages/mcp-server \
-    /app/packages/agent-bot \
-    && pip install --no-cache-dir "pillow>=12.1.1"
+    /app/packages/agent-bot
 
 # Copy MCP config for agent-bot
 COPY packages/agent-bot/src/flux_bot/mcp-config.json /app/mcp-config.json
