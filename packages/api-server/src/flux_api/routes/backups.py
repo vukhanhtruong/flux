@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
 from flux_api.deps import get_db, get_local_storage, get_s3_storage, get_system_config_repo
@@ -58,8 +60,29 @@ async def list_backups() -> list[BackupMetadata]:
 
 
 @router.get("/{filename}/download")
-async def download_backup(filename: str):
-    """Download a backup file from local storage."""
+async def download_backup(
+    filename: str,
+    storage: Literal["local", "s3"] = "local",
+    s3_key: str | None = None,
+):
+    """Download a backup file from local or S3 storage."""
+    if storage == "s3":
+        s3 = get_s3_storage()
+        if s3 is None:
+            raise HTTPException(status_code=400, detail="S3 storage is not configured")
+        tmp_dir = Path(tempfile.mkdtemp())
+        try:
+            downloaded = await s3.download(s3_key or f"backups/{filename}", tmp_dir)
+            return FileResponse(
+                path=str(downloaded),
+                filename=filename,
+                media_type="application/zip",
+                background=BackgroundTask(lambda: shutil.rmtree(tmp_dir, ignore_errors=True)),
+            )
+        except Exception:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise HTTPException(status_code=404, detail="Backup file not found in S3")
+
     local = get_local_storage()
     file_path = local._dir / filename
     if not file_path.exists():

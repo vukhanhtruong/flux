@@ -227,6 +227,58 @@ def test_download_backup(client):
         os.unlink(tmp_path)
 
 
+def test_download_backup_from_s3(client):
+    """Test GET /backups/{filename}/download?storage=s3 downloads from S3."""
+    import tempfile
+    from pathlib import Path
+
+    # Create a temp file to simulate S3 download result
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
+        f.write(b"s3 zip content")
+        tmp_path = Path(f.name)
+
+    async def fake_download(key, dest):
+        """Simulate S3 download by returning the pre-created temp file."""
+        return tmp_path
+
+    mock_s3 = MagicMock()
+    mock_s3.download = AsyncMock(side_effect=fake_download)
+
+    with (
+        patch("flux_api.routes.backups.get_local_storage") as mock_get_local,
+        patch("flux_api.routes.backups.get_s3_storage", return_value=mock_s3),
+    ):
+        mock_get_local.return_value = MagicMock()
+
+        response = client.get(
+            "/backups/flux-backup-2026-03-07.zip/download",
+            params={"storage": "s3", "s3_key": "backups/flux-backup-2026-03-07.zip"},
+        )
+
+    assert response.status_code == 200
+    assert response.content == b"s3 zip content"
+    mock_s3.download.assert_called_once()
+    call_args = mock_s3.download.call_args
+    assert call_args[0][0] == "backups/flux-backup-2026-03-07.zip"
+
+
+def test_download_backup_from_s3_no_provider(client):
+    """Test GET /backups/{filename}/download?storage=s3 returns 400 when S3 not configured."""
+    with (
+        patch("flux_api.routes.backups.get_local_storage") as mock_get_local,
+        patch("flux_api.routes.backups.get_s3_storage", return_value=None),
+    ):
+        mock_get_local.return_value = MagicMock()
+
+        response = client.get(
+            "/backups/flux-backup-2026-03-07.zip/download",
+            params={"storage": "s3", "s3_key": "backups/flux-backup-2026-03-07.zip"},
+        )
+
+    assert response.status_code == 400
+    assert "S3" in response.json()["detail"]
+
+
 def test_get_backup_config(client):
     """Test GET /backups/config returns S3 configuration."""
     mock_repo = MagicMock()

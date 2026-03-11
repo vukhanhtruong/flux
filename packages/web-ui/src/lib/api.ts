@@ -245,8 +245,12 @@ class ApiClient {
     return this.request(`/backups/restore?${params}`, { method: "POST" });
   }
 
-  getBackupDownloadUrl(filename: string): string {
-    return `${this.baseUrl}/backups/${filename}/download`;
+  getBackupDownloadUrl(filename: string, storage?: string, s3Key?: string): string {
+    const params = new URLSearchParams();
+    if (storage) params.append("storage", storage);
+    if (s3Key) params.append("s3_key", s3Key);
+    const qs = params.toString();
+    return `${this.baseUrl}/backups/${filename}/download${qs ? `?${qs}` : ""}`;
   }
 
   async getBackupConfig(): Promise<S3Config> {

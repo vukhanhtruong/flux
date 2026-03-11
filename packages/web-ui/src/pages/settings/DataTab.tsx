@@ -404,7 +404,7 @@ export function DataTab() {
                     <td className="py-4">
                       <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
                         <a
-                          href={api.getBackupDownloadUrl(backup.filename)}
+                          href={api.getBackupDownloadUrl(backup.filename, backup.storage, backup.s3_key)}
                           className="p-2 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all"
                           title="Download"
                         >
