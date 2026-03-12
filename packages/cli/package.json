@@ -9,8 +9,15 @@
   "scripts": {
     "test": "node --test tests/**/*.test.js"
   },
+  "files": ["src/"],
   "keywords": ["finance", "ai", "personal-finance", "docker", "installer"],
   "license": "MIT",
+  "publishConfig": { "access": "public" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vukhanhtruong/flux.git",
+    "directory": "packages/cli"
+  },
   "engines": {
     "node": ">=18"
   },
