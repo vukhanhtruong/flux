@@ -18,6 +18,18 @@ from flux_bot.orchestrator.outbound import parse_channel_prefix
 logger = structlog.get_logger(__name__)
 
 
+def compute_next_run(
+    schedule_type: str, schedule_value: str, user_timezone: str = "UTC"
+) -> datetime:
+    """Compute the next run time in UTC for a cron or interval schedule."""
+    if schedule_type == "cron":
+        now_local = datetime.now(ZoneInfo(user_timezone))
+        return croniter(schedule_value, now_local).get_next(datetime).astimezone(UTC)
+    # interval: schedule_value is milliseconds
+    ms = int(schedule_value)
+    return datetime.now(UTC) + timedelta(milliseconds=ms)
+
+
 class SchedulerWorker:
     def __init__(
         self,
@@ -86,9 +98,4 @@ class SchedulerWorker:
     def _compute_next_run(
         self, schedule_type: str, schedule_value: str, user_timezone: str = "UTC"
     ) -> datetime:
-        if schedule_type == "cron":
-            now_local = datetime.now(ZoneInfo(user_timezone))
-            return croniter(schedule_value, now_local).get_next(datetime).astimezone(UTC)
-        # interval: schedule_value is milliseconds
-        ms = int(schedule_value)
-        return datetime.now(UTC) + timedelta(milliseconds=ms)
+        return compute_next_run(schedule_type, schedule_value, user_timezone)

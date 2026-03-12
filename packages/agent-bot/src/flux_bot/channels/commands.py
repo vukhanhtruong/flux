@@ -688,8 +688,7 @@ class CommandHandlers:
 
     async def _create_advisor_task(self, profile, cron_expr: str) -> None:
         """Create a scheduled task for weekly advisor check-in."""
-        from croniter import croniter
-        from datetime import UTC
+        from flux_bot.orchestrator.scheduler import compute_next_run
 
         prompt = (
             "Run a weekly financial advisor check-in for the user:\n"
@@ -700,7 +699,7 @@ class CommandHandlers:
             "5. Summarize findings: highlight wins, flag concerns, give 1-2 actionable tips\n"
             "6. Send the summary to the user via send_message"
         )
-        next_run = croniter(cron_expr, datetime.now(UTC)).get_next(datetime)
+        next_run = compute_next_run("cron", cron_expr, profile.timezone or "UTC")
         await self._task_repo.create(
             user_id=profile.user_id,
             prompt=prompt,
@@ -715,9 +714,8 @@ class CommandHandlers:
             return
         cron_map = {"daily": "0 2 * * *", "weekly": "0 2 * * 0"}
         cron_expr = cron_map[choice]
-        from croniter import croniter
-        from datetime import UTC
-        next_run = croniter(cron_expr, datetime.now(UTC)).get_next(datetime)
+        from flux_bot.orchestrator.scheduler import compute_next_run
+        next_run = compute_next_run("cron", cron_expr, profile.timezone or "UTC")
         await self._task_repo.create(
             user_id=profile.user_id,
             prompt="Create a backup of my data",
