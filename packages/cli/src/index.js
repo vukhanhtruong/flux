@@ -17,7 +17,7 @@ import {
 import { runWizard } from "./wizard.js";
 import fs from "node:fs";
 
-const program = new Command();
+export const program = new Command();
 
 program
   .name("flux-finance")
@@ -224,4 +224,12 @@ program
     console.log();
   });
 
-program.parse();
+// Only parse when run directly (not when imported for testing)
+const isDirectRun =
+  process.argv[1] &&
+  (process.argv[1].endsWith("/index.js") ||
+    process.argv[1].endsWith("flux-finance"));
+
+if (isDirectRun) {
+  program.parse();
+}

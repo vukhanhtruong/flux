@@ -50,39 +50,39 @@ export function createDockerClient() {
   return new Dockerode();
 }
 
-export async function isDockerRunning() {
+export async function isDockerRunning(docker) {
   try {
-    const docker = createDockerClient();
-    await docker.ping();
+    const client = docker || createDockerClient();
+    await client.ping();
     return true;
   } catch {
     return false;
   }
 }
 
-export async function pullImage(onProgress) {
-  const docker = createDockerClient();
-  const stream = await docker.pull(IMAGE_NAME);
+export async function pullImage(onProgress, docker) {
+  const client = docker || createDockerClient();
+  const stream = await client.pull(IMAGE_NAME);
   return new Promise((resolve, reject) => {
-    docker.modem.followProgress(stream, (err, output) => {
+    client.modem.followProgress(stream, (err, output) => {
       if (err) reject(err);
       else resolve(output);
     }, onProgress);
   });
 }
 
-export async function getContainer() {
-  const docker = createDockerClient();
-  const containers = await docker.listContainers({
+export async function getContainer(docker) {
+  const client = docker || createDockerClient();
+  const containers = await client.listContainers({
     all: true,
     filters: { name: [CONTAINER_NAME] },
   });
   if (containers.length === 0) return null;
-  return docker.getContainer(containers[0].Id);
+  return client.getContainer(containers[0].Id);
 }
 
-export async function getContainerStatus() {
-  const container = await getContainer();
+export async function getContainerStatus(docker) {
+  const container = await getContainer(docker);
   if (!container) return { exists: false, running: false };
   const info = await container.inspect();
   return {
@@ -93,36 +93,36 @@ export async function getContainerStatus() {
   };
 }
 
-export async function startContainer(config, dataDir) {
-  const docker = createDockerClient();
-  const existing = await getContainer();
+export async function startContainer(config, dataDir, docker) {
+  const client = docker || createDockerClient();
+  const existing = await getContainer(client);
   if (existing) {
     try { await existing.stop(); } catch { /* already stopped */ }
     await existing.remove();
   }
   const containerConfig = buildContainerConfig(config, dataDir);
-  const container = await docker.createContainer(containerConfig);
+  const container = await client.createContainer(containerConfig);
   await container.start();
   return container;
 }
 
-export async function stopContainer() {
-  const container = await getContainer();
+export async function stopContainer(docker) {
+  const container = await getContainer(docker);
   if (!container) return false;
   await container.stop();
   return true;
 }
 
-export async function removeContainer() {
-  const container = await getContainer();
+export async function removeContainer(docker) {
+  const container = await getContainer(docker);
   if (!container) return false;
   try { await container.stop(); } catch { /* already stopped */ }
   await container.remove();
   return true;
 }
 
-export async function containerLogs(follow = true) {
-  const container = await getContainer();
+export async function containerLogs(follow = true, docker) {
+  const container = await getContainer(docker);
   if (!container) return null;
   return container.logs({
     stdout: true,

@@ -1,6 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { BOTFATHER_URL, RAW_DATA_BOT_URL, BOTFATHER_INSTRUCTIONS, RAW_DATA_BOT_INSTRUCTIONS, TOKEN_EXAMPLE, USER_ID_EXAMPLE } from "../src/qr.js";
+import {
+  BOTFATHER_URL,
+  RAW_DATA_BOT_URL,
+  BOTFATHER_INSTRUCTIONS,
+  RAW_DATA_BOT_INSTRUCTIONS,
+  TOKEN_EXAMPLE,
+  USER_ID_EXAMPLE,
+  showQR,
+} from "../src/qr.js";
 
 describe("qr", () => {
   it("exports correct BotFather URL", () => {
@@ -27,5 +35,19 @@ describe("qr", () => {
 
   it("exports user ID example as numeric string", () => {
     assert.match(USER_ID_EXAMPLE, /^\d+$/);
+  });
+
+  it("showQR generates a QR code and resolves", async () => {
+    // showQR uses qrcode-terminal under the hood — we just verify it resolves
+    const originalLog = console.log;
+    const logs = [];
+    console.log = (...args) => logs.push(args.join(" "));
+    try {
+      await showQR("https://example.com");
+      // It should have logged something (the QR code)
+      assert.ok(logs.length > 0);
+    } finally {
+      console.log = originalLog;
+    }
   });
 });

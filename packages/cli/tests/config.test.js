@@ -60,4 +60,17 @@ describe("config", () => {
     const d = getDataDir();
     assert.ok(d.endsWith(path.join(".flux-finance", "data")));
   });
+
+  it("readConfig skips comments and lines without equals sign", () => {
+    const fluxDir = path.join(tmpHome, ".flux-finance");
+    fs.mkdirSync(fluxDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(fluxDir, ".env"),
+      "# This is a comment\nINVALID_LINE_NO_EQUALS\nKEY=value\n\n",
+      { mode: 0o600 }
+    );
+    const config = readConfig();
+    assert.equal(config.KEY, "value");
+    assert.equal(Object.keys(config).length, 1);
+  });
 });

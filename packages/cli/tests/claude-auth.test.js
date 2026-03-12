@@ -52,4 +52,22 @@ describe("claude-auth", () => {
     const token = readClaudeToken();
     assert.equal(token, null);
   });
+
+  it("returns null when credentials file is invalid JSON", () => {
+    const claudeDir = path.join(tmpHome, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeDir, ".credentials.json"),
+      "not valid json{{"
+    );
+    const token = readClaudeToken();
+    assert.equal(token, null);
+  });
+
+  it("isClaudeCliInstalled returns a boolean", () => {
+    // We can't control whether 'claude' is actually installed,
+    // but we can verify it returns a boolean without throwing
+    const result = isClaudeCliInstalled();
+    assert.equal(typeof result, "boolean");
+  });
 });
