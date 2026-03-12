@@ -1,6 +1,6 @@
-# flux
+# Flux
 
-A headless, MCP-first personal finance AI agent. Talk to it through Telegram, Claude Desktop, or a web UI — it tracks your money, budgets, goals, and subscriptions using natural language.
+Flux is a finance AI that provides financial advice and helps manage budgets, goals, subscriptions
 
 ## What It Does
 

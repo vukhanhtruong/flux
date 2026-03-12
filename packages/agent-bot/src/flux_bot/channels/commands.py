@@ -1,4 +1,4 @@
-"""Telegram slash command handlers: /help, /reset, /tasks, /settings, /onboard."""
+"""Telegram slash command handlers: /help, /reset, /settings, /onboard."""
 
 import warnings
 import structlog
@@ -146,7 +146,6 @@ Here are some things you can ask me:
 
 ⚙️ Update preferences → /settings
 🔄 Start a new session → /reset
-📋 View scheduled tasks → /tasks
 🚀 Walk through setup & see this help → /onboard\
 """
 
@@ -189,37 +188,6 @@ class CommandHandlers:
             "Conversation reset ✓. Your next message starts a fresh session — "
             "your financial data is unchanged."
         )
-
-    # ------------------------------------------------------------------
-    # /tasks
-    # ------------------------------------------------------------------
-
-    async def cmd_tasks(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        platform_id = str(update.effective_user.id)
-        profile = await self._profile_repo.get_by_platform_id("telegram", platform_id)
-        if profile is None:
-            await update.message.reply_text("Please complete setup first.")
-            return
-
-        tasks = await self._task_repo.list_by_user(profile.user_id)
-        if not tasks:
-            await update.message.reply_text("You have no scheduled tasks. Ask me to set one up!")
-            return
-
-        tz = zoneinfo.ZoneInfo(profile.timezone)
-        lines = ["📋 *Your scheduled tasks:*\n"]
-        for i, task in enumerate(tasks, 1):
-            prompt = task["prompt"]
-            if len(prompt) > 60:
-                prompt = prompt[:60] + "…"
-            icon = "🔁" if task["schedule_type"] in ("cron", "interval") else "📅"
-            next_run_line = ""
-            if task.get("next_run_at"):
-                local_dt = task["next_run_at"].astimezone(tz)
-                next_run_line = f"\n   ⏭ Next: {local_dt.strftime('%a, %b %-d at %H:%M')}"
-            lines.append(f"{i}. {prompt}\n   {icon} {task['schedule_type']}{next_run_line}")
-
-        await update.message.reply_text("\n\n".join(lines), parse_mode="Markdown")
 
     # ------------------------------------------------------------------
     # /settings — ConversationHandler

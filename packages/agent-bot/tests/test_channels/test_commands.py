@@ -132,68 +132,6 @@ async def test_reset_unknown_user_replies_without_deleting():
 
 
 # ---------------------------------------------------------------------------
-# /tasks
-# ---------------------------------------------------------------------------
-
-async def test_tasks_no_tasks_sends_empty_message():
-    profile = _make_profile()
-    handlers = _make_handlers(profile=profile)
-    handlers.task_repo.list_by_user.return_value = []
-    update = _make_update(text="/tasks")
-    await handlers.cmd_tasks(update, MagicMock())
-    update.message.reply_text.assert_called_once()
-    assert "no scheduled tasks" in update.message.reply_text.call_args[0][0].lower()
-
-
-async def test_tasks_shows_task_list():
-    profile = _make_profile()
-    handlers = _make_handlers(profile=profile)
-    handlers.task_repo.list_by_user.return_value = [
-        {
-            "id": 1,
-            "prompt": "Weekly spending report",
-            "schedule_type": "interval",
-            "schedule_value": "604800000",
-            "next_run_at": datetime.now(UTC) + timedelta(days=3),
-        }
-    ]
-    update = _make_update(text="/tasks")
-    await handlers.cmd_tasks(update, MagicMock())
-    update.message.reply_text.assert_called_once()
-    text = update.message.reply_text.call_args[0][0]
-    assert "Weekly spending report" in text
-    assert "🔁" in text
-
-
-async def test_tasks_unknown_user_replies_gracefully():
-    handlers = _make_handlers(profile=None)
-    update = _make_update(text="/tasks")
-    await handlers.cmd_tasks(update, MagicMock())
-    update.message.reply_text.assert_called_once()
-    handlers.task_repo.list_by_user.assert_not_called()
-
-
-async def test_tasks_long_prompt_is_truncated():
-    profile = _make_profile()
-    handlers = _make_handlers(profile=profile)
-    long_prompt = "A" * 100
-    handlers.task_repo.list_by_user.return_value = [
-        {
-            "id": 1,
-            "prompt": long_prompt,
-            "schedule_type": "once",
-            "schedule_value": "2026-03-01T08:00:00",
-            "next_run_at": datetime.now(UTC) + timedelta(days=1),
-        }
-    ]
-    update = _make_update(text="/tasks")
-    await handlers.cmd_tasks(update, MagicMock())
-    text = update.message.reply_text.call_args[0][0]
-    assert "…" in text
-    assert long_prompt not in text
-
-
-# ---------------------------------------------------------------------------
 # /settings
 # ---------------------------------------------------------------------------
 
