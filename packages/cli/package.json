@@ -1,0 +1,26 @@
+{
+  "name": "@flux-finance/cli",
+  "version": "0.1.0",
+  "description": "Install and manage FluxFinance — personal finance AI agent",
+  "type": "module",
+  "bin": {
+    "flux-finance": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test tests/**/*.test.js"
+  },
+  "keywords": ["finance", "ai", "personal-finance", "docker", "installer"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "dockerode": "^4.0.4",
+    "ora": "^8.1.1",
+    "prompts": "^2.4.2",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {}
+}
