@@ -15,9 +15,7 @@ RUN npm ci --silent
 
 COPY packages/web-ui/ ./
 ARG VITE_API_BASE_URL=/api
-ARG VITE_USER_ID=tg:demo-user
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-ENV VITE_USER_ID=${VITE_USER_ID}
 RUN npm run build
 
 

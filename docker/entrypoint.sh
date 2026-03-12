@@ -40,6 +40,18 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Inject runtime config for web UI
+RUNTIME_USER_ID="${VITE_USER_ID:-}"
+if [ -z "$RUNTIME_USER_ID" ] && [ -n "${TELEGRAM_ALLOW_FROM:-}" ]; then
+    RUNTIME_USER_ID="tg:${TELEGRAM_ALLOW_FROM}"
+fi
+cat > /usr/share/nginx/html/config.js <<JSEOF
+window.__FLUX_CONFIG__ = {
+  VITE_USER_ID: "${RUNTIME_USER_ID}"
+};
+JSEOF
+echo "[entrypoint] Runtime config written (VITE_USER_ID=${RUNTIME_USER_ID:-<empty>})"
+
 # Start Nginx (as root — needs port 80)
 echo "[entrypoint] Starting Nginx..."
 nginx &
