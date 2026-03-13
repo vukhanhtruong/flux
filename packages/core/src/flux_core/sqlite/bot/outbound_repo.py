@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import sqlite3
 
+from flux_core.models.bot_enums import OutboundStatus
+
 
 class SqliteBotOutboundRepository:
     """SQLite-backed bot outbound message repository."""
@@ -25,26 +27,26 @@ class SqliteBotOutboundRepository:
             """
             SELECT id, user_id, text, sender, status, created_at
             FROM bot_outbound_messages
-            WHERE status = 'pending'
+            WHERE status = ?
             ORDER BY created_at
             LIMIT ?
             """,
-            (limit,),
+            (OutboundStatus.pending, limit),
         ).fetchall()
         return [dict(r) for r in rows]
 
     def mark_sent(self, msg_id: int) -> None:
         self._conn.execute(
             "UPDATE bot_outbound_messages "
-            "SET status = 'sent', completed_at = datetime('now') "
+            "SET status = ?, completed_at = datetime('now') "
             "WHERE id = ?",
-            (msg_id,),
+            (OutboundStatus.sent, msg_id),
         )
 
     def mark_failed(self, msg_id: int, error: str) -> None:
         self._conn.execute(
             "UPDATE bot_outbound_messages "
-            "SET status = 'failed', completed_at = datetime('now'), error = ? "
+            "SET status = ?, completed_at = datetime('now'), error = ? "
             "WHERE id = ?",
-            (error, msg_id),
+            (OutboundStatus.failed, error, msg_id),
         )

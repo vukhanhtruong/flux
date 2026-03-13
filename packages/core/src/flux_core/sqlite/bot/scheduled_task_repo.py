@@ -4,6 +4,8 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime
 
+from flux_core.models.bot_enums import TaskStatus
+
 
 def _to_sqlite_dt(dt: datetime) -> str:
     """Convert a datetime to SQLite-compatible format (no T, no offset)."""
@@ -53,9 +55,10 @@ class SqliteBotScheduledTaskRepository:
                    COALESCE(u.timezone, 'UTC') AS user_timezone
             FROM bot_scheduled_tasks t
             LEFT JOIN users u ON u.id = t.user_id
-            WHERE t.status = 'active' AND t.next_run_at <= datetime('now')
+            WHERE t.status = ? AND t.next_run_at <= datetime('now')
             ORDER BY t.next_run_at
-            """
+            """,
+            (TaskStatus.active,),
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -66,10 +69,10 @@ class SqliteBotScheduledTaskRepository:
                    status, next_run_at, last_run_at,
                    subscription_id, asset_id, created_at
             FROM bot_scheduled_tasks
-            WHERE user_id = ? AND status = 'active'
+            WHERE user_id = ? AND status = ?
             ORDER BY next_run_at ASC
             """,
-            (user_id,),
+            (user_id, TaskStatus.active),
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -87,48 +90,48 @@ class SqliteBotScheduledTaskRepository:
         self._conn.execute(
             """
             UPDATE bot_scheduled_tasks
-            SET status = 'completed', last_run_at = datetime('now')
+            SET status = ?, last_run_at = datetime('now')
             WHERE id = ?
             """,
-            (task_id,),
+            (TaskStatus.completed, task_id),
         )
 
     def pause(self, task_id: int) -> None:
         self._conn.execute(
-            "UPDATE bot_scheduled_tasks SET status = 'paused' WHERE id = ?",
-            (task_id,),
+            "UPDATE bot_scheduled_tasks SET status = ? WHERE id = ?",
+            (TaskStatus.paused, task_id),
         )
 
     def pause_by_asset(self, asset_id: str) -> None:
         self._conn.execute(
-            "UPDATE bot_scheduled_tasks SET status = 'paused' WHERE asset_id = ?",
-            (asset_id,),
+            "UPDATE bot_scheduled_tasks SET status = ? WHERE asset_id = ?",
+            (TaskStatus.paused, asset_id),
         )
 
     def resume_by_asset(self, asset_id: str, next_run_at: datetime) -> None:
         self._conn.execute(
             """
             UPDATE bot_scheduled_tasks
-            SET status = 'active', next_run_at = ?
+            SET status = ?, next_run_at = ?
             WHERE asset_id = ?
             """,
-            (_to_sqlite_dt(next_run_at), asset_id),
+            (TaskStatus.active, _to_sqlite_dt(next_run_at), asset_id),
         )
 
     def pause_by_subscription(self, subscription_id: str) -> None:
         self._conn.execute(
-            "UPDATE bot_scheduled_tasks SET status = 'paused' WHERE subscription_id = ?",
-            (subscription_id,),
+            "UPDATE bot_scheduled_tasks SET status = ? WHERE subscription_id = ?",
+            (TaskStatus.paused, subscription_id),
         )
 
     def resume_by_subscription(self, subscription_id: str, next_run_at: datetime) -> None:
         self._conn.execute(
             """
             UPDATE bot_scheduled_tasks
-            SET status = 'active', next_run_at = ?
+            SET status = ?, next_run_at = ?
             WHERE subscription_id = ?
             """,
-            (_to_sqlite_dt(next_run_at), subscription_id),
+            (TaskStatus.active, _to_sqlite_dt(next_run_at), subscription_id),
         )
 
     def delete(self, task_id: int) -> None:

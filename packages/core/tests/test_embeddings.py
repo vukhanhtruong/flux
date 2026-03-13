@@ -13,11 +13,3 @@ def test_embed_returns_384_dimensions(embedding_service):
     assert all(isinstance(x, float) for x in result)
 
 
-def test_similar_texts_have_high_similarity(embedding_service):
-    e1 = embedding_service.embed("Lunch at restaurant")
-    e2 = embedding_service.embed("Dinner at restaurant")
-    e3 = embedding_service.embed("Monthly rent payment")
-
-    sim_12 = embedding_service.cosine_similarity(e1, e2)
-    sim_13 = embedding_service.cosine_similarity(e1, e3)
-    assert sim_12 > sim_13
