@@ -1,0 +1,53 @@
+# Third-Party Licenses
+
+Flux uses the following open-source libraries. This file documents notable
+license obligations, particularly copyleft licenses that require disclosure.
+
+## LGPLv3
+
+### python-telegram-bot
+
+- License: GNU Lesser General Public License v3.0 (LGPLv3)
+- Source: https://github.com/python-telegram-bot/python-telegram-bot
+- Used by: packages/agent-bot
+
+The LGPLv3 permits use in proprietary software provided that:
+1. The LGPLv3-licensed library can be replaced by the user (satisfied: pip install)
+2. The license text and copyright notice are preserved (this file)
+3. Source code of the library is available (see link above)
+
+## Apache 2.0
+
+| Library | Package | Source |
+|---------|---------|--------|
+| FastAPI | api-server | https://github.com/fastapi/fastapi |
+| Pydantic | core | https://github.com/pydantic/pydantic |
+| zvec | core | https://github.com/zvec/zvec |
+| fastembed | core | https://github.com/qdrant/fastembed |
+| structlog | core | https://github.com/hynek/structlog |
+| croniter | core | https://github.com/kiorky/croniter |
+
+## MIT
+
+| Library | Package | Source |
+|---------|---------|--------|
+| FastMCP | mcp-server | https://github.com/jlowin/fastmcp |
+| uvicorn | api-server | https://github.com/encode/uvicorn |
+| React | web-ui | https://github.com/facebook/react |
+| Vite | web-ui | https://github.com/vitejs/vite |
+| Tailwind CSS | web-ui | https://github.com/tailwindlabs/tailwindcss |
+| commander | cli | https://github.com/tj/commander.js |
+| chalk | cli | https://github.com/chalk/chalk |
+| dockerode | cli | https://github.com/apocas/dockerode |
+
+## BSD-3-Clause
+
+| Library | Package | Source |
+|---------|---------|--------|
+| cryptography | core | https://github.com/pyca/cryptography |
+
+## Full License Texts
+
+The full text of each license can be found in the respective library's repository
+linked above, or in the installed package metadata (pip show <package> or
+node_modules/<package>/LICENSE).

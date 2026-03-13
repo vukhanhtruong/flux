@@ -49,6 +49,10 @@ jobs:
           pip install --upgrade pip
           pip install ${{ matrix.install }}
 
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+        working-directory: packages/${{ matrix.package }}
+
       - name: Run tests with coverage
         env:
           DATABASE_PATH: /tmp/flux-test/flux.db

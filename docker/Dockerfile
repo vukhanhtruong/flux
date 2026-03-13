@@ -35,7 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g npm@latest \
-    && npm install -g @anthropic-ai/claude-code@latest \
+    && npm install -g @anthropic-ai/claude-code@2.1.74 \
     && NPM_DIR=/usr/lib/node_modules/npm/node_modules \
     && npm pack minimatch@10.2.3 --pack-destination /tmp && rm -rf $NPM_DIR/minimatch && mkdir -p $NPM_DIR/minimatch && tar xzf /tmp/minimatch-*.tgz -C $NPM_DIR/minimatch --strip-components=1 && rm /tmp/minimatch-*.tgz \
     && npm pack tar@7.5.10 --pack-destination /tmp && rm -rf $NPM_DIR/tar && mkdir -p $NPM_DIR/tar && tar xzf /tmp/tar-*.tgz -C $NPM_DIR/tar --strip-components=1 && rm /tmp/tar-*.tgz \
