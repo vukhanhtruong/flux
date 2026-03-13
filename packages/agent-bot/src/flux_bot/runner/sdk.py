@@ -42,6 +42,9 @@ class ClaudeRunner:
         self.system_prompt = system_prompt
         self.max_turns = max_turns
         self.auth_token_env = "CLAUDE_AUTH_TOKEN"
+        self._mcp_config_cache: dict | None = None
+        self._system_prompt_cache: str | None = None
+        self._config_restored = False
 
     async def run(
         self,
@@ -141,7 +144,11 @@ class ClaudeRunner:
 
     def _build_mcp_servers(self, profile: "UserProfile | None") -> dict:
         """Build MCP servers dict from config file, injecting user_id into args."""
-        base = json.loads(Path(self.mcp_config_path).read_text())
+        if self._mcp_config_cache is not None:
+            base = self._mcp_config_cache
+        else:
+            base = json.loads(Path(self.mcp_config_path).read_text())
+            self._mcp_config_cache = base
         servers: dict = {}
         for name, server in base.get("mcpServers", {}).items():
             args: list = list(server.get("args", []))
@@ -190,17 +197,23 @@ class ClaudeRunner:
     def _load_system_prompt_text(self) -> str | None:
         if not self.system_prompt:
             return None
+        if self._system_prompt_cache is not None:
+            return self._system_prompt_cache
         path = Path(self.system_prompt)
         if not path.exists():
             return None
         text = path.read_text(encoding="utf-8").strip()
-        return text or None
+        self._system_prompt_cache = text or None
+        return self._system_prompt_cache
 
     def _restore_claude_config_if_missing(self) -> bool:
         """Restore ~/.claude.json from latest backup if the config file is missing."""
+        if self._config_restored:
+            return False
         home = Path.home()
         config_path = home / ".claude.json"
         if config_path.exists():
+            self._config_restored = True
             return False
 
         backups_dir = home / ".claude" / "backups"
@@ -211,6 +224,7 @@ class ClaudeRunner:
         latest_backup = backups[-1]
         shutil.copy2(latest_backup, config_path)
         logger.warning(f"Restored Claude config from backup: {latest_backup}")
+        self._config_restored = True
         return True
 
     def _setup_env(self) -> None:

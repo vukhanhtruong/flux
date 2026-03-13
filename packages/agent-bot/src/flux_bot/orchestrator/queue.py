@@ -34,12 +34,22 @@ class UserQueue:
 
     async def _worker(self, user_id: str) -> None:
         """Process messages for a single user serially."""
-        queue = self._queues[user_id]
-        while not queue.empty():
-            msg = await queue.get()
-            try:
-                await self.handler(msg)
-            except Exception:
-                logger.exception(f"Error processing message {msg.get('id')} for {user_id}")
-            finally:
-                queue.task_done()
+        try:
+            while self._running:
+                try:
+                    msg = await asyncio.wait_for(
+                        self._queues[user_id].get(), timeout=5.0
+                    )
+                except asyncio.TimeoutError:
+                    break
+                try:
+                    await self.handler(msg)
+                except Exception:
+                    logger.exception(
+                        f"Error processing message {msg.get('id')} for {user_id}"
+                    )
+                finally:
+                    self._queues[user_id].task_done()
+        finally:
+            self._workers.pop(user_id, None)
+            self._queues.pop(user_id, None)

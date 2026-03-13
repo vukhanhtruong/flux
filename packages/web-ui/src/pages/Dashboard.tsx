@@ -58,14 +58,14 @@ export function Dashboard() {
         // We wrap fetching but abort won't natively cancel fetch inside api wrapper unless
         // we pass signal, but it will prevent state setting on unmount.
         const [allTxns, healthData, assetsData] = await Promise.all([
-          api.listTransactions(USER_ID, 200),
+          api.listTransactions(USER_ID, 5),
           api.getFinancialHealth(USER_ID, startDate, endDate),
           api.listAssets(USER_ID),
         ]);
 
         if (abortController.signal.aborted) return;
 
-        setTransactions(allTxns.slice(0, 5));
+        setTransactions(allTxns);
         setHealth(healthData);
         setAssets(assetsData);
         setAssetSnapshots(recordSnapshot(computePortfolioTotal(assetsData)));

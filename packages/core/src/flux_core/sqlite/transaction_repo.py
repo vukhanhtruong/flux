@@ -143,14 +143,16 @@ class SqliteTransactionRepository:
         set_clauses.append("updated_at = datetime('now')")
         params.extend([str(txn_id), user_id])
 
-        cursor = self._conn.execute(
+        row = self._conn.execute(
             f"UPDATE transactions SET {', '.join(set_clauses)} "
-            f"WHERE id = ? AND user_id = ?",
+            f"WHERE id = ? AND user_id = ? "
+            f"RETURNING id, user_id, date, amount, category, description, type, "
+            f"is_recurring, tags, created_at",
             tuple(params),
-        )
-        if cursor.rowcount == 0:
+        ).fetchone()
+        if row is None:
             return None
-        return self.get_by_id(txn_id, user_id)
+        return self._from_row(row)
 
     def delete(self, txn_id: UUID, user_id: str) -> bool:
         cursor = self._conn.execute(

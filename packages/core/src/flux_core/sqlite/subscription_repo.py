@@ -76,8 +76,8 @@ class SqliteSubscriptionRepository:
     def advance_next_date(
         self, sub_id: UUID, user_id: str
     ) -> SubscriptionOut | None:
-        cursor = self._conn.execute(
-            """
+        row = self._conn.execute(
+            f"""
             UPDATE subscriptions SET next_date = CASE
                 WHEN billing_cycle = 'monthly'
                     THEN date(next_date, '+1 month')
@@ -85,21 +85,23 @@ class SqliteSubscriptionRepository:
                     THEN date(next_date, '+1 year')
             END
             WHERE id = ? AND user_id = ?
+            RETURNING {_COLUMNS}
             """,
             (str(sub_id), user_id),
-        )
-        if cursor.rowcount == 0:
+        ).fetchone()
+        if row is None:
             return None
-        return self.get(sub_id, user_id)
+        return self._from_row(row)
 
     def toggle_active(self, sub_id: UUID, user_id: str) -> SubscriptionOut | None:
-        cursor = self._conn.execute(
-            "UPDATE subscriptions SET active = 1 - active WHERE id = ? AND user_id = ?",
+        row = self._conn.execute(
+            "UPDATE subscriptions SET active = 1 - active WHERE id = ? AND user_id = ? "
+            f"RETURNING {_COLUMNS}",
             (str(sub_id), user_id),
-        )
-        if cursor.rowcount == 0:
+        ).fetchone()
+        if row is None:
             return None
-        return self.get(sub_id, user_id)
+        return self._from_row(row)
 
     def delete(self, sub_id: UUID, user_id: str) -> bool:
         cursor = self._conn.execute(

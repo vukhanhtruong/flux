@@ -98,40 +98,41 @@ class SqliteAssetRepository:
         return [self._from_row(r) for r in rows]
 
     def advance_next_date(self, asset_id: UUID, user_id: str) -> AssetOut | None:
-        cursor = self._conn.execute(
-            """
+        row = self._conn.execute(
+            f"""
             UPDATE assets SET next_date = CASE
                 WHEN frequency = 'monthly' THEN date(next_date, '+1 month')
                 WHEN frequency = 'quarterly' THEN date(next_date, '+3 months')
                 WHEN frequency = 'yearly' THEN date(next_date, '+1 year')
             END
             WHERE id = ? AND user_id = ?
+            RETURNING {_COLUMNS}
             """,
             (str(asset_id), user_id),
-        )
-        if cursor.rowcount == 0:
+        ).fetchone()
+        if row is None:
             return None
-        return self.get(asset_id, user_id)
+        return self._from_row(row)
 
     def update_amount(
         self, asset_id: UUID, user_id: str, new_amount: Decimal
     ) -> AssetOut | None:
-        cursor = self._conn.execute(
-            "UPDATE assets SET amount = ? WHERE id = ? AND user_id = ?",
+        row = self._conn.execute(
+            f"UPDATE assets SET amount = ? WHERE id = ? AND user_id = ? RETURNING {_COLUMNS}",
             (str(new_amount), str(asset_id), user_id),
-        )
-        if cursor.rowcount == 0:
+        ).fetchone()
+        if row is None:
             return None
-        return self.get(asset_id, user_id)
+        return self._from_row(row)
 
     def deactivate(self, asset_id: UUID, user_id: str) -> AssetOut | None:
-        cursor = self._conn.execute(
-            "UPDATE assets SET active = 0 WHERE id = ? AND user_id = ?",
+        row = self._conn.execute(
+            f"UPDATE assets SET active = 0 WHERE id = ? AND user_id = ? RETURNING {_COLUMNS}",
             (str(asset_id), user_id),
-        )
-        if cursor.rowcount == 0:
+        ).fetchone()
+        if row is None:
             return None
-        return self.get(asset_id, user_id)
+        return self._from_row(row)
 
     def delete(self, asset_id: UUID, user_id: str) -> bool:
         cursor = self._conn.execute(

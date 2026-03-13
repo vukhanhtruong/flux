@@ -109,18 +109,13 @@ class SqliteUserRepository:
         set_clause = ", ".join(sets)
 
         try:
-            self._conn.execute(
-                f"UPDATE users SET {set_clause} WHERE id = ?",
+            row = self._conn.execute(
+                f"UPDATE users SET {set_clause} WHERE id = ? "
+                "RETURNING id, username, platform, platform_id, currency, timezone, locale",
                 tuple(params),
-            )
+            ).fetchone()
         except sqlite3.IntegrityError:
             raise ValueError("username already taken")
-
-        row = self._conn.execute(
-            "SELECT id, username, platform, platform_id, currency, timezone, locale "
-            "FROM users WHERE id = ?",
-            (user_id,),
-        ).fetchone()
 
         if row is None:
             raise ValueError(f"user {user_id!r} not found")

@@ -61,6 +61,11 @@ def register_profile_tools(
                 return {"error": str(e)}
             await uow.commit()
 
+        # Invalidate cached timezone if it was updated
+        if timezone is not None:
+            import flux_mcp.server as _server
+            _server._user_timezone = None
+
         return {
             "currency": profile.currency,
             "timezone": profile.timezone,

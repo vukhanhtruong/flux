@@ -27,14 +27,16 @@ class SqliteBotMessageRepository:
         )
         return cursor.lastrowid
 
-    def fetch_pending(self) -> list[dict]:
+    def fetch_pending(self, limit: int = 100) -> list[dict]:
         rows = self._conn.execute(
             """
             SELECT id, user_id, channel, platform_id, text, image_path, created_at
             FROM bot_messages
             WHERE status = 'pending'
             ORDER BY created_at
-            """
+            LIMIT ?
+            """,
+            (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
 
