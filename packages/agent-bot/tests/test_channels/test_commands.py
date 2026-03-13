@@ -1,5 +1,4 @@
 """Unit tests for slash command handlers."""
-from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 from flux_bot.channels.commands import (  # noqa: E501

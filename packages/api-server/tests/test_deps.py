@@ -165,6 +165,6 @@ def test_get_uow_creates_unit_of_work():
     deps._event_bus = mock_bus
 
     with patch("flux_api.deps.UnitOfWork") as MockUoW:
-        uow = deps.get_uow()
+        deps.get_uow()
 
     MockUoW.assert_called_once_with(mock_db, mock_vs, mock_bus)

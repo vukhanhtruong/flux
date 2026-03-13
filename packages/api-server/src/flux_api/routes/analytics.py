@@ -51,9 +51,6 @@ async def calculate_financial_health(
     summary_uc = GetSummary(repo)
     summary = await summary_uc.execute(user_id, sd, ed)
 
-    breakdown_uc = GetCategoryBreakdown(repo)
-    breakdown = await breakdown_uc.execute(user_id, sd, ed)
-
     total_income = Decimal(summary.get("total_income", "0"))
     total_expenses = Decimal(summary.get("total_expenses", "0"))
 

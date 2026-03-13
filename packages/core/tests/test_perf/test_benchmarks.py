@@ -60,7 +60,7 @@ def test_add_transaction_latency(bench_repo, benchmark):
         counter["i"] += 1
         bench_repo.create(_make_txn(counter["i"]))
 
-    result = benchmark(do_insert)
+    benchmark(do_insert)
     # pytest-benchmark handles stats; we assert p50 < 50ms
     # benchmark.stats gives us median
     assert benchmark.stats.stats.median < 0.050, (
@@ -77,7 +77,7 @@ def test_list_transactions_latency(bench_repo, benchmark):
     def do_list():
         return bench_repo.list_by_user(USER_ID, limit=50)
 
-    result = benchmark(do_list)
+    benchmark(do_list)
     assert benchmark.stats.stats.median < 0.020, (
         f"p50 latency {benchmark.stats.stats.median * 1000:.1f}ms exceeds 20ms target"
     )

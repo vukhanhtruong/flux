@@ -2,7 +2,7 @@ import pytest
 from datetime import date
 from decimal import Decimal
 from pydantic import ValidationError
-from flux_core.models.transaction import TransactionCreate, TransactionOut
+from flux_core.models.transaction import TransactionCreate
 
 
 def test_valid_transaction():

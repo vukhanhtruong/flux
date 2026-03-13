@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from flux_core.models.user_profile import UserProfile, UserProfileCreate
+from flux_core.models.user_profile import UserProfileCreate
 
 
 def test_user_profile_create_defaults():

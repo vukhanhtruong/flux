@@ -8,7 +8,6 @@ import flux_api.deps as deps_module
 from flux_core.events.bus import EventBus
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.migrations.migrate import migrate
-from flux_core.uow.unit_of_work import UnitOfWork
 from flux_core.vector.store import ZVEC_AVAILABLE, ZvecStore
 
 TEST_USER_ID = "test:e2e-user"

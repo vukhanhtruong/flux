@@ -2,12 +2,17 @@
 import os
 import sqlite3
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from flux_core.models.backup import BackupMetadata
 from flux_core.use_cases.backup.create_backup import CreateBackup
+from flux_core.use_cases.backup.delete_backup import DeleteBackup
+from flux_core.use_cases.backup.list_backups import ListBackups
+from flux_core.use_cases.backup.restore_backup import RestoreBackup
 
 
 def _make_test_db(tmp_path: Path) -> str:
@@ -97,7 +102,7 @@ async def test_create_backup_both(tmp_path):
     uc = CreateBackup(
         db=db, zvec_path=zvec_path, local_provider=local_provider, s3_provider=s3_provider,
     )
-    result = await uc.execute(storage="both")
+    await uc.execute(storage="both")
 
     local_provider.upload.assert_called_once()
     s3_provider.upload.assert_called_once()
@@ -147,10 +152,6 @@ async def test_create_backup_no_provider_raises(tmp_path):
 # ---------------------------------------------------------------------------
 # ListBackups tests
 # ---------------------------------------------------------------------------
-from flux_core.models.backup import BackupMetadata
-from flux_core.use_cases.backup.list_backups import ListBackups
-from flux_core.use_cases.backup.delete_backup import DeleteBackup
-from datetime import datetime, UTC
 
 
 def _make_meta(filename: str, storage: str = "local") -> BackupMetadata:
@@ -209,7 +210,6 @@ async def test_delete_backup_s3():
 # ---------------------------------------------------------------------------
 # RestoreBackup tests
 # ---------------------------------------------------------------------------
-from flux_core.use_cases.backup.restore_backup import RestoreBackup
 
 
 def _make_valid_backup_zip(tmp_path: Path) -> Path:

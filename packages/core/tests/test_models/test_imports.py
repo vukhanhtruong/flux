@@ -1,5 +1,5 @@
 def test_all_models_importable():
-    from flux_core.models import (
+    from flux_core.models import (  # noqa: F401
         TransactionCreate, TransactionOut, TransactionUpdate,
         BudgetSet, BudgetOut,
         GoalCreate, GoalOut, GoalUpdate,
