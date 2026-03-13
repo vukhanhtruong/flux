@@ -78,7 +78,7 @@ mock.module("../src/qr.js", {
   },
 });
 
-const { validateBotToken, validateUserId, validatePort, generateSecretKey, runWizard } = await import("../src/wizard.js");
+const { validateBotToken, validateUserId, validatePort, generateSecretKey, fetchBotUsername, verifyUserId, runWizard } = await import("../src/wizard.js");
 
 describe("wizard validation", () => {
   it("validates correct Telegram bot token", () => {
@@ -133,19 +133,89 @@ describe("wizard validation", () => {
   });
 });
 
+describe("fetchBotUsername", () => {
+  it("returns username when API call succeeds", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      json: async () => ({ ok: true, result: { username: "my_test_bot" } }),
+    });
+    const username = await fetchBotUsername("123:ABC");
+    assert.equal(username, "my_test_bot");
+    globalThis.fetch = originalFetch;
+  });
+
+  it("returns null when API call fails", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      json: async () => ({ ok: false }),
+    });
+    const username = await fetchBotUsername("invalid");
+    assert.equal(username, null);
+    globalThis.fetch = originalFetch;
+  });
+
+  it("returns null when fetch throws", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => { throw new Error("network error"); };
+    const username = await fetchBotUsername("123:ABC");
+    assert.equal(username, null);
+    globalThis.fetch = originalFetch;
+  });
+});
+
+describe("verifyUserId", () => {
+  it("returns chat info when API call succeeds", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      json: async () => ({ ok: true, result: { id: 456, first_name: "John" } }),
+    });
+    const result = await verifyUserId("123:ABC", "456");
+    assert.deepEqual(result, { id: 456, first_name: "John" });
+    globalThis.fetch = originalFetch;
+  });
+
+  it("returns null when API call fails", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      json: async () => ({ ok: false }),
+    });
+    const result = await verifyUserId("123:ABC", "999");
+    assert.equal(result, null);
+    globalThis.fetch = originalFetch;
+  });
+
+  it("returns null when fetch throws", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => { throw new Error("network error"); };
+    const result = await verifyUserId("123:ABC", "456");
+    assert.equal(result, null);
+    globalThis.fetch = originalFetch;
+  });
+});
+
 describe("runWizard", () => {
   let originalLog;
   let originalExit;
+  let originalFetch;
   let exitCode;
 
   beforeEach(() => {
     originalLog = console.log;
     originalExit = process.exit;
+    originalFetch = globalThis.fetch;
     exitCode = null;
 
     console.log = () => {};
     console.error = () => {};
     process.exit = (code) => { exitCode = code; throw new Error(`EXIT_${code}`); };
+    globalThis.fetch = async (url) => ({
+      json: async () => {
+        if (url.includes("/getChat")) {
+          return { ok: true, result: { id: 456, first_name: "Test User" } };
+        }
+        return { ok: true, result: { username: "test_bot" } };
+      },
+    });
 
     // Reset all mocks
     mockPrompts.mock.resetCalls();
@@ -163,6 +233,7 @@ describe("runWizard", () => {
   afterEach(() => {
     console.log = originalLog;
     process.exit = originalExit;
+    globalThis.fetch = originalFetch;
   });
 
   it("exits when Docker is not running", async () => {
@@ -460,6 +531,97 @@ describe("runWizard", () => {
 
     await runWizard();
     assert.equal(mockExecSync.mock.callCount(), 1);
+  });
+
+  it("exits when bot token verification fails and user declines to continue", async () => {
+    mockIsDockerRunning.mock.mockImplementation(async () => true);
+    mockReadClaudeToken.mock.mockImplementation(() => "sk-ant-test-token");
+    mockShowQR.mock.mockImplementation(async () => {});
+
+    // Make fetch return failure so token verification fails
+    globalThis.fetch = async () => ({
+      json: async () => ({ ok: false }),
+    });
+
+    let callCount = 0;
+    mockPrompts.mock.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { useExisting: true };
+      if (callCount === 2) return { botToken: "123:INVALID" };
+      if (callCount === 3) return { continueAnyway: false }; // decline to continue
+      return {};
+    });
+
+    await assert.rejects(() => runWizard(), { message: "EXIT_1" });
+  });
+
+  it("continues when bot token verification fails but user confirms", async () => {
+    mockIsDockerRunning.mock.mockImplementation(async () => true);
+    mockReadClaudeToken.mock.mockImplementation(() => "sk-ant-test-token");
+    mockPullImage.mock.mockImplementation(async () => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+    mockShowQR.mock.mockImplementation(async () => {});
+
+    // Make fetch return failure for bot token, but success for user ID
+    globalThis.fetch = async (url) => ({
+      json: async () => {
+        if (url.includes("/getChat")) {
+          return { ok: true, result: { id: 456, first_name: "Test" } };
+        }
+        return { ok: false };
+      },
+    });
+
+    let callCount = 0;
+    mockPrompts.mock.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { useExisting: true };
+      if (callCount === 2) return { botToken: "123:UNVERIFIED" };
+      if (callCount === 3) return { continueAnyway: true };  // continue anyway
+      if (callCount === 4) return { userId: "456" };
+      if (callCount === 5) return { port: "5173" };
+      if (callCount === 6) return { setupNgrok: false };
+      return {};
+    });
+
+    await runWizard();
+    assert.equal(mockWriteConfig.mock.callCount(), 1);
+  });
+
+  it("shows warning when user ID cannot be verified", async () => {
+    mockIsDockerRunning.mock.mockImplementation(async () => true);
+    mockReadClaudeToken.mock.mockImplementation(() => "sk-ant-test-token");
+    mockPullImage.mock.mockImplementation(async () => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+    mockShowQR.mock.mockImplementation(async () => {});
+
+    // getMe succeeds, getChat fails
+    globalThis.fetch = async (url) => ({
+      json: async () => {
+        if (url.includes("/getChat")) {
+          return { ok: false };
+        }
+        return { ok: true, result: { username: "test_bot" } };
+      },
+    });
+
+    let callCount = 0;
+    mockPrompts.mock.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { useExisting: true };
+      if (callCount === 2) return { botToken: "123:ABC" };
+      if (callCount === 3) return { userId: "999" };
+      if (callCount === 4) return { port: "5173" };
+      if (callCount === 5) return { setupNgrok: false };
+      return {};
+    });
+
+    await runWizard();
+    assert.equal(mockWriteConfig.mock.callCount(), 1);
   });
 
   it("handles ngrok setup with empty token", async () => {

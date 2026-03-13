@@ -17,7 +17,10 @@ export const BOTFATHER_INSTRUCTIONS = `How to create your Telegram bot:
     5. Choose a username ending in _bot (e.g., "myfinance_bot")
     6. Copy the token BotFather gives you
 
-  The token looks like: ${TOKEN_EXAMPLE}`;
+  The token looks like: ${TOKEN_EXAMPLE}
+
+  Tip: If you already have a bot but the token doesn't work,
+  send /revoke to @BotFather, select the bot, and get a fresh token.`;
 
 export const RAW_DATA_BOT_INSTRUCTIONS = `How to get your Telegram User ID:
 

@@ -5,7 +5,7 @@ Install and manage [FluxFinance](https://github.com/vukhanhtruong/flux) — a pe
 ## Quick Start
 
 ```bash
-npx @flux-finance/cli
+npx @flux-finance/cli@latest
 ```
 
 This launches an interactive setup wizard that guides you through everything.
@@ -28,17 +28,17 @@ The wizard walks you through:
 
 ## Commands
 
-| Command | Description |
-|---|---|
-| `npx @flux-finance/cli` | Run setup wizard (first time) or start FluxFinance |
-| `npx @flux-finance/cli start` | Start FluxFinance |
-| `npx @flux-finance/cli stop` | Stop FluxFinance |
-| `npx @flux-finance/cli status` | Show running status |
-| `npx @flux-finance/cli logs` | View container logs |
-| `npx @flux-finance/cli update` | Pull latest image and restart |
-| `npx @flux-finance/cli config` | Show current configuration |
-| `npx @flux-finance/cli ngrok` | Set up remote access via ngrok |
-| `npx @flux-finance/cli reset` | Wipe configuration (data is preserved) |
+| Command                        | Description                                        |
+| ------------------------------ | -------------------------------------------------- |
+| `npx @flux-finance/cli`        | Run setup wizard (first time) or start FluxFinance |
+| `npx @flux-finance/cli start`  | Start FluxFinance                                  |
+| `npx @flux-finance/cli stop`   | Stop FluxFinance                                   |
+| `npx @flux-finance/cli status` | Show running status                                |
+| `npx @flux-finance/cli logs`   | View container logs                                |
+| `npx @flux-finance/cli update` | Pull latest image and restart                      |
+| `npx @flux-finance/cli config` | Show current configuration                         |
+| `npx @flux-finance/cli ngrok`  | Set up remote access via ngrok                     |
+| `npx @flux-finance/cli reset`  | Wipe configuration (data is preserved)             |
 
 ## Configuration
 
@@ -55,14 +55,14 @@ All configuration is stored in `~/.flux-finance/`:
 
 ### Environment Variables
 
-| Variable | Description |
-|---|---|
-| `TELEGRAM_BOT_TOKEN` | Your Telegram bot token from @BotFather |
-| `TELEGRAM_ALLOW_FROM` | Your Telegram user ID |
-| `CLAUDE_AUTH_TOKEN` | Claude authentication token |
-| `FLUX_SECRET_KEY` | Auto-generated encryption key |
-| `PORT` | Web UI port (default: 5173) |
-| `NGROK_AUTHTOKEN` | Optional — ngrok token for remote access |
+| Variable              | Description                              |
+| --------------------- | ---------------------------------------- |
+| `TELEGRAM_BOT_TOKEN`  | Your Telegram bot token from @BotFather  |
+| `TELEGRAM_ALLOW_FROM` | Your Telegram user ID                    |
+| `CLAUDE_AUTH_TOKEN`   | Claude authentication token              |
+| `FLUX_SECRET_KEY`     | Auto-generated encryption key            |
+| `PORT`                | Web UI port (default: 5173)              |
+| `NGROK_AUTHTOKEN`     | Optional — ngrok token for remote access |
 
 ## Updating
 

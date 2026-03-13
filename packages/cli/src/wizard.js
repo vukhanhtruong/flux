@@ -3,7 +3,7 @@ import chalk from "chalk";
 import prompts from "prompts";
 import ora from "ora";
 import { isDockerRunning, pullImage, startContainer } from "./docker.js";
-import { readConfig, writeConfig, getDataDir } from "./config.js";
+import { readConfig, writeConfig, getDataDir, getConfigPath } from "./config.js";
 import { readClaudeToken, isClaudeCliInstalled } from "./claude-auth.js";
 import {
   showQR,
@@ -14,6 +14,28 @@ import {
   TOKEN_EXAMPLE,
   USER_ID_EXAMPLE,
 } from "./qr.js";
+
+export async function fetchBotUsername(token) {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+    const data = await res.json();
+    return data.ok ? data.result.username : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function verifyUserId(token, userId) {
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/getChat?chat_id=${userId}`
+    );
+    const data = await res.json();
+    return data.ok ? data.result : null;
+  } catch {
+    return null;
+  }
+}
 
 export function validateBotToken(value) {
   if (!value || !value.includes(":")) {
@@ -138,6 +160,31 @@ export async function runWizard() {
     process.exit(1);
   }
 
+  // Verify token against Telegram API
+  const botUsername = await fetchBotUsername(botToken);
+  if (!botUsername) {
+    console.log(
+      chalk.yellow(
+        "\n  Warning: Could not verify this token with Telegram.\n" +
+          "  The token may be invalid or revoked.\n" +
+          "  Tip: Send /revoke to @BotFather to get a fresh token.\n"
+      )
+    );
+    const { continueAnyway } = await prompts({
+      type: "confirm",
+      name: "continueAnyway",
+      message: "Continue with this token anyway?",
+      initial: false,
+    });
+    if (!continueAnyway) {
+      process.exit(1);
+    }
+  } else {
+    console.log(
+      chalk.green(`\n  Token verified! Your bot is @${botUsername}\n`)
+    );
+  }
+
   // Step 4: Get Telegram User ID
   console.log(chalk.bold("\nStep 4: Get your Telegram User ID\n"));
   await showQR(RAW_DATA_BOT_URL);
@@ -154,6 +201,21 @@ export async function runWizard() {
   if (!userId) {
     console.log(chalk.red("\n  User ID is required. Exiting.\n"));
     process.exit(1);
+  }
+
+  // Verify user ID — requires the bot to have seen this user before
+  const chatInfo = await verifyUserId(botToken, userId);
+  if (!chatInfo) {
+    console.log(
+      chalk.yellow(
+        "\n  Could not verify this User ID.\n" +
+          "  This is normal if you haven't messaged the bot yet.\n" +
+          "  Make sure the ID is correct — you can double-check with @raw_data_bot.\n"
+      )
+    );
+  } else {
+    const name = chatInfo.first_name || chatInfo.username || userId;
+    console.log(chalk.green(`\n  User ID verified! Hello, ${name}\n`));
   }
 
   // Step 5: Choose Port
@@ -232,13 +294,47 @@ export async function runWizard() {
 
   // Step 8: Done!
   const finalPort = config.PORT || "5173";
-  console.log(chalk.bold.green(`\n  FluxFinance is running!\n`));
-  console.log(`  Web UI: ${chalk.cyan(`http://localhost:${finalPort}`)}\n`);
-  console.log(chalk.dim("  Management commands:"));
-  console.log(chalk.dim("    npx @flux-finance/cli stop      Stop FluxFinance"));
-  console.log(chalk.dim("    npx @flux-finance/cli start     Start FluxFinance"));
-  console.log(chalk.dim("    npx @flux-finance/cli status    Show status"));
-  console.log(chalk.dim("    npx @flux-finance/cli logs      View logs"));
-  console.log(chalk.dim("    npx @flux-finance/cli update    Update to latest version"));
+
+  console.log(chalk.bold.green("\n  ============================================="));
+  console.log(chalk.bold.green("    FluxFinance is up and running!"));
+  console.log(chalk.bold.green("  =============================================\n"));
+
+  // Show chat link with QR (botUsername already verified in Step 3)
+  if (botUsername) {
+    const botUrl = `https://t.me/${botUsername}`;
+    console.log(chalk.bold("  Chat with your bot:"));
+    console.log(`    Open Telegram and message ${chalk.cyan("@" + botUsername)}`);
+    console.log(`    Or scan this QR code:\n`);
+    await showQR(botUrl);
+  }
+
+  // Web UI
+  console.log(chalk.bold("  Web UI:"));
+  console.log(`    ${chalk.cyan(`http://localhost:${finalPort}`)}\n`);
+
+  // Data location
+  console.log(chalk.bold("  Your data:"));
+  console.log(`    Config:   ${chalk.dim(getConfigPath())}`);
+  console.log(`    Database: ${chalk.dim(getDataDir() + "/sqlite/")}`);
+  console.log(`    Backups:  ${chalk.dim(getDataDir() + "/backups/")}\n`);
+
+  // Getting started tips
+  console.log(chalk.bold("  Getting started — try sending these to your bot:"));
+  console.log(`    ${chalk.cyan('"I spent $12 on lunch today"')}`);
+  console.log(`    ${chalk.cyan('"Set a monthly budget of $500 for food"')}`);
+  console.log(`    ${chalk.cyan('"Show me my spending this week"')}`);
+  if (config.NGROK_AUTHTOKEN) {
+    console.log(`    ${chalk.cyan('"Show me the UI"')} — your bot will share the ngrok link`);
+  }
+  console.log();
+
+  // Management commands
+  console.log(chalk.bold("  Management commands:"));
+  console.log(`    ${chalk.cyan("npx @flux-finance/cli stop")}      Stop FluxFinance`);
+  console.log(`    ${chalk.cyan("npx @flux-finance/cli start")}     Start FluxFinance`);
+  console.log(`    ${chalk.cyan("npx @flux-finance/cli status")}    Show status`);
+  console.log(`    ${chalk.cyan("npx @flux-finance/cli logs")}      View logs`);
+  console.log(`    ${chalk.cyan("npx @flux-finance/cli update")}    Update to latest version`);
+  console.log(`    ${chalk.cyan("npx @flux-finance/cli config")}    Show configuration`);
   console.log();
 }

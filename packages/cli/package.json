@@ -1,6 +1,6 @@
 {
   "name": "@flux-finance/cli",
-  "version": "0.1.0",
+  "version": "1.0.2",
   "description": "Install and manage FluxFinance — personal finance AI agent",
   "type": "module",
   "bin": {
@@ -10,7 +10,8 @@
     "test": "c8 --check-coverage --lines 90 --functions 90 --branches 90 --include src/ node --experimental-test-module-mocks --test tests/claude-auth.test.js tests/config.test.js tests/docker.test.js tests/index.test.js tests/qr.test.js tests/wizard.test.js"
   },
   "files": [
-    "src/"
+    "src/",
+    "README.md"
   ],
   "keywords": [
     "finance",
