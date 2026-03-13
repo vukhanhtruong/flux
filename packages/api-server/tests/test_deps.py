@@ -3,23 +3,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import flux_core.infrastructure as infra
 import flux_api.deps as deps
 
 
 @pytest.fixture(autouse=True)
 def reset_singletons():
     """Reset all module-level singletons before each test."""
-    deps._db = None
-    deps._vector_store = None
-    deps._event_bus = None
-    deps._local_storage = None
-    deps._embedding_service = None
+    infra.reset_singletons()
     yield
-    deps._db = None
-    deps._vector_store = None
-    deps._event_bus = None
-    deps._local_storage = None
-    deps._embedding_service = None
+    infra.reset_singletons()
 
 
 def test_get_db_lazy_init(tmp_path):
@@ -29,7 +22,7 @@ def test_get_db_lazy_init(tmp_path):
         db = deps.get_db()
 
     assert db is not None
-    assert deps._db is db
+    assert infra._db is db
     # Second call returns same instance
     assert deps.get_db() is db
 
@@ -41,7 +34,7 @@ def test_get_vector_store_lazy_init(tmp_path):
         store = deps.get_vector_store()
 
     assert store is not None
-    assert deps._vector_store is store
+    assert infra._vector_store is store
     # Second call returns same instance
     assert deps.get_vector_store() is store
 
@@ -51,7 +44,7 @@ def test_get_event_bus_lazy_init():
     bus = deps.get_event_bus()
 
     assert bus is not None
-    assert deps._event_bus is bus
+    assert infra._event_bus is bus
     assert deps.get_event_bus() is bus
 
 
@@ -62,18 +55,18 @@ def test_get_local_storage_lazy_init(tmp_path):
         storage = deps.get_local_storage()
 
     assert storage is not None
-    assert deps._local_storage is storage
+    assert infra._local_storage is storage
     assert deps.get_local_storage() is storage
 
 
 def test_get_embedding_service_lazy_init():
     """Test get_embedding_service() creates EmbeddingService on first call."""
     mock_svc = MagicMock()
-    with patch("flux_api.deps.EmbeddingService", return_value=mock_svc):
+    with patch("flux_core.infrastructure.EmbeddingService", return_value=mock_svc):
         svc = deps.get_embedding_service()
 
     assert svc is mock_svc
-    assert deps._embedding_service is svc
+    assert infra._embedding_service is svc
     assert deps.get_embedding_service() is svc
 
 
@@ -93,11 +86,14 @@ def test_get_s3_storage_returns_none_when_config_incomplete():
     mock_config_repo.get.return_value = None  # All config keys return None
 
     mock_db = MagicMock()
-    deps._db = mock_db
+    infra._db = mock_db
 
     with (
         patch("flux_core.services.encryption.EncryptionService") as MockEnc,
-        patch("flux_core.sqlite.system_config_repo.SqliteSystemConfigRepository", return_value=mock_config_repo),
+        patch(
+            "flux_core.sqlite.system_config_repo.SqliteSystemConfigRepository",
+            return_value=mock_config_repo,
+        ),
     ):
         MockEnc.from_env.return_value = mock_enc
         result = deps.get_s3_storage()
@@ -118,13 +114,19 @@ def test_get_s3_storage_returns_provider_when_configured():
     }.get(key)
 
     mock_db = MagicMock()
-    deps._db = mock_db
+    infra._db = mock_db
 
     mock_s3_provider = MagicMock()
     with (
         patch("flux_core.services.encryption.EncryptionService") as MockEnc,
-        patch("flux_core.sqlite.system_config_repo.SqliteSystemConfigRepository", return_value=mock_config_repo),
-        patch("flux_core.services.storage.s3.S3StorageProvider", return_value=mock_s3_provider),
+        patch(
+            "flux_core.sqlite.system_config_repo.SqliteSystemConfigRepository",
+            return_value=mock_config_repo,
+        ),
+        patch(
+            "flux_core.services.storage.s3.S3StorageProvider",
+            return_value=mock_s3_provider,
+        ),
     ):
         MockEnc.from_env.return_value = mock_enc
         result = deps.get_s3_storage()
@@ -143,11 +145,14 @@ def test_get_system_config_repo_returns_repo_when_configured():
     mock_enc = MagicMock()
     mock_repo = MagicMock()
     mock_db = MagicMock()
-    deps._db = mock_db
+    infra._db = mock_db
 
     with (
         patch("flux_core.services.encryption.EncryptionService") as MockEnc,
-        patch("flux_core.sqlite.system_config_repo.SqliteSystemConfigRepository", return_value=mock_repo),
+        patch(
+            "flux_core.sqlite.system_config_repo.SqliteSystemConfigRepository",
+            return_value=mock_repo,
+        ),
     ):
         MockEnc.from_env.return_value = mock_enc
         result = deps.get_system_config_repo()
@@ -160,11 +165,11 @@ def test_get_uow_creates_unit_of_work():
     mock_db = MagicMock()
     mock_vs = MagicMock()
     mock_bus = MagicMock()
-    deps._db = mock_db
-    deps._vector_store = mock_vs
-    deps._event_bus = mock_bus
+    infra._db = mock_db
+    infra._vector_store = mock_vs
+    infra._event_bus = mock_bus
 
-    with patch("flux_api.deps.UnitOfWork") as MockUoW:
+    with patch("flux_core.infrastructure.UnitOfWork") as MockUoW:
         deps.get_uow()
 
     MockUoW.assert_called_once_with(mock_db, mock_vs, mock_bus)

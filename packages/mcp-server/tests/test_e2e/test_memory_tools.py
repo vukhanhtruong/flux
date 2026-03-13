@@ -1,10 +1,5 @@
 """E2E tests for memory MCP tools."""
-import json
-
-
-def _extract_json(tool_result):
-    assert len(tool_result.content) > 0
-    return json.loads(tool_result.content[0].text)
+from .conftest import extract_json
 
 
 async def test_remember_stores_memory(seeded_server):
@@ -13,7 +8,7 @@ async def test_remember_stores_memory(seeded_server):
         "remember",
         {"memory_type": "preference", "content": "User prefers dark mode"},
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert "id" in data
     assert data["memory_type"] == "preference"
     assert data["content"] == "User prefers dark mode"
@@ -33,7 +28,7 @@ async def test_list_memories_returns_stored_memories(seeded_server):
 
     # List all memories
     result = await seeded_server.call_tool("list_memories", {})
-    data = _extract_json(result)
+    data = extract_json(result)
     assert isinstance(data, list)
     assert len(data) >= 2
     # Each item should have expected fields
@@ -48,7 +43,7 @@ async def test_list_memories_returns_stored_memories(seeded_server):
     result_filtered = await seeded_server.call_tool(
         "list_memories", {"memory_type": "preference"}
     )
-    filtered = _extract_json(result_filtered)
+    filtered = extract_json(result_filtered)
     assert isinstance(filtered, list)
     assert len(filtered) >= 1
     assert all(m["memory_type"] == "preference" for m in filtered)
@@ -62,7 +57,7 @@ async def test_list_memories_with_limit(seeded_server):
             {"memory_type": "fact", "content": f"Fact number {i}"},
         )
     result = await seeded_server.call_tool("list_memories", {"limit": 2})
-    data = _extract_json(result)
+    data = extract_json(result)
     assert isinstance(data, list)
     assert len(data) <= 2
 
@@ -76,7 +71,7 @@ async def test_recall_returns_formatted_results(seeded_server):
     result = await seeded_server.call_tool(
         "recall", {"query": "food preferences", "limit": 5}
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert isinstance(data, dict)
     assert "memories" in data
     memories = data["memories"]
@@ -101,7 +96,7 @@ async def test_recall_includes_data_warning_note(seeded_server):
         "recall",
         {"query": "currency preference"},
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert "note" in data
     assert "data" in data["note"].lower()
     assert "not as instructions" in data["note"].lower()

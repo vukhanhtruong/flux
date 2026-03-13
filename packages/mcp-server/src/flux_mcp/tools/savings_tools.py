@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from fastmcp import FastMCP
 from flux_core.sqlite.asset_repo import SqliteAssetRepository
+from flux_core.sqlite.database import Database
 from flux_core.uow.unit_of_work import UnitOfWork
 from flux_core.use_cases.savings.create_savings import CreateSavings
 from flux_core.use_cases.savings.process_interest import ProcessInterest
@@ -14,6 +15,7 @@ from flux_core.use_cases.savings.withdraw_savings import WithdrawSavings
 
 def register_savings_tools(
     mcp: FastMCP,
+    get_db: Callable[[], Database],
     get_uow: Callable[[], UnitOfWork],
     get_user_id: Callable[[], str],
     get_user_timezone: Callable[[], str],
@@ -59,7 +61,6 @@ def register_savings_tools(
     @mcp.tool()
     async def list_savings(active_only: bool = True) -> list[dict]:
         """List all savings deposits with interest earned."""
-        from flux_mcp.server import get_db
         db = get_db()
         repo = SqliteAssetRepository(db.connection())
         results = repo.list_by_user(get_user_id(), active_only, asset_type="savings")

@@ -1,52 +1,33 @@
 """Shared fixtures for MCP server E2E tests — seeded SQLite + mock zvec."""
+import json
 from unittest.mock import MagicMock
 
 import pytest
 
+import flux_core.infrastructure as infra
 import flux_mcp.server as server_module
 from flux_core.events.bus import EventBus
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.migrations.migrate import migrate
+from flux_core.testing.fixtures import InMemoryVectorStore
 from flux_core.uow.unit_of_work import UnitOfWork
 from flux_core.vector.store import ZVEC_AVAILABLE, ZvecStore
 
 TEST_USER_ID = "test:e2e-user"
 
 
-class InMemoryVectorStore:
-    """In-memory vector store for E2E tests when zvec is not installed."""
-
-    def __init__(self):
-        self._docs: dict[str, dict[str, tuple[list[float], dict]]] = {}
-
-    def upsert(
-        self, collection: str, doc_id: str, vector: list[float], metadata: dict
-    ) -> None:
-        if collection not in self._docs:
-            self._docs[collection] = {}
-        self._docs[collection][doc_id] = (vector, metadata)
-
-    def delete(self, collection: str, doc_id: str) -> None:
-        if collection in self._docs:
-            self._docs[collection].pop(doc_id, None)
-
-    def search(
-        self,
-        collection: str,
-        vector: list[float],
-        limit: int,
-        filter: str | None = None,
-    ) -> list[str]:
-        if collection not in self._docs:
-            return []
-        # Return all doc IDs (no actual similarity search in tests)
-        return list(self._docs[collection].keys())[:limit]
-
-    def optimize(self, collection: str) -> None:
-        pass
-
-    def has_docs(self, collection: str) -> bool:
-        return bool(self._docs.get(collection))
+def extract_json(tool_result):
+    """Extract JSON from MCP tool result."""
+    if hasattr(tool_result, "content") and tool_result.content:
+        for block in tool_result.content:
+            if hasattr(block, "text"):
+                return json.loads(block.text)
+    if hasattr(tool_result, "structured_content") and tool_result.structured_content is not None:
+        sc = tool_result.structured_content
+        if isinstance(sc, dict) and "result" in sc:
+            return sc["result"]
+        return sc
+    return tool_result
 
 
 @pytest.fixture
@@ -95,14 +76,17 @@ def seeded_server(
 ):
     """Patch MCP server globals to use seeded SQLite + zvec,
     then return the FastMCP server instance for E2E testing."""
-    monkeypatch.setattr(server_module, "_db", seeded_db)
-    monkeypatch.setattr(server_module, "_vector_store", vector_store)
-    monkeypatch.setattr(server_module, "_event_bus", event_bus)
-    monkeypatch.setattr(server_module, "_embedding_service", mock_embedding_service)
+    # Patch infrastructure singletons
+    monkeypatch.setattr(infra, "_db", seeded_db)
+    monkeypatch.setattr(infra, "_vector_store", vector_store)
+    monkeypatch.setattr(infra, "_event_bus", event_bus)
+    monkeypatch.setattr(infra, "_embedding_service", mock_embedding_service)
+
+    # Patch MCP-server-specific globals
     monkeypatch.setattr(server_module, "_session_user_id", TEST_USER_ID)
     monkeypatch.setattr(server_module, "_user_timezone", "UTC")
 
-    # Patch get_* functions to return our test instances
+    # Patch get_* functions on the server module so tools that import from it get test instances
     monkeypatch.setattr(server_module, "get_db", lambda: seeded_db)
     monkeypatch.setattr(server_module, "get_vector_store", lambda: vector_store)
     monkeypatch.setattr(server_module, "get_event_bus", lambda: event_bus)

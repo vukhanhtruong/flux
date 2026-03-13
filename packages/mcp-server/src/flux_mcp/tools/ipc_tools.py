@@ -2,6 +2,7 @@ from typing import Callable
 
 from fastmcp import FastMCP
 from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
+from flux_core.sqlite.database import Database
 from flux_core.uow.unit_of_work import UnitOfWork
 from flux_core.use_cases.bot.cancel_task import CancelTask
 from flux_core.use_cases.bot.list_tasks import ListTasks
@@ -31,6 +32,7 @@ _BLOCKED_PHRASES = [
 
 def register_ipc_tools(
     mcp: FastMCP,
+    get_db: Callable[[], Database],
     get_uow: Callable[[], UnitOfWork],
     get_user_id: Callable[[], str],
     get_user_timezone: Callable[[], str],
@@ -88,8 +90,6 @@ def register_ipc_tools(
         """List all your scheduled tasks."""
         from datetime import UTC, datetime
         from zoneinfo import ZoneInfo
-
-        from flux_mcp.server import get_db
 
         db = get_db()
         repo = SqliteBotScheduledTaskRepository(db.connection())

@@ -1,15 +1,8 @@
 """E2E tests for financial MCP tools — subscription billing."""
-import json
 from decimal import Decimal
 from uuid import uuid4
 
-
-def _extract_json(tool_result):
-    if tool_result.content:
-        return json.loads(tool_result.content[0].text)
-    if tool_result.structured_content and "result" in tool_result.structured_content:
-        return tool_result.structured_content["result"]
-    raise AssertionError(f"No content in tool result: {tool_result}")
+from .conftest import extract_json
 
 
 async def test_process_subscription_billing_creates_transaction(seeded_server):
@@ -24,12 +17,12 @@ async def test_process_subscription_billing_creates_transaction(seeded_server):
             "category": "Entertainment",
         },
     )
-    sub_id = _extract_json(create_result)["id"]
+    sub_id = extract_json(create_result)["id"]
 
     result = await seeded_server.call_tool(
         "process_subscription_billing", {"subscription_id": sub_id}
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert data["subscription_name"] == "Netflix"
     assert data["amount"] == "15.99"
     assert "transaction_id" in data
@@ -42,7 +35,7 @@ async def test_process_subscription_billing_not_found(seeded_server):
     result = await seeded_server.call_tool(
         "process_subscription_billing", {"subscription_id": fake_id}
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert "error" in data
 
 
@@ -51,16 +44,16 @@ async def test_delete_goal(seeded_server):
     create_result = await seeded_server.call_tool(
         "create_goal", {"name": "Vacation", "target_amount": 5000.0}
     )
-    goal_id = _extract_json(create_result)["id"]
+    goal_id = extract_json(create_result)["id"]
 
     result = await seeded_server.call_tool("delete_goal", {"goal_id": goal_id})
-    data = _extract_json(result)
+    data = extract_json(result)
     assert data["deleted"] is True
     assert data["goal_id"] == goal_id
 
     # Verify goal no longer in list
     list_result = await seeded_server.call_tool("list_goals", {})
-    goals = _extract_json(list_result)
+    goals = extract_json(list_result)
     assert all(g["id"] != goal_id for g in goals)
 
 
@@ -68,7 +61,7 @@ async def test_delete_goal_not_found(seeded_server):
     """delete_goal returns deleted=False for non-existent goal."""
     fake_id = str(uuid4())
     result = await seeded_server.call_tool("delete_goal", {"goal_id": fake_id})
-    data = _extract_json(result)
+    data = extract_json(result)
     assert data["deleted"] is False
 
 
@@ -77,12 +70,12 @@ async def test_deposit_to_goal(seeded_server):
     create_result = await seeded_server.call_tool(
         "create_goal", {"name": "Car Fund", "target_amount": 10000.0}
     )
-    goal_id = _extract_json(create_result)["id"]
+    goal_id = extract_json(create_result)["id"]
 
     result = await seeded_server.call_tool(
         "deposit_to_goal", {"goal_id": goal_id, "amount": 250.0}
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert data["id"] == goal_id
     assert Decimal(data["current_amount"]) == Decimal("250.0")
     assert data["name"] == "Car Fund"
@@ -94,7 +87,7 @@ async def test_deposit_to_goal_not_found(seeded_server):
     result = await seeded_server.call_tool(
         "deposit_to_goal", {"goal_id": fake_id, "amount": 100.0}
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert "error" in data
 
 
@@ -103,7 +96,7 @@ async def test_withdraw_from_goal(seeded_server):
     create_result = await seeded_server.call_tool(
         "create_goal", {"name": "Emergency", "target_amount": 3000.0}
     )
-    goal_id = _extract_json(create_result)["id"]
+    goal_id = extract_json(create_result)["id"]
 
     # Deposit first
     await seeded_server.call_tool(
@@ -113,7 +106,7 @@ async def test_withdraw_from_goal(seeded_server):
     result = await seeded_server.call_tool(
         "withdraw_from_goal", {"goal_id": goal_id, "amount": 200.0}
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert data["id"] == goal_id
     assert Decimal(data["current_amount"]) == Decimal("300.0")
 
@@ -124,7 +117,7 @@ async def test_withdraw_from_goal_not_found(seeded_server):
     result = await seeded_server.call_tool(
         "withdraw_from_goal", {"goal_id": fake_id, "amount": 100.0}
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert "error" in data
 
 
@@ -135,13 +128,13 @@ async def test_remove_budget(seeded_server):
     )
 
     result = await seeded_server.call_tool("remove_budget", {"category": "Food"})
-    data = _extract_json(result)
+    data = extract_json(result)
     assert data["deleted"] is True
     assert data["category"] == "Food"
 
     # Verify budget no longer in list
     list_result = await seeded_server.call_tool("list_budgets", {})
-    budgets = _extract_json(list_result)
+    budgets = extract_json(list_result)
     assert all(b["category"] != "Food" for b in budgets)
 
 
@@ -150,7 +143,7 @@ async def test_remove_budget_not_found(seeded_server):
     result = await seeded_server.call_tool(
         "remove_budget", {"category": "NonExistentCategory"}
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert data["deleted"] is False
 
 
@@ -166,11 +159,11 @@ async def test_process_subscription_billing_inactive(seeded_server):
             "category": "Entertainment",
         },
     )
-    sub_id = _extract_json(create_result)["id"]
+    sub_id = extract_json(create_result)["id"]
     await seeded_server.call_tool("toggle_subscription", {"subscription_id": sub_id})
 
     result = await seeded_server.call_tool(
         "process_subscription_billing", {"subscription_id": sub_id}
     )
-    data = _extract_json(result)
+    data = extract_json(result)
     assert "error" in data

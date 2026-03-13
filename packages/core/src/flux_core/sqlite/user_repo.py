@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from flux_core.models.user_profile import UserProfile, UserProfileCreate
-
-_CHANNEL_PREFIXES = {"telegram": "tg", "whatsapp": "wa"}
+from flux_core.models.user_profile import UserProfile, UserProfileCreate, _CHANNEL_PREFIXES
 
 
 class SqliteUserRepository:

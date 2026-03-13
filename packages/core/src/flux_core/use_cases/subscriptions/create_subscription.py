@@ -9,6 +9,7 @@ from flux_core.events.events import SubscriptionCreated
 from flux_core.models.subscription import BillingCycle, SubscriptionCreate
 from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
 from flux_core.sqlite.subscription_repo import SqliteSubscriptionRepository
+from flux_core.utils import to_utc_midnight
 
 if TYPE_CHECKING:
     from datetime import date
@@ -23,11 +24,6 @@ def _derive_cron(cycle: BillingCycle, next_date: date) -> str:
         return f"0 0 {next_date.day} * *"
     # yearly
     return f"0 0 {next_date.day} {next_date.month} *"
-
-
-def _to_utc_midnight(d: date) -> datetime:
-    """Convert a date to UTC midnight datetime."""
-    return datetime(d.year, d.month, d.day, tzinfo=UTC)
 
 
 class CreateSubscription:
@@ -69,7 +65,7 @@ class CreateSubscription:
                 prompt=prompt,
                 schedule_type="cron",
                 schedule_value=cron,
-                next_run_at=_to_utc_midnight(result.next_date),
+                next_run_at=to_utc_midnight(result.next_date),
                 subscription_id=str(result.id),
             )
 

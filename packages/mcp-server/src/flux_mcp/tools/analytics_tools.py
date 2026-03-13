@@ -4,8 +4,8 @@ from typing import Callable
 from fastmcp import FastMCP
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.transaction_repo import SqliteTransactionRepository
-from flux_core.use_cases.analytics.get_category_breakdown import GetCategoryBreakdown
-from flux_core.use_cases.analytics.get_summary import GetSummary
+from flux_core.use_cases.analytics.calculate_financial_health import CalculateFinancialHealth
+from flux_core.use_cases.analytics.generate_spending_report import GenerateSpendingReport
 from flux_core.use_cases.analytics.get_trends import GetTrends
 
 
@@ -21,17 +21,8 @@ def register_analytics_tools(
         repo = SqliteTransactionRepository(db.connection())
         sd = date.fromisoformat(start_date)
         ed = date.fromisoformat(end_date)
-
-        summary_uc = GetSummary(repo)
-        summary = await summary_uc.execute(get_user_id(), sd, ed)
-
-        breakdown_uc = GetCategoryBreakdown(repo)
-        breakdown = await breakdown_uc.execute(get_user_id(), sd, ed)
-
-        return {
-            **summary,
-            "category_breakdown": breakdown,
-        }
+        uc = GenerateSpendingReport(repo)
+        return await uc.execute(get_user_id(), sd, ed)
 
     @mcp.tool()
     async def calculate_financial_health(start_date: str, end_date: str) -> dict:
@@ -40,18 +31,8 @@ def register_analytics_tools(
         repo = SqliteTransactionRepository(db.connection())
         sd = date.fromisoformat(start_date)
         ed = date.fromisoformat(end_date)
-
-        summary_uc = GetSummary(repo)
-        summary = await summary_uc.execute(get_user_id(), sd, ed)
-
-        breakdown_uc = GetCategoryBreakdown(repo)
-        breakdown = await breakdown_uc.execute(get_user_id(), sd, ed)
-
-        return {
-            "summary": summary,
-            "category_breakdown": breakdown,
-            "period": {"start": start_date, "end": end_date},
-        }
+        uc = CalculateFinancialHealth(repo)
+        return await uc.execute(get_user_id(), sd, ed)
 
     @mcp.tool()
     async def get_trends(

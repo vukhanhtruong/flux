@@ -4,42 +4,14 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-import flux_api.deps as deps_module
+import flux_core.infrastructure as infra
 from flux_core.events.bus import EventBus
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.migrations.migrate import migrate
+from flux_core.testing.fixtures import InMemoryVectorStore
 from flux_core.vector.store import ZVEC_AVAILABLE, ZvecStore
 
 TEST_USER_ID = "test:e2e-user"
-
-
-class InMemoryVectorStore:
-    """In-memory vector store for E2E tests when zvec is not installed."""
-
-    def __init__(self):
-        self._docs: dict[str, dict[str, tuple[list[float], dict]]] = {}
-
-    def upsert(
-        self, collection: str, doc_id: str, vector: list[float], metadata: dict
-    ) -> None:
-        if collection not in self._docs:
-            self._docs[collection] = {}
-        self._docs[collection][doc_id] = (vector, metadata)
-
-    def delete(self, collection: str, doc_id: str) -> None:
-        if collection in self._docs:
-            self._docs[collection].pop(doc_id, None)
-
-    def search(
-        self, collection: str, vector: list[float], limit: int,
-        filter: str | None = None,
-    ) -> list[str]:
-        if collection not in self._docs:
-            return []
-        return list(self._docs[collection].keys())[:limit]
-
-    def optimize(self, collection: str) -> None:
-        pass
 
 
 @pytest.fixture
@@ -82,16 +54,16 @@ def mock_embedding_service():
 
 @pytest.fixture
 def seeded_app(seeded_db, vector_store, event_bus, mock_embedding_service, monkeypatch):
-    """Patch API deps singletons to use seeded SQLite + zvec, return TestClient.
+    """Patch infrastructure singletons to use seeded SQLite + zvec, return TestClient.
 
-    We patch the module-level singletons (_db, _vector_store, etc.) so that
-    the original get_*() functions return our test instances (they check
+    We patch the module-level singletons in flux_core.infrastructure so that
+    the get_*() functions return our test instances (they check
     ``if _xxx is None`` and skip lazy init when already set).
     """
-    monkeypatch.setattr(deps_module, "_db", seeded_db)
-    monkeypatch.setattr(deps_module, "_vector_store", vector_store)
-    monkeypatch.setattr(deps_module, "_event_bus", event_bus)
-    monkeypatch.setattr(deps_module, "_embedding_service", mock_embedding_service)
+    monkeypatch.setattr(infra, "_db", seeded_db)
+    monkeypatch.setattr(infra, "_vector_store", vector_store)
+    monkeypatch.setattr(infra, "_event_bus", event_bus)
+    monkeypatch.setattr(infra, "_embedding_service", mock_embedding_service)
 
     from flux_api.app import app
     return TestClient(app, raise_server_exceptions=True)

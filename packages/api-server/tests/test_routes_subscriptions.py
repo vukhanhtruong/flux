@@ -4,25 +4,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
-import pytest
-from fastapi.testclient import TestClient
-
-from flux_api.app import app
 from flux_core.models.subscription import BillingCycle, SubscriptionOut
-
-
-@pytest.fixture
-def client():
-    return TestClient(app)
-
-
-@pytest.fixture
-def mock_uow():
-    uow = MagicMock()
-    uow.__aenter__ = AsyncMock(return_value=uow)
-    uow.__aexit__ = AsyncMock(return_value=False)
-    uow.commit = AsyncMock()
-    return uow
 
 
 def test_create_subscription(client, mock_uow):

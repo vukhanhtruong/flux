@@ -7,13 +7,11 @@ import asyncio
 import structlog
 
 from flux_bot.db.outbound import OutboundRepository
+from flux_core.models.user_profile import _CHANNEL_PREFIXES
 
 logger = structlog.get_logger(__name__)
 
-CHANNEL_PREFIXES = {
-    "tg": "telegram",
-    "wa": "whatsapp",
-}
+CHANNEL_PREFIXES = {v: k for k, v in _CHANNEL_PREFIXES.items()}
 
 
 def parse_channel_prefix(user_id: str) -> tuple[str | None, str]:

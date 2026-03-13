@@ -1,35 +1,19 @@
 """ProcessInterest use case — compound interest on savings + reschedule."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from flux_core.sqlite.asset_repo import SqliteAssetRepository
 from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
+from flux_core.utils import build_savings_prompt, to_utc_midnight
 
 if TYPE_CHECKING:
-    from datetime import date
     from uuid import UUID
 
     from flux_core.uow.unit_of_work import UnitOfWork
 
 COMPOUND_PERIODS = {"monthly": 12, "quarterly": 4, "yearly": 1}
-
-
-def _to_utc_midnight(d: date) -> datetime:
-    return datetime(d.year, d.month, d.day, tzinfo=UTC)
-
-
-def _build_savings_prompt(name: str, asset_id: str, is_maturity: bool) -> str:
-    base = f"Process savings interest for {name} (id: {asset_id})"
-    if is_maturity:
-        return (
-            f"{base}. This deposit matures today. "
-            "After processing, inform the user about the final balance "
-            "and ask if they'd like to withdraw."
-        )
-    return base
 
 
 class ProcessInterest:
@@ -82,7 +66,7 @@ class ProcessInterest:
                 is_maturity = (
                     asset.maturity_date is not None and nd >= asset.maturity_date
                 )
-                prompt = _build_savings_prompt(
+                prompt = build_savings_prompt(
                     asset.name, str(asset_id), is_maturity
                 )
                 task_repo.create(
@@ -90,7 +74,7 @@ class ProcessInterest:
                     prompt=prompt,
                     schedule_type="once",
                     schedule_value=str(nd),
-                    next_run_at=_to_utc_midnight(nd),
+                    next_run_at=to_utc_midnight(nd),
                     asset_id=str(asset_id),
                 )
 

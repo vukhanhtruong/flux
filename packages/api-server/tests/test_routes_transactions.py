@@ -5,9 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
 import pytest
-from fastapi.testclient import TestClient
 
-from flux_api.app import app
 from flux_core.models.transaction import TransactionOut, TransactionType
 from flux_core.repositories.transaction_repo import TransactionRepository
 
@@ -26,27 +24,11 @@ def mock_db(mock_repo):
 
 
 @pytest.fixture
-def mock_uow():
-    """Mock UnitOfWork."""
-    uow = MagicMock()
-    uow.__aenter__ = AsyncMock(return_value=uow)
-    uow.__aexit__ = AsyncMock(return_value=False)
-    uow.commit = AsyncMock()
-    return uow
-
-
-@pytest.fixture
 def mock_embedding_service():
     """Mock embedding service."""
     service = MagicMock()
     service.embed.return_value = [0.1] * 384
     return service
-
-
-@pytest.fixture
-def client():
-    """Test client."""
-    return TestClient(app)
 
 
 def _make_txn_out(**overrides) -> TransactionOut:

@@ -1,16 +1,6 @@
 """Test scheduled task REST routes."""
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-from fastapi.testclient import TestClient
-
-from flux_api.app import app
-
-
-@pytest.fixture
-def client():
-    return TestClient(app)
-
 
 def test_list_scheduled_tasks(client):
     """Test GET /scheduled-tasks/ returns list of tasks for a user."""

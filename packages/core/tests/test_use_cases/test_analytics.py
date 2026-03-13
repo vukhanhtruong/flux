@@ -4,6 +4,8 @@ from decimal import Decimal
 from unittest.mock import MagicMock
 
 from flux_core.use_cases.analytics import GetCategoryBreakdown, GetSummary, GetTrends
+from flux_core.use_cases.analytics.calculate_financial_health import CalculateFinancialHealth
+from flux_core.use_cases.analytics.generate_spending_report import GenerateSpendingReport
 
 USER_ID = "tg:12345"
 START = date(2026, 3, 1)
@@ -115,3 +117,59 @@ async def test_get_category_breakdown_empty():
     result = await uc.execute(USER_ID, START, END)
 
     assert result == []
+
+
+# ── GenerateSpendingReport ────────────────────────────────────────────
+
+
+async def test_generate_spending_report():
+    repo = MagicMock()
+    repo.get_summary.return_value = {
+        "total_income": Decimal("5000"),
+        "total_expenses": Decimal("3000"),
+        "net": Decimal("2000"),
+        "count": 25,
+    }
+    repo.get_category_breakdown.return_value = [
+        {"category": "food", "total": Decimal("1000")}
+    ]
+
+    uc = GenerateSpendingReport(repo)
+    result = await uc.execute("u1", date(2024, 1, 1), date(2024, 1, 31))
+
+    assert result["total_income"] == Decimal("5000")
+    assert "category_breakdown" in result
+    assert len(result["category_breakdown"]) == 1
+
+
+# ── CalculateFinancialHealth ──────────────────────────────────────────
+
+
+async def test_calculate_financial_health():
+    repo = MagicMock()
+    repo.get_summary.return_value = {
+        "total_income": Decimal("5000"),
+        "total_expenses": Decimal("3000"),
+    }
+
+    uc = CalculateFinancialHealth(repo)
+    result = await uc.execute("u1", date(2024, 1, 1), date(2024, 1, 31))
+
+    assert result["score"] == 40
+    assert result["savings_rate"] == 0.4
+    assert "budget_adherence" in result
+    assert "goal_progress" in result
+
+
+async def test_financial_health_zero_income():
+    repo = MagicMock()
+    repo.get_summary.return_value = {
+        "total_income": Decimal("0"),
+        "total_expenses": Decimal("100"),
+    }
+
+    uc = CalculateFinancialHealth(repo)
+    result = await uc.execute("u1", date(2024, 1, 1), date(2024, 1, 31))
+
+    assert result["score"] == 0
+    assert result["savings_rate"] == 0.0

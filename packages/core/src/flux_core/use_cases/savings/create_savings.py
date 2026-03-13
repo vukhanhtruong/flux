@@ -9,6 +9,7 @@ from flux_core.events.events import SavingsCreated
 from flux_core.models.asset import AssetCreate, AssetFrequency, AssetType
 from flux_core.sqlite.asset_repo import SqliteAssetRepository
 from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
+from flux_core.utils import build_savings_prompt, to_utc_midnight
 
 if TYPE_CHECKING:
     from datetime import date
@@ -26,21 +27,6 @@ def _compute_next_date(start: date, compound_frequency: str) -> date:
     new_year = start.year + years + (new_month - 1) // 12
     new_month = (new_month - 1) % 12 + 1
     return start.replace(year=new_year, month=new_month)
-
-
-def _to_utc_midnight(d: date) -> datetime:
-    return datetime(d.year, d.month, d.day, tzinfo=UTC)
-
-
-def _build_savings_prompt(name: str, asset_id: str, is_maturity: bool) -> str:
-    base = f"Process savings interest for {name} (id: {asset_id})"
-    if is_maturity:
-        return (
-            f"{base}. This deposit matures today. "
-            "After processing, inform the user about the final balance "
-            "and ask if they'd like to withdraw."
-        )
-    return base
 
 
 class CreateSavings:
@@ -86,13 +72,13 @@ class CreateSavings:
             result = asset_repo.create(asset)
 
             is_maturity = next_date >= maturity_date
-            prompt = _build_savings_prompt(result.name, str(result.id), is_maturity)
+            prompt = build_savings_prompt(result.name, str(result.id), is_maturity)
             task_repo.create(
                 user_id=user_id,
                 prompt=prompt,
                 schedule_type="once",
                 schedule_value=next_date.isoformat(),
-                next_run_at=_to_utc_midnight(next_date),
+                next_run_at=to_utc_midnight(next_date),
                 asset_id=str(result.id),
             )
 

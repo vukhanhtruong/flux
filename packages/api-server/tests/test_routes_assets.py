@@ -1,29 +1,10 @@
 """Test asset REST routes."""
 from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import UUID
 
-import pytest
-from fastapi.testclient import TestClient
-
-from flux_api.app import app
 from flux_core.models.asset import AssetFrequency, AssetOut
-
-
-@pytest.fixture
-def client():
-    return TestClient(app)
-
-
-@pytest.fixture
-def mock_uow():
-    uow = MagicMock()
-    uow.__aenter__ = AsyncMock(return_value=uow)
-    uow.__aexit__ = AsyncMock(return_value=False)
-    uow.commit = AsyncMock()
-    uow.conn = MagicMock()
-    return uow
 
 
 def test_list_assets(client):

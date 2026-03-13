@@ -2,6 +2,7 @@ from typing import Callable
 
 from fastmcp import FastMCP
 from flux_core.embeddings.service import EmbeddingProvider
+from flux_core.sqlite.database import Database
 from flux_core.models.memory import MemoryType
 from flux_core.sqlite.memory_repo import SqliteMemoryRepository
 from flux_core.uow.unit_of_work import UnitOfWork
@@ -13,6 +14,7 @@ from flux_core.vector.store import ZvecStore
 
 def register_memory_tools(
     mcp: FastMCP,
+    get_db: Callable[[], Database],
     get_uow: Callable[[], UnitOfWork],
     get_vector_store: Callable[[], ZvecStore],
     get_embedding_service: Callable[[], EmbeddingProvider],
@@ -36,8 +38,6 @@ def register_memory_tools(
         memory_type: str | None = None, limit: int = 50
     ) -> list[dict]:
         """List all memories, optionally filtered by type."""
-        from flux_mcp.server import get_db
-
         db = get_db()
         repo = SqliteMemoryRepository(db.connection())
         uc = ListMemories(repo)
@@ -58,7 +58,6 @@ def register_memory_tools(
     async def recall(query: str, limit: int = 5) -> dict:
         """Recall memories semantically similar to a query."""
         # Read-only: use repo + vector store directly
-        from flux_mcp.server import get_db
         db = get_db()
         repo = SqliteMemoryRepository(db.connection())
         uc = Recall(repo, get_vector_store(), get_embedding_service())
