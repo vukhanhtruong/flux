@@ -58,7 +58,6 @@ def register_profile_tools(
                     username=username,
                 )
             except ValueError as e:
-                await uow.commit()
                 return {"error": str(e)}
             await uow.commit()
 

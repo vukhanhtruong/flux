@@ -150,3 +150,24 @@ def test_patch_profile_user_not_found(client, mock_uow):
 
     assert response.status_code == 404
     assert "user not found" in response.json()["detail"]
+
+
+def test_update_profile_username_conflict_returns_409(client):
+    with (
+        patch("flux_api.routes.profile.get_uow") as mock_get_uow,
+        patch("flux_api.routes.profile.SqliteUserRepository") as MockRepo,
+    ):
+        uow = MagicMock()
+        uow.__aenter__ = AsyncMock(return_value=uow)
+        uow.__aexit__ = AsyncMock(return_value=False)
+        uow.commit = AsyncMock()
+        uow.conn = MagicMock()
+        mock_get_uow.return_value = uow
+        MockRepo.return_value.update.side_effect = ValueError("username already taken")
+
+        response = client.patch(
+            "/profile?user_id=tg:123",
+            json={"currency": "USD"},
+        )
+
+    assert response.status_code == 409

@@ -200,7 +200,7 @@ def test_download_backup(client):
             patch("flux_api.routes.backups.get_local_storage") as mock_get_local,
         ):
             mock_local = MagicMock()
-            mock_local._dir = Path(tmp_path).parent
+            mock_local.directory = Path(tmp_path).parent
             # Make download return the temp file path
             mock_get_local.return_value = mock_local
 
@@ -212,10 +212,10 @@ def test_download_backup(client):
                 mock_path.__truediv__ = MagicMock(return_value=Path(tmp_path))
                 mock_path.exists.return_value = True
                 MockPath.return_value = mock_path
-                # The route uses local._dir / filename, so mock _dir
-                mock_local._dir = MagicMock()
-                mock_local._dir.__truediv__ = MagicMock(return_value=Path(tmp_path))
-                result_path = mock_local._dir / "test.zip"
+                # The route uses local.directory / filename, so mock directory
+                mock_local.directory = MagicMock()
+                mock_local.directory.__truediv__ = MagicMock(return_value=Path(tmp_path))
+                result_path = mock_local.directory / "test.zip"
                 assert result_path == Path(tmp_path)
 
                 response = client.get("/backups/test.zip/download")
@@ -289,7 +289,7 @@ def test_download_backup_local_not_found(client):
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("flux_api.routes.backups.get_local_storage") as mock_get_local:
             mock_local = MagicMock()
-            mock_local._dir = Path(tmpdir)
+            mock_local.directory = Path(tmpdir)
             mock_get_local.return_value = mock_local
 
             response = client.get("/backups/nonexistent.zip/download")

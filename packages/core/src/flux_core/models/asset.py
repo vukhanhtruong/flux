@@ -28,7 +28,7 @@ class AssetCreate(BaseModel):
     category: str
     asset_type: AssetType = AssetType.income
     principal_amount: Optional[Decimal] = None
-    compound_frequency: Optional[str] = None
+    compound_frequency: Optional[AssetFrequency] = None
     maturity_date: Optional[date] = None
     start_date: Optional[date] = None
 
@@ -45,6 +45,6 @@ class AssetOut(BaseModel):
     active: bool
     asset_type: AssetType = AssetType.income
     principal_amount: Optional[Decimal] = None
-    compound_frequency: Optional[str] = None
+    compound_frequency: Optional[AssetFrequency] = None
     maturity_date: Optional[date] = None
     start_date: Optional[date] = None

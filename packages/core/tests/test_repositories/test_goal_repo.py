@@ -126,6 +126,42 @@ class TestWithdraw:
         assert repo.withdraw(fake, user_id, Decimal("100.00")) is None
 
 
+class TestDecimalPrecision:
+    def test_deposit_preserves_decimal_precision(self, repo, user_id, conn):
+        goal = repo.create(_make_goal(user_id, target_amount=Decimal("10000.00")))
+        conn.commit()
+        repo.deposit(goal.id, user_id, Decimal("0.10"))
+        repo.deposit(goal.id, user_id, Decimal("0.10"))
+        repo.deposit(goal.id, user_id, Decimal("0.10"))
+        conn.commit()
+        result = repo.get_by_id(goal.id, user_id)
+        assert result.current_amount == Decimal("0.30")
+
+    def test_withdraw_preserves_decimal_precision(self, repo, user_id, conn):
+        goal = repo.create(_make_goal(user_id, target_amount=Decimal("100.00")))
+        conn.commit()
+        repo.deposit(goal.id, user_id, Decimal("1.00"))
+        conn.commit()
+        repo.withdraw(goal.id, user_id, Decimal("0.10"))
+        conn.commit()
+        result = repo.get_by_id(goal.id, user_id)
+        assert result.current_amount == Decimal("0.90")
+
+    def test_deposit_stores_exact_decimal_text(self, repo, user_id, conn):
+        """Verify the stored TEXT value is exact Decimal, not a float approximation."""
+        goal = repo.create(_make_goal(user_id, target_amount=Decimal("10000.00")))
+        conn.commit()
+        repo.deposit(goal.id, user_id, Decimal("0.10"))
+        repo.deposit(goal.id, user_id, Decimal("0.20"))
+        conn.commit()
+        # Check raw stored value is exact decimal text, not float artifact
+        row = conn.execute(
+            "SELECT current_amount FROM savings_goals WHERE id = ?",
+            (str(goal.id),),
+        ).fetchone()
+        assert row["current_amount"] == "0.30"
+
+
 class TestDelete:
     def test_delete_existing(self, repo, user_id):
         created = repo.create(_make_goal(user_id))

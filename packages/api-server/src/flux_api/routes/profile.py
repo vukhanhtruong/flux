@@ -86,9 +86,13 @@ async def update_profile(
                 locale=payload.locale,
             )
         except ValueError as exc:
-            await uow.commit()
+            msg = str(exc)
+            if "already taken" in msg:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail=msg
+                ) from exc
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+                status_code=status.HTTP_404_NOT_FOUND, detail=msg
             ) from exc
         await uow.commit()
 

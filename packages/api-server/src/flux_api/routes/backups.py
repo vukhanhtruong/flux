@@ -84,7 +84,7 @@ async def download_backup(
             raise HTTPException(status_code=404, detail="Backup file not found in S3")
 
     local = get_local_storage()
-    file_path = local._dir / filename
+    file_path = local.directory / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Backup file not found")
     return FileResponse(

@@ -212,6 +212,73 @@ class TestResumeByAsset:
         assert row["next_run_at"] == new_time.strftime("%Y-%m-%d %H:%M:%S")
 
 
+class TestPauseBySubscription:
+    def test_pauses_by_subscription(self, repo, conn):
+        repo.create(
+            user_id="tg:123",
+            prompt="Pay Netflix",
+            schedule_type="cron",
+            schedule_value="0 0 1 * *",
+            next_run_at=_future(),
+            subscription_id="sub-1",
+        )
+        repo.pause_by_subscription("sub-1")
+        row = conn.execute(
+            "SELECT status FROM bot_scheduled_tasks WHERE subscription_id = ?", ("sub-1",)
+        ).fetchone()
+        assert row["status"] == "paused"
+
+    def test_paused_task_not_in_active_list(self, repo):
+        repo.create(
+            user_id="tg:123",
+            prompt="Pay Netflix",
+            schedule_type="cron",
+            schedule_value="0 0 1 * *",
+            next_run_at=_future(),
+            subscription_id="sub-1",
+        )
+        repo.pause_by_subscription("sub-1")
+        results = repo.list_by_user("tg:123")
+        assert len(results) == 0
+
+
+class TestResumeBySubscription:
+    def test_resumes_by_subscription(self, repo, conn):
+        repo.create(
+            user_id="tg:123",
+            prompt="Pay Netflix",
+            schedule_type="cron",
+            schedule_value="0 0 1 * *",
+            next_run_at=_past(),
+            subscription_id="sub-1",
+        )
+        repo.pause_by_subscription("sub-1")
+        new_time = _future()
+        repo.resume_by_subscription("sub-1", new_time)
+        row = conn.execute(
+            "SELECT status, next_run_at FROM bot_scheduled_tasks WHERE subscription_id = ?",
+            ("sub-1",),
+        ).fetchone()
+        assert row["status"] == "active"
+        assert row["next_run_at"] == new_time.strftime("%Y-%m-%d %H:%M:%S")
+
+    def test_resumed_task_in_active_list(self, repo):
+        repo.create(
+            user_id="tg:123",
+            prompt="Pay Netflix",
+            schedule_type="cron",
+            schedule_value="0 0 1 * *",
+            next_run_at=_past(),
+            subscription_id="sub-1",
+        )
+        repo.pause_by_subscription("sub-1")
+        new_time = _future()
+        repo.resume_by_subscription("sub-1", new_time)
+        results = repo.list_by_user("tg:123")
+        assert len(results) == 1
+        assert results[0]["prompt"] == "Pay Netflix"
+
+
 class TestDelete:
     def test_deletes_task(self, repo, conn):
         task_id = repo.create(

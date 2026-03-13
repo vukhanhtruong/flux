@@ -115,6 +115,22 @@ class SqliteBotScheduledTaskRepository:
             (_to_sqlite_dt(next_run_at), asset_id),
         )
 
+    def pause_by_subscription(self, subscription_id: str) -> None:
+        self._conn.execute(
+            "UPDATE bot_scheduled_tasks SET status = 'paused' WHERE subscription_id = ?",
+            (subscription_id,),
+        )
+
+    def resume_by_subscription(self, subscription_id: str, next_run_at: datetime) -> None:
+        self._conn.execute(
+            """
+            UPDATE bot_scheduled_tasks
+            SET status = 'active', next_run_at = ?
+            WHERE subscription_id = ?
+            """,
+            (_to_sqlite_dt(next_run_at), subscription_id),
+        )
+
     def delete(self, task_id: int) -> None:
         self._conn.execute(
             "DELETE FROM bot_scheduled_tasks WHERE id = ?",

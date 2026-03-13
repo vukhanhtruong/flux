@@ -15,6 +15,10 @@ class Database:
         self._conn: sqlite3.Connection | None = None
         self._executor = ThreadPoolExecutor(max_workers=1)
 
+    @property
+    def path(self) -> str:
+        return self._path
+
     def connect(self) -> None:
         Path(self._path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(

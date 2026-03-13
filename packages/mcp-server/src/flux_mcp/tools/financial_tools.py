@@ -1,8 +1,7 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from typing import Callable
 from uuid import UUID
-from zoneinfo import ZoneInfo
 
 from fastmcp import FastMCP
 from flux_core.embeddings.service import EmbeddingProvider
@@ -220,56 +219,9 @@ def register_financial_tools(
         """Process a subscription billing cycle: create expense transaction and advance next_date.
         Called automatically by the scheduler on each billing date. Do not call manually.
         """
-        # This use case doesn't exist as a dedicated class yet.
-        # Perform the operation directly using repos and UoW.
-        from flux_core.models.transaction import TransactionCreate, TransactionType
-        from flux_core.sqlite.subscription_repo import SqliteSubscriptionRepository
-        from flux_core.sqlite.transaction_repo import SqliteTransactionRepository
+        from flux_core.use_cases.subscriptions.process_billing import (
+            ProcessSubscriptionBilling,
+        )
 
-        uow = get_uow()
-        user_id = get_user_id()
-        tz = get_user_timezone()
-        sub_uuid = UUID(subscription_id)
-
-        async with uow:
-            sub_repo = SqliteSubscriptionRepository(uow.conn)
-            txn_repo = SqliteTransactionRepository(uow.conn)
-
-            sub = sub_repo.get(sub_uuid, user_id)
-            if sub is None:
-                return {"error": f"Subscription {subscription_id} not found"}
-            if not sub.active:
-                return {"error": f"Subscription {subscription_id} is not active"}
-
-            today = datetime.now(ZoneInfo(tz)).date()
-            txn = TransactionCreate(
-                user_id=user_id,
-                date=today,
-                amount=sub.amount,
-                category=sub.category,
-                description=f"Subscription: {sub.name}",
-                type=TransactionType.expense,
-                is_recurring=True,
-            )
-            txn_out = txn_repo.create(txn)
-            sub_repo.advance_next_date(sub_uuid, user_id)
-            await uow.commit()
-
-        embedding_svc = get_embedding_service()
-        embedding = embedding_svc.embed(f"{sub.category} Subscription: {sub.name}")
-        # Store embedding outside UoW (non-critical)
-        try:
-            from flux_mcp.server import get_vector_store as _get_vs
-            vs = _get_vs()
-            vs.upsert(
-                "transaction_embeddings", str(txn_out.id), embedding, {"user_id": user_id}
-            )
-        except Exception:
-            pass
-
-        return {
-            "transaction_id": str(txn_out.id),
-            "subscription_name": sub.name,
-            "amount": str(sub.amount),
-            "billing_date": str(today),
-        }
+        uc = ProcessSubscriptionBilling(get_uow(), get_embedding_service())
+        return await uc.execute(get_user_id(), subscription_id, get_user_timezone())

@@ -14,6 +14,8 @@ export function useFetch<T>(url: string, options?: RequestInit) {
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   const fetchData = useCallback(
     async (fetchUrl: string, fetchOptions?: RequestInit) => {
@@ -61,15 +63,14 @@ export function useFetch<T>(url: string, options?: RequestInit) {
   );
 
   useEffect(() => {
-    fetchData(url, options);
+    fetchData(url, optionsRef.current);
 
     return () => {
-      // Cleanup effect on unmount
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [url, options, fetchData]);
+  }, [url, fetchData]);
 
   return { ...state, refetch: () => fetchData(url, options) };
 }

@@ -82,7 +82,7 @@ class RestoreBackup:
             # 6. Disconnect, replace, reconnect
             self._db.disconnect()
 
-            db_path = Path(self._db._path)
+            db_path = Path(self._db.path)
             db_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(restored_db, db_path)
             for suffix in ("-wal", "-shm"):

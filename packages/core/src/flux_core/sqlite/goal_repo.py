@@ -85,28 +85,44 @@ class SqliteGoalRepository:
         return self.get_by_id(goal_id, user_id)
 
     def deposit(self, goal_id: UUID, user_id: str, amount: Decimal) -> GoalOut | None:
-        cursor = self._conn.execute(
-            "UPDATE savings_goals "
-            "SET current_amount = CAST((CAST(current_amount AS REAL) + ?) AS TEXT) "
-            "WHERE id = ? AND user_id = ?",
-            (float(amount), str(goal_id), user_id),
-        )
-        if cursor.rowcount == 0:
+        current = self.get_by_id(goal_id, user_id)
+        if current is None:
             return None
-        return self.get_by_id(goal_id, user_id)
+        new_amount = current.current_amount + amount
+        self._conn.execute(
+            "UPDATE savings_goals SET current_amount = ? WHERE id = ? AND user_id = ?",
+            (str(new_amount), str(goal_id), user_id),
+        )
+        return GoalOut(
+            id=current.id,
+            user_id=current.user_id,
+            name=current.name,
+            target_amount=current.target_amount,
+            current_amount=new_amount,
+            deadline=current.deadline,
+            color=current.color,
+        )
 
     def withdraw(
         self, goal_id: UUID, user_id: str, amount: Decimal
     ) -> GoalOut | None:
-        cursor = self._conn.execute(
-            "UPDATE savings_goals "
-            "SET current_amount = CAST(MAX(CAST(current_amount AS REAL) - ?, 0) AS TEXT) "
-            "WHERE id = ? AND user_id = ?",
-            (float(amount), str(goal_id), user_id),
-        )
-        if cursor.rowcount == 0:
+        current = self.get_by_id(goal_id, user_id)
+        if current is None:
             return None
-        return self.get_by_id(goal_id, user_id)
+        new_amount = max(current.current_amount - amount, Decimal("0"))
+        self._conn.execute(
+            "UPDATE savings_goals SET current_amount = ? WHERE id = ? AND user_id = ?",
+            (str(new_amount), str(goal_id), user_id),
+        )
+        return GoalOut(
+            id=current.id,
+            user_id=current.user_id,
+            name=current.name,
+            target_amount=current.target_amount,
+            current_amount=new_amount,
+            deadline=current.deadline,
+            color=current.color,
+        )
 
     def delete(self, goal_id: UUID, user_id: str) -> bool:
         cursor = self._conn.execute(

@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from flux_core.sqlite.bot.scheduled_task_repo import SqliteBotScheduledTaskRepository
 from flux_core.sqlite.subscription_repo import SqliteSubscriptionRepository
 
 if TYPE_CHECKING:
@@ -31,22 +32,13 @@ class ToggleSubscription:
             if result is None:
                 raise ValueError(f"Subscription {sub_id} not found")
 
-            sub_id_str = str(sub_id)
+            task_repo = SqliteBotScheduledTaskRepository(self._uow.conn)
             if result.active:
-                self._uow.conn.execute(
-                    """
-                    UPDATE bot_scheduled_tasks
-                    SET status = 'active', next_run_at = ?
-                    WHERE subscription_id = ?
-                    """,
-                    (_to_utc_midnight(result.next_date).isoformat(), sub_id_str),
+                task_repo.resume_by_subscription(
+                    str(sub_id), _to_utc_midnight(result.next_date)
                 )
             else:
-                self._uow.conn.execute(
-                    "UPDATE bot_scheduled_tasks SET status = 'paused'"
-                    " WHERE subscription_id = ?",
-                    (sub_id_str,),
-                )
+                task_repo.pause_by_subscription(str(sub_id))
 
             await self._uow.commit()
 

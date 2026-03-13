@@ -14,6 +14,10 @@ class LocalStorageProvider:
         self._dir = Path(backup_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
 
+    @property
+    def directory(self) -> Path:
+        return self._dir
+
     def _safe_path(self, key: str) -> Path:
         """Resolve key within backup dir, rejecting path traversal."""
         target = (self._dir / key).resolve()
