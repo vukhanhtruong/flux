@@ -51,19 +51,6 @@ def test_fetchone_returns_none_when_empty(tmp_path):
         db.disconnect()
 
 
-async def test_execute_in_thread(tmp_path):
-    db = Database(str(tmp_path / "test.db"))
-    db.connect()
-    try:
-        await db.execute_async("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
-        await db.execute_async("INSERT INTO items (name) VALUES (?)", ("async_item",))
-        rows = await db.fetchall_async("SELECT name FROM items")
-        assert len(rows) == 1
-        assert rows[0]["name"] == "async_item"
-    finally:
-        db.disconnect()
-
-
 def test_transaction_commit(tmp_path):
     db = Database(str(tmp_path / "test.db"))
     db.connect()

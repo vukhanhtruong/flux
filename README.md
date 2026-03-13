@@ -50,7 +50,12 @@ Bot: Scheduled weekly task: "check subscriptions" every Monday at 9:00 AM
 
 You: save 500k to vacation fund
 Bot: Deposited 500,000 VND to "Vacation Fund" (total: 3,500,000 / 10,000,000 VND)
+
+You: show UI
+Bot: Dashboard is ready! URL: http://nnnn-nnn-nn.ngrok-free.app
 ```
+
+````
 
 ### Slash Commands
 
@@ -72,7 +77,7 @@ The easiest way to get started — a guided wizard handles everything:
 
 ```bash
 npx @flux-finance/cli@latest
-```
+````
 
 Prerequisites: [Node.js 18+](https://nodejs.org/) and [Docker](https://docs.docker.com/get-docker/)
 
@@ -212,25 +217,6 @@ test-all.sh          # Run all tests across packages
 ./test-all.sh --coverage   # with coverage (90% minimum)
 ```
 
-### Per-Package Commands
-
-```bash
-# Core
-cd packages/core && pip install -e ".[dev,vector,embeddings]" && pytest tests/ -v
-
-# API Server
-cd packages/api-server && pip install -e ".[dev]" && pytest tests/ -v
-
-# MCP Server
-cd packages/mcp-server && pip install -e ".[dev]" && pytest tests/ -v
-
-# Agent Bot
-cd packages/agent-bot && pip install -e ".[dev]" && pytest tests/ -v
-
-# Web UI
-cd packages/web-ui && npm install && npm run dev
-```
-
 ### Linting
 
 ```bash
@@ -245,11 +231,8 @@ ruff check packages/*/src/ packages/*/tests/
 
 ## Roadmap
 
-- [ ] **Local AI support** — run with Ollama or llama.cpp for fully secured, zero-cost operation
-- [ ] **WhatsApp channel** — connect via WhatsApp as an alternative to Telegram
-- [ ] **LINE channel** — support for LINE messaging (popular in Japan, Thailand, Taiwan)
-- [ ] **Shared budgets** — collaborate with family or partners on shared financial goals
 - [ ] **CSV/bank import** — import transaction history from bank exports or financial apps
+- [ ] **WhatsApp channel** — connect via WhatsApp as an alternative to Telegram
 
 ## License
 

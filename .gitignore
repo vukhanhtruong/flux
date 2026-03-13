@@ -22,5 +22,6 @@ design-system/
 /agent-hallucination-04.md ...
 .coverage
 coverage/
+MagicMock/
 
 ARTICLES.md

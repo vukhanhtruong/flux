@@ -31,7 +31,6 @@ export interface Budget {
   user_id: string;
   category: string;
   monthly_limit: string;
-  created_at: string;
 }
 
 export interface BudgetSet {
@@ -48,7 +47,6 @@ export interface Goal {
   target_amount: string;
   current_amount: string;
   deadline: string;
-  created_at: string;
 }
 
 export interface GoalCreate {
@@ -104,7 +102,7 @@ export interface Asset {
 export interface AssetCreate {
   user_id: string;
   name: string;
-  value: number;
+  amount: number;
   asset_type: string;
 }
 

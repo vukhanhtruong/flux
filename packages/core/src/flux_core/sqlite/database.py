@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import structlog
 import sqlite3
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 logger = structlog.get_logger(__name__)
@@ -13,7 +11,6 @@ class Database:
     def __init__(self, path: str):
         self._path = path
         self._conn: sqlite3.Connection | None = None
-        self._executor = ThreadPoolExecutor(max_workers=1)
 
     @property
     def path(self) -> str:
@@ -37,7 +34,6 @@ class Database:
         if self._conn:
             self._conn.close()
             self._conn = None
-        self._executor.shutdown(wait=False)
 
     def connection(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -55,15 +51,3 @@ class Database:
     def fetchall(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
         logger.debug("SQL fetchall", sql=sql, params=params)
         return self.connection().execute(sql, params).fetchall()
-
-    async def execute_async(self, sql: str, params: tuple = ()) -> None:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(self._executor, self.execute, sql, params)
-
-    async def fetchone_async(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(self._executor, self.fetchone, sql, params)
-
-    async def fetchall_async(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(self._executor, self.fetchall, sql, params)
