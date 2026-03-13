@@ -1,6 +1,6 @@
 # Flux
 
-Flux is a finance AI that provides financial advice and helps manage budgets, goals, subscriptions
+Flux is a self-hosted personal finance AI agent. Chat naturally to track spending, manage budgets, set savings goals, and get insights — all running locally on your machine. Your financial data never leaves your infrastructure.
 
 ## What It Does
 
@@ -14,10 +14,11 @@ Flux is a finance AI that provides financial advice and helps manage budgets, go
 ### Finance Features
 
 - **Transactions** — add, update, delete, list, and search transactions with semantic vector search ("coffee last week", "that uber ride")
+- **Receipt scanning** — snap a photo of a receipt to auto-create transactions
+- **Subscriptions** — track recurring payments, pause/resume them
 - **Budgets** — set monthly spending limits per category, track usage
 - **Savings** — create savings accounts with interest rate tracking, deposit and withdraw
 - **Goals** — set financial goals with target amounts, deposit and withdraw toward them
-- **Subscriptions** — track recurring payments, pause/resume them
 - **Analytics** — spending summaries, category breakdowns, trend analysis over time
 
 ### AI & Platform
@@ -28,23 +29,6 @@ Flux is a finance AI that provides financial advice and helps manage budgets, go
 - **Self-hosted & private** — single Docker container, all data stays on your machine
 
 ## Usage Examples
-
-### Getting Started
-
-Start by sending `/onboard` — it walks you through setting up your currency, timezone, and display name:
-
-```
-You: /onboard
-Bot: Let's set up your profile. (1/4)
-     Currency — type a code (e.g. USD, VND, EUR):
-You: VND
-Bot: Timezone (2/4) — type your country or city:
-You: Vietnam
-Bot: ✓ Asia/Ho_Chi_Minh
-     Username (3/4) — type a display name:
-You: John Doe
-Bot: Auto-backup (4/4) — How often? [Daily] [Weekly] [Never]
-```
 
 ### Natural Language Chat
 
@@ -82,6 +66,35 @@ Bot: Deposited 500,000 VND to "Vacation Fund" (total: 3,500,000 / 10,000,000 VND
 
 ## Quick Start
 
+### Install via CLI (recommended)
+
+The easiest way to get started — a guided wizard handles everything:
+
+```bash
+npx @flux-finance/cli@latest
+```
+
+Prerequisites: [Node.js 18+](https://nodejs.org/) and [Docker](https://docs.docker.com/get-docker/)
+
+The wizard will:
+
+1. Detect or prompt for your Claude auth token
+2. Walk you through creating a Telegram bot via @BotFather
+3. Verify your bot token and user ID
+4. Pull the Docker image and start the container
+
+After setup, manage your instance with:
+
+```bash
+npx @flux-finance/cli status   # Check if running
+npx @flux-finance/cli stop     # Stop the container
+npx @flux-finance/cli start    # Start again
+npx @flux-finance/cli update   # Pull latest image and restart
+npx @flux-finance/cli logs     # View container logs
+npx @flux-finance/cli config   # Show current configuration
+npx @flux-finance/cli reset    # Remove config and container
+```
+
 ### Local Development
 
 ```bash
@@ -100,7 +113,7 @@ cp .env.develop .env
 #   Web UI: http://localhost:5173
 ```
 
-### Docker (Production)
+#### Docker
 
 ```bash
 # 1. Configure environment
@@ -229,6 +242,14 @@ ruff check packages/*/src/ packages/*/tests/
 - **[CLAUDE.md](./CLAUDE.md)** — Full architecture, design patterns, and development guidelines
 - **[STATE-MACHINES.md](./docs/STATE-MACHINES.md)** — State machine diagrams for all stateful components
 - **[USECASES.md](./docs/USECASES.md)** — Complete use case inventory
+
+## Roadmap
+
+- [ ] **Local AI support** — run with Ollama or llama.cpp for fully secured, zero-cost operation
+- [ ] **WhatsApp channel** — connect via WhatsApp as an alternative to Telegram
+- [ ] **LINE channel** — support for LINE messaging (popular in Japan, Thailand, Taiwan)
+- [ ] **Shared budgets** — collaborate with family or partners on shared financial goals
+- [ ] **CSV/bank import** — import transaction history from bank exports or financial apps
 
 ## License
 
