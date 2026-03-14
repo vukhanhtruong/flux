@@ -125,6 +125,26 @@ async def test_withdraw_savings(seeded_server):
     assert data["asset_name"] == "Withdraw Test"
 
 
+async def test_create_savings_deposit_at_maturity(seeded_server):
+    """create_savings_deposit with at_maturity sets next_date to maturity_date."""
+    result = await seeded_server.call_tool(
+        "create_savings_deposit",
+        {
+            "name": "Fixed Deposit",
+            "amount": 200000000.0,
+            "interest_rate": 5.0,
+            "compound_frequency": "at_maturity",
+            "maturity_date": "2026-06-14",
+            "category": "savings",
+            "start_date": "2026-03-14",
+        },
+    )
+    data = extract_json(result)
+    assert data["next_date"] == "2026-06-14"
+    assert data["compound_frequency"] == "at_maturity"
+    assert data["active"] is True
+
+
 async def test_delete_savings(seeded_server):
     """delete_savings removes both asset and scheduler task."""
     create_result = await seeded_server.call_tool(

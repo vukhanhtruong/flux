@@ -16,6 +16,7 @@ class AssetFrequency(str, Enum):
     monthly = "monthly"
     quarterly = "quarterly"
     yearly = "yearly"
+    at_maturity = "at_maturity"
 
 
 class AssetCreate(BaseModel):

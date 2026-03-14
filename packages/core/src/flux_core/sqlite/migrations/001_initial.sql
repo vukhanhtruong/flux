@@ -70,13 +70,13 @@ CREATE TABLE IF NOT EXISTS assets (
     name TEXT NOT NULL,
     amount TEXT NOT NULL,
     interest_rate TEXT DEFAULT '0',
-    frequency TEXT CHECK (frequency IN ('monthly', 'quarterly', 'yearly')),
+    frequency TEXT CHECK (frequency IN ('monthly', 'quarterly', 'yearly', 'at_maturity')),
     next_date TEXT NOT NULL,
     category TEXT NOT NULL,
     active INTEGER DEFAULT 1,
     asset_type TEXT CHECK (asset_type IN ('income', 'savings')),
     principal_amount TEXT,
-    compound_frequency TEXT CHECK (compound_frequency IN ('monthly', 'quarterly', 'yearly')),
+    compound_frequency TEXT CHECK (compound_frequency IN ('monthly', 'quarterly', 'yearly', 'at_maturity')),
     maturity_date TEXT,
     start_date TEXT
 );

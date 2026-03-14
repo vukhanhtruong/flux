@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
     from flux_core.uow.unit_of_work import UnitOfWork
 
-COMPOUND_PERIODS = {"monthly": 12, "quarterly": 4, "yearly": 1}
+COMPOUND_PERIODS = {"monthly": 12, "quarterly": 4, "yearly": 1, "at_maturity": None}
 
 
 class ProcessInterest:
@@ -39,9 +39,19 @@ class ProcessInterest:
 
             freq = asset.compound_frequency or asset.frequency.value
             periods = COMPOUND_PERIODS[freq]
-            interest = (asset.amount * (asset.interest_rate / 100 / periods)).quantize(
-                Decimal("0.01")
-            )
+            if freq == "at_maturity" and asset.start_date and asset.maturity_date:
+                months = (
+                    (asset.maturity_date.year - asset.start_date.year) * 12
+                    + asset.maturity_date.month
+                    - asset.start_date.month
+                )
+                interest = (
+                    asset.amount * asset.interest_rate / 100 / 12 * months
+                ).quantize(Decimal("0.01"))
+            else:
+                interest = (asset.amount * (asset.interest_rate / 100 / periods)).quantize(
+                    Decimal("0.01")
+                )
             new_balance = asset.amount + interest
 
             asset_repo.update_amount(asset_id, user_id, new_balance)

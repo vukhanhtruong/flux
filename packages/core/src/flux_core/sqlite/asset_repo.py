@@ -104,6 +104,7 @@ class SqliteAssetRepository:
                 WHEN frequency = 'monthly' THEN date(next_date, '+1 month')
                 WHEN frequency = 'quarterly' THEN date(next_date, '+3 months')
                 WHEN frequency = 'yearly' THEN date(next_date, '+1 year')
+                WHEN frequency = 'at_maturity' THEN next_date
             END
             WHERE id = ? AND user_id = ?
             RETURNING {_COLUMNS}

@@ -74,6 +74,29 @@ def test_asset_out_savings_fields():
     assert asset.principal_amount == Decimal("10000.00")
 
 
+def test_asset_frequency_at_maturity():
+    assert AssetFrequency.at_maturity == "at_maturity"
+
+
+def test_asset_create_savings_at_maturity():
+    asset = AssetCreate(
+        user_id="test:user",
+        name="Fixed Deposit",
+        amount=Decimal("10000.00"),
+        interest_rate=Decimal("5.00"),
+        frequency=AssetFrequency.at_maturity,
+        next_date=date(2026, 9, 14),
+        category="Savings",
+        asset_type=AssetType.savings,
+        principal_amount=Decimal("10000.00"),
+        compound_frequency="at_maturity",
+        maturity_date=date(2026, 9, 14),
+        start_date=date(2026, 3, 14),
+    )
+    assert asset.compound_frequency == "at_maturity"
+    assert asset.frequency == AssetFrequency.at_maturity
+
+
 def test_asset_out_income_defaults():
     """Backward compat: AssetOut without new fields uses defaults."""
     asset = AssetOut(

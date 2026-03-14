@@ -20,8 +20,10 @@ if TYPE_CHECKING:
 _NEXT_DATE_OFFSETS = {"monthly": (0, 1), "quarterly": (0, 3), "yearly": (1, 0)}
 
 
-def _compute_next_date(start: date, compound_frequency: str) -> date:
+def _compute_next_date(start: date, compound_frequency: str, maturity_date: date) -> date:
     """Compute first interest application date (one period after start)."""
+    if compound_frequency == "at_maturity":
+        return maturity_date
     years, months = _NEXT_DATE_OFFSETS[compound_frequency]
     new_month = start.month + months
     new_year = start.year + years + (new_month - 1) // 12
@@ -46,7 +48,7 @@ class CreateSavings:
         maturity_date: date,
         category: str,
     ) -> AssetOut:
-        next_date = _compute_next_date(start_date, compound_frequency)
+        next_date = _compute_next_date(start_date, compound_frequency, maturity_date)
         if next_date > maturity_date:
             next_date = maturity_date
 

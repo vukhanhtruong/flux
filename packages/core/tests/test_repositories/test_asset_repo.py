@@ -127,6 +127,18 @@ class TestAdvanceNextDate:
         result = repo.advance_next_date(created.id, user_id)
         assert result.next_date == date(2027, 3, 15)
 
+    def test_at_maturity(self, repo, user_id):
+        created = repo.create(
+            _make_asset(
+                user_id,
+                frequency=AssetFrequency.at_maturity,
+                next_date=date(2026, 9, 14),
+                maturity_date=date(2026, 9, 14),
+            )
+        )
+        result = repo.advance_next_date(created.id, user_id)
+        assert result.next_date == date(2026, 9, 14)
+
     def test_not_found(self, repo, user_id):
         fake = UUID("00000000-0000-0000-0000-000000000001")
         assert repo.advance_next_date(fake, user_id) is None

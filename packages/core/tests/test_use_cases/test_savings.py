@@ -4,6 +4,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from flux_core.models.asset import AssetFrequency, AssetOut, AssetType
 from flux_core.models.transaction import TransactionOut, TransactionType
 from flux_core.use_cases.savings import CreateSavings, ProcessInterest, WithdrawSavings
@@ -93,6 +94,91 @@ async def test_create_savings(mock_asset_repo_cls, mock_task_repo_cls):
     assert call_kwargs["schedule_type"] == "once"
     uow.add_event.assert_called_once()
     uow.commit.assert_called_once()
+
+
+@patch("flux_core.use_cases.savings.create_savings.SqliteBotScheduledTaskRepository")
+@patch("flux_core.use_cases.savings.create_savings.SqliteAssetRepository")
+async def test_create_savings_at_maturity_sets_next_date(
+    mock_asset_repo_cls, mock_task_repo_cls
+):
+    """at_maturity: next_date = maturity_date, not start + 1 month."""
+    uow = _mock_uow()
+    mat = date(2026, 9, 14)
+    expected = _make_asset(
+        compound_frequency="at_maturity",
+        frequency=AssetFrequency.at_maturity,
+        next_date=mat,
+        maturity_date=mat,
+        start_date=date(2026, 3, 14),
+    )
+    mock_asset_repo_cls.return_value.create.return_value = expected
+
+    uc = CreateSavings(uow)
+    await uc.execute(
+        USER_ID,
+        "Term Deposit",
+        Decimal("200000000.00"),
+        Decimal("5.00"),
+        "at_maturity",
+        date(2026, 3, 14),
+        mat,
+        "savings",
+    )
+
+    call_kwargs = mock_task_repo_cls.return_value.create.call_args.kwargs
+    assert call_kwargs["schedule_value"] == "2026-09-14"
+    from datetime import UTC
+    assert call_kwargs["next_run_at"] == datetime(2026, 9, 14, tzinfo=UTC)
+    assert "matures today" in call_kwargs["prompt"]
+
+
+@pytest.mark.parametrize(
+    "months,expected_maturity",
+    [
+        (1, date(2026, 4, 14)),
+        (2, date(2026, 5, 14)),
+        (3, date(2026, 6, 14)),
+        (4, date(2026, 7, 14)),
+        (5, date(2026, 8, 14)),
+        (6, date(2026, 9, 14)),
+        (7, date(2026, 10, 14)),
+        (8, date(2026, 11, 14)),
+        (9, date(2026, 12, 14)),
+        (10, date(2027, 1, 14)),
+        (11, date(2027, 2, 14)),
+        (12, date(2027, 3, 14)),
+    ],
+)
+@patch("flux_core.use_cases.savings.create_savings.SqliteBotScheduledTaskRepository")
+@patch("flux_core.use_cases.savings.create_savings.SqliteAssetRepository")
+async def test_create_savings_at_maturity_months(
+    mock_asset_repo_cls, mock_task_repo_cls, months, expected_maturity
+):
+    """at_maturity: next_date always equals maturity_date for 1-12 month terms."""
+    uow = _mock_uow()
+    expected = _make_asset(
+        compound_frequency="at_maturity",
+        frequency=AssetFrequency.at_maturity,
+        next_date=expected_maturity,
+        maturity_date=expected_maturity,
+        start_date=date(2026, 3, 14),
+    )
+    mock_asset_repo_cls.return_value.create.return_value = expected
+
+    uc = CreateSavings(uow)
+    await uc.execute(
+        USER_ID,
+        "Term Deposit",
+        Decimal("200000000.00"),
+        Decimal("5.00"),
+        "at_maturity",
+        date(2026, 3, 14),
+        expected_maturity,
+        "savings",
+    )
+
+    call_kwargs = mock_task_repo_cls.return_value.create.call_args.kwargs
+    assert call_kwargs["schedule_value"] == expected_maturity.isoformat()
 
 
 @patch("flux_core.use_cases.savings.create_savings.SqliteBotScheduledTaskRepository")
@@ -246,6 +332,112 @@ async def test_process_interest_yearly_compound(mock_asset_repo_cls, mock_task_r
     assert result["interest_applied"] == "500.00"
     assert result["new_balance"] == "10500.00"
     assert result["matured"] is False
+
+
+@pytest.mark.parametrize(
+    "months,expected_interest,expected_balance",
+    [
+        (1, "833333.33", "200833333.33"),
+        (2, "1666666.67", "201666666.67"),
+        (3, "2500000.00", "202500000.00"),
+        (4, "3333333.33", "203333333.33"),
+        (5, "4166666.67", "204166666.67"),
+        (6, "5000000.00", "205000000.00"),
+        (7, "5833333.33", "205833333.33"),
+        (8, "6666666.67", "206666666.67"),
+        (9, "7500000.00", "207500000.00"),
+        (10, "8333333.33", "208333333.33"),
+        (11, "9166666.67", "209166666.67"),
+        (12, "10000000.00", "210000000.00"),
+    ],
+)
+@patch("flux_core.use_cases.savings.process_interest.SqliteBotScheduledTaskRepository")
+@patch("flux_core.use_cases.savings.process_interest.SqliteAssetRepository")
+async def test_process_interest_at_maturity_months(
+    mock_asset_repo_cls, mock_task_repo_cls, months, expected_interest, expected_balance
+):
+    """at_maturity: interest = amount * rate/100 / 12 * months, then matured."""
+    uow = _mock_uow()
+    start = date(2026, 3, 14)
+    mat_month = 3 + months
+    mat_year = 2026 + (mat_month - 1) // 12
+    mat_month = (mat_month - 1) % 12 + 1
+    maturity = date(mat_year, mat_month, 14)
+
+    asset = _make_asset(
+        amount=Decimal("200000000.00"),
+        principal_amount=Decimal("200000000.00"),
+        compound_frequency="at_maturity",
+        frequency=AssetFrequency.at_maturity,
+        next_date=maturity,
+        maturity_date=maturity,
+        start_date=start,
+    )
+    # After advance, next_date exceeds maturity → matured
+    past_maturity = maturity.replace(year=maturity.year + 1)
+    advanced = _make_asset(next_date=past_maturity, maturity_date=maturity)
+    mock_asset_repo_cls.return_value.get.return_value = asset
+    mock_asset_repo_cls.return_value.update_amount.return_value = None
+    mock_asset_repo_cls.return_value.advance_next_date.return_value = advanced
+
+    uc = ProcessInterest(uow)
+    result = await uc.execute(FAKE_ID, USER_ID)
+
+    assert result["interest_applied"] == expected_interest
+    assert result["new_balance"] == expected_balance
+    assert result["matured"] is True
+    mock_asset_repo_cls.return_value.deactivate.assert_called_once()
+    mock_task_repo_cls.return_value.create.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "years,expected_interest,expected_balance",
+    [
+        (1, "10000000.00", "210000000.00"),
+        (2, "20000000.00", "220000000.00"),
+        (3, "30000000.00", "230000000.00"),
+        (4, "40000000.00", "240000000.00"),
+        (5, "50000000.00", "250000000.00"),
+        (6, "60000000.00", "260000000.00"),
+        (7, "70000000.00", "270000000.00"),
+        (8, "80000000.00", "280000000.00"),
+        (9, "90000000.00", "290000000.00"),
+        (10, "100000000.00", "300000000.00"),
+    ],
+)
+@patch("flux_core.use_cases.savings.process_interest.SqliteBotScheduledTaskRepository")
+@patch("flux_core.use_cases.savings.process_interest.SqliteAssetRepository")
+async def test_process_interest_at_maturity_years(
+    mock_asset_repo_cls, mock_task_repo_cls, years, expected_interest, expected_balance
+):
+    """at_maturity: interest = amount * rate/100 * years, then matured."""
+    uow = _mock_uow()
+    start = date(2026, 3, 14)
+    maturity = date(2026 + years, 3, 14)
+
+    asset = _make_asset(
+        amount=Decimal("200000000.00"),
+        principal_amount=Decimal("200000000.00"),
+        compound_frequency="at_maturity",
+        frequency=AssetFrequency.at_maturity,
+        next_date=maturity,
+        maturity_date=maturity,
+        start_date=start,
+    )
+    past_maturity = maturity.replace(year=maturity.year + 1)
+    advanced = _make_asset(next_date=past_maturity, maturity_date=maturity)
+    mock_asset_repo_cls.return_value.get.return_value = asset
+    mock_asset_repo_cls.return_value.update_amount.return_value = None
+    mock_asset_repo_cls.return_value.advance_next_date.return_value = advanced
+
+    uc = ProcessInterest(uow)
+    result = await uc.execute(FAKE_ID, USER_ID)
+
+    assert result["interest_applied"] == expected_interest
+    assert result["new_balance"] == expected_balance
+    assert result["matured"] is True
+    mock_asset_repo_cls.return_value.deactivate.assert_called_once()
+    mock_task_repo_cls.return_value.create.assert_not_called()
 
 
 @patch("flux_core.use_cases.savings.process_interest.SqliteBotScheduledTaskRepository")
