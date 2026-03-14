@@ -2,6 +2,19 @@
 
 Flux is a self-hosted personal finance AI agent. Chat naturally to track spending, manage budgets, set savings goals, and get insights — all running locally on your machine. Your financial data never leaves your infrastructure.
 
+## Table of Contents
+
+- [What It Does](#what-it-does)
+- [Usage Examples](#usage-examples)
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Tech Stack](#tech-stack)
+- [Development](#development)
+- [Documentation](#documentation)
+- [Roadmap](#roadmap)
+- [License](#license)
+
 ## What It Does
 
 ### Interfaces
@@ -32,7 +45,7 @@ Flux is a self-hosted personal finance AI agent. Chat naturally to track spendin
 
 ### Natural Language Chat
 
-# After setup, just chat naturally — no commands needed:
+After setup, just chat naturally — no commands needed:
 
 ```
 You: spent 50k on groceries today
