@@ -201,8 +201,45 @@ export async function runWizard() {
     console.log(chalk.green(`\n  User ID verified! Hello, ${name}\n`));
   }
 
-  // Step 5: Choose Port
+  // Step 5: Configuration
   console.log(chalk.bold("\nStep 5: Configuration\n"));
+
+  const { model } = await prompts({
+    type: "select",
+    name: "model",
+    message: "Which Claude model should the bot use?",
+    choices: [
+      {
+        title: "claude-haiku-4-5-20251001 (fastest, cheapest — recommended)",
+        value: "claude-haiku-4-5-20251001",
+      },
+      {
+        title: "claude-sonnet-4-6 (balanced)",
+        value: "claude-sonnet-4-6",
+      },
+      {
+        title: "claude-opus-4-6 (most capable, slowest)",
+        value: "claude-opus-4-6",
+      },
+      {
+        title: "Custom (enter model ID)",
+        value: "custom",
+      },
+    ],
+    initial: 0,
+  });
+
+  let selectedModel = model || "claude-haiku-4-5-20251001";
+  if (selectedModel === "custom") {
+    const { customModel } = await prompts({
+      type: "text",
+      name: "customModel",
+      message: "Enter Claude model ID",
+      initial: "claude-haiku-4-5-20251001",
+    });
+    selectedModel = customModel || "claude-haiku-4-5-20251001";
+  }
+
   const { port } = await prompts({
     type: "text",
     name: "port",
@@ -218,6 +255,7 @@ export async function runWizard() {
     TELEGRAM_BOT_TOKEN: botToken,
     TELEGRAM_ALLOW_FROM: userId,
     CLAUDE_AUTH_TOKEN: claudeToken,
+    CLAUDE_MODEL: selectedModel,
     FLUX_SECRET_KEY: generateSecretKey(),
     PORT: port || "5173",
   };

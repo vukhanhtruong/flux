@@ -304,8 +304,9 @@ describe("runWizard", () => {
       if (callCount === 1) return { useExisting: true };    // use existing claude token
       if (callCount === 2) return { botToken: "123:ABC" };   // bot token
       if (callCount === 3) return { userId: "456" };         // user ID
-      if (callCount === 4) return { port: "5173" };          // port
-      if (callCount === 5) return { setupNgrok: false };     // skip ngrok
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" }; // model
+      if (callCount === 5) return { port: "5173" };          // port
+      if (callCount === 6) return { setupNgrok: false };     // skip ngrok
       return {};
     });
 
@@ -313,6 +314,8 @@ describe("runWizard", () => {
     assert.equal(mockWriteConfig.mock.callCount(), 1);
     assert.equal(mockPullImage.mock.callCount(), 1);
     assert.equal(mockStartContainer.mock.callCount(), 1);
+    const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
+    assert.equal(writtenConfig.CLAUDE_MODEL, "claude-haiku-4-5-20251001");
   });
 
   it("completes wizard with ngrok setup", async () => {
@@ -330,9 +333,10 @@ describe("runWizard", () => {
       if (callCount === 1) return { useExisting: true };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "456" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: true };
-      if (callCount === 6) return { ngrokToken: "ngrok-token-123" };
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 5) return { port: "5173" };
+      if (callCount === 6) return { setupNgrok: true };
+      if (callCount === 7) return { ngrokToken: "ngrok-token-123" };
       return {};
     });
 
@@ -357,7 +361,8 @@ describe("runWizard", () => {
       if (callCount === 1) return { useExisting: true };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "456" };
-      if (callCount === 4) return { port: "5173" };
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 5) return { port: "5173" };
       return {};
     });
 
@@ -379,7 +384,8 @@ describe("runWizard", () => {
       if (callCount === 1) return { useExisting: true };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "456" };
-      if (callCount === 4) return { port: "5173" };
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 5) return { port: "5173" };
       return {};
     });
 
@@ -409,8 +415,9 @@ describe("runWizard", () => {
       if (callCount === 2) return { token: "manual-token" }; // manual token entry
       if (callCount === 3) return { botToken: "123:ABC" };
       if (callCount === 4) return { userId: "456" };
-      if (callCount === 5) return { port: "5173" };
-      if (callCount === 6) return { setupNgrok: false };
+      if (callCount === 5) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 6) return { port: "5173" };
+      if (callCount === 7) return { setupNgrok: false };
       return {};
     });
 
@@ -433,8 +440,9 @@ describe("runWizard", () => {
       if (callCount === 1) return { token: "sk-ant-oat01-pasted" };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "456" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: false };
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 5) return { port: "5173" };
+      if (callCount === 6) return { setupNgrok: false };
       return {};
     });
 
@@ -461,9 +469,10 @@ describe("runWizard", () => {
       if (callCount === 1) return { useExisting: true };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "456" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: true };
-      if (callCount === 6) return { ngrokToken: "ngrok-123" };
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 5) return { port: "5173" };
+      if (callCount === 6) return { setupNgrok: true };
+      if (callCount === 7) return { ngrokToken: "ngrok-123" };
       return {};
     });
 
@@ -487,8 +496,9 @@ describe("runWizard", () => {
       callCount++;
       if (callCount === 1) return { botToken: "123:ABC" };
       if (callCount === 2) return { userId: "456" };
-      if (callCount === 3) return { port: "5173" };
-      if (callCount === 4) return { setupNgrok: false };
+      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 4) return { port: "5173" };
+      if (callCount === 5) return { setupNgrok: false };
       return {};
     });
 
@@ -514,8 +524,9 @@ describe("runWizard", () => {
       if (callCount === 1) return { token: "sk-ant-oat01-manual" };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "456" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: false };
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 5) return { port: "5173" };
+      if (callCount === 6) return { setupNgrok: false };
       return {};
     });
 
@@ -571,8 +582,9 @@ describe("runWizard", () => {
       if (callCount === 2) return { botToken: "123:UNVERIFIED" };
       if (callCount === 3) return { continueAnyway: true };  // continue anyway
       if (callCount === 4) return { userId: "456" };
-      if (callCount === 5) return { port: "5173" };
-      if (callCount === 6) return { setupNgrok: false };
+      if (callCount === 5) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 6) return { port: "5173" };
+      if (callCount === 7) return { setupNgrok: false };
       return {};
     });
 
@@ -605,8 +617,9 @@ describe("runWizard", () => {
       if (callCount === 1) return { useExisting: true };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "999" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: false };
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 5) return { port: "5173" };
+      if (callCount === 6) return { setupNgrok: false };
       return {};
     });
 
@@ -629,14 +642,42 @@ describe("runWizard", () => {
       if (callCount === 1) return { useExisting: true };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "456" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: true };
-      if (callCount === 6) return { ngrokToken: undefined }; // empty ngrok token
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 5) return { port: "5173" };
+      if (callCount === 6) return { setupNgrok: true };
+      if (callCount === 7) return { ngrokToken: undefined }; // empty ngrok token
       return {};
     });
 
     await runWizard();
     // writeConfig called only once (no ngrok restart)
     assert.equal(mockWriteConfig.mock.callCount(), 1);
+  });
+
+  it("allows custom model selection in wizard", async () => {
+    mockIsDockerRunning.mock.mockImplementation(async () => true);
+    mockReadClaudeToken.mock.mockImplementation(() => "sk-ant-test-token");
+    mockPullImage.mock.mockImplementation(async () => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+    mockShowQR.mock.mockImplementation(async () => {});
+
+    let callCount = 0;
+    mockPrompts.mock.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { useExisting: true };
+      if (callCount === 2) return { botToken: "123:ABC" };
+      if (callCount === 3) return { userId: "456" };
+      if (callCount === 4) return { model: "custom" };
+      if (callCount === 5) return { customModel: "claude-sonnet-4-6" };
+      if (callCount === 6) return { port: "5173" };
+      if (callCount === 7) return { setupNgrok: false };
+      return {};
+    });
+
+    await runWizard();
+    const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
+    assert.equal(writtenConfig.CLAUDE_MODEL, "claude-sonnet-4-6");
   });
 });
