@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-03-14
+
+### Added
+- `at_maturity` compound frequency for fixed-term savings deposits — interest applied once at maturity
+- SQLite migration 004 for existing databases to support `at_maturity` CHECK constraint
+- E2E tests verifying scheduled task cleanup on close, withdraw, and delete savings
+
+### Changed
+- Moved `periods` lookup in ProcessInterest to avoid unused variable when frequency is `at_maturity`
+- Extracted shared test helpers for task assertions and at_maturity mock setup
+
 ## [1.2.0] - 2026-03-14
 
 ### Added
