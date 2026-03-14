@@ -1,6 +1,8 @@
 """Factory for the handle_message coroutine used by UserQueue."""
 
 import asyncio
+import time
+
 import structlog
 
 from flux_bot.orchestrator.heartbeat import typing_heartbeat
@@ -26,6 +28,35 @@ _USAGE_LIMIT_ERROR_PATTERNS = (
     "credit balance",
     "insufficient credits",
 )
+
+
+_AUTH_ERROR_PATTERNS = (
+    "authentication_error",
+    "unauthorized",
+    "401",
+    "token expired",
+    "invalid token",
+    "invalid_token",
+)
+
+_AUTH_ERROR_USER_MSG = (
+    "⚠️ I'm temporarily unavailable due to an authentication issue. "
+    "The admin has been notified."
+)
+
+_AUTH_ERROR_ADMIN_MSG = (
+    "⚠️ Claude authentication token has expired.\n"
+    "Run this command to refresh:\n\n"
+    "npx @flux-finance/cli refresh-token"
+)
+
+_AUTH_NOTIFY_THROTTLE_SECS = 3600  # 1 hour
+
+
+def _is_auth_error(error: str) -> bool:
+    """Check if the error is an authentication/token error."""
+    err = error.lower()
+    return any(pattern in err for pattern in _AUTH_ERROR_PATTERNS)
 
 
 _SESSION_RETRY_PATTERNS = (
@@ -56,8 +87,12 @@ def _error_notification_for_user(error: str) -> str | None:
     return None
 
 
-def make_handle_message(*, runner, msg_repo, session_repo, profile_repo, channels):
+def make_handle_message(
+    *, runner, msg_repo, session_repo, profile_repo, channels, admin_chat_id=None
+):
     """Return a handle_message coroutine bound to the given dependencies."""
+
+    last_admin_notify = [0.0]  # mutable container for closure
 
     async def handle_message(msg: dict) -> None:
         user_id = msg["user_id"]
@@ -109,12 +144,32 @@ def make_handle_message(*, runner, msg_repo, session_repo, profile_repo, channel
         if result.error is not None:
             await msg_repo.mark_failed(msg["id"], result.error)
             logger.error(f"Message {msg['id']} failed: {result.error}")
-            user_msg = _error_notification_for_user(result.error)
-            if channel and platform_id and user_msg:
-                try:
-                    await channel.send_message(platform_id, user_msg)
-                except Exception as e:
-                    logger.error(f"Could not deliver usage-limit notification to {user_id}: {e}")
+
+            if _is_auth_error(result.error):
+                # Notify admin (throttled)
+                if admin_chat_id and channel:
+                    now = time.monotonic()
+                    if now - last_admin_notify[0] >= _AUTH_NOTIFY_THROTTLE_SECS:
+                        last_admin_notify[0] = now
+                        try:
+                            await channel.send_message(admin_chat_id, _AUTH_ERROR_ADMIN_MSG)
+                        except Exception as e:
+                            logger.error(f"Could not notify admin: {e}")
+                # Notify user
+                if channel and platform_id:
+                    try:
+                        await channel.send_message(platform_id, _AUTH_ERROR_USER_MSG)
+                    except Exception as e:
+                        logger.error(f"Could not notify user {user_id}: {e}")
+            else:
+                user_msg = _error_notification_for_user(result.error)
+                if channel and platform_id and user_msg:
+                    try:
+                        await channel.send_message(platform_id, user_msg)
+                    except Exception as e:
+                        logger.error(
+                            f"Could not deliver usage-limit notification to {user_id}: {e}"
+                        )
             return
 
         if result.session_id:

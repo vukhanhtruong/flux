@@ -184,3 +184,135 @@ async def test_sdk_exit_code_error_notifies_user_with_generic_hint():
     sent_args = channel.send_message.await_args.args
     assert sent_args[0] == "42"
     assert "try again" in sent_args[1].lower()
+
+
+_AUTH_ERROR = "API Error: 401 authentication_error: Invalid token"
+
+
+async def test_auth_error_notifies_admin_and_user():
+    """Auth errors send admin notification and user-facing message."""
+    channel = AsyncMock()
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(
+        text=None, session_id=None, error=_AUTH_ERROR
+    )
+
+    handler = make_handle_message(**deps, admin_chat_id="admin-42")
+    await handler(_MSG)
+
+    assert channel.send_message.call_count == 2
+    admin_call = channel.send_message.call_args_list[0]
+    assert admin_call.args[0] == "admin-42"
+    assert "refresh-token" in admin_call.args[1]
+    user_call = channel.send_message.call_args_list[1]
+    assert user_call.args[0] == "42"
+    assert "temporarily unavailable" in user_call.args[1].lower()
+    deps["msg_repo"].mark_failed.assert_awaited_once()
+
+
+async def test_auth_error_without_admin_chat_id_still_notifies_user():
+    """Auth error without admin_chat_id configured still sends user message."""
+    channel = AsyncMock()
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(
+        text=None, session_id=None, error=_AUTH_ERROR
+    )
+
+    handler = make_handle_message(**deps)
+    await handler(_MSG)
+
+    assert channel.send_message.call_count == 1
+    user_call = channel.send_message.call_args_list[0]
+    assert user_call.args[0] == "42"
+    assert "temporarily unavailable" in user_call.args[1].lower()
+
+
+async def test_auth_error_admin_notification_throttled():
+    """Second auth error within throttle window does not re-notify admin."""
+    channel = AsyncMock()
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(
+        text=None, session_id=None, error=_AUTH_ERROR
+    )
+
+    handler = make_handle_message(**deps, admin_chat_id="admin-42")
+    await handler(_MSG)
+    channel.send_message.reset_mock()
+
+    deps["msg_repo"].mark_failed.reset_mock()
+    await handler(_MSG)
+
+    assert channel.send_message.call_count == 1
+    user_call = channel.send_message.call_args_list[0]
+    assert user_call.args[0] == "42"
+
+
+async def test_auth_error_admin_notification_after_throttle_expires():
+    """Auth error after throttle window expires re-notifies admin."""
+    from unittest.mock import patch
+    import time
+
+    channel = AsyncMock()
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(
+        text=None, session_id=None, error=_AUTH_ERROR
+    )
+
+    handler = make_handle_message(**deps, admin_chat_id="admin-42")
+    await handler(_MSG)
+    channel.send_message.reset_mock()
+
+    with patch("flux_bot.orchestrator.handler.time") as mock_time:
+        mock_time.monotonic.return_value = time.monotonic() + 3601
+        await handler(_MSG)
+
+    assert channel.send_message.call_count == 2
+    admin_call = channel.send_message.call_args_list[0]
+    assert admin_call.args[0] == "admin-42"
+
+
+async def test_non_auth_error_does_not_trigger_admin_notification():
+    """Non-auth errors like timeout should not trigger admin notification."""
+    channel = AsyncMock()
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(
+        text=None, session_id=None, error="Timeout"
+    )
+
+    handler = make_handle_message(**deps, admin_chat_id="admin-42")
+    await handler(_MSG)
+
+    channel.send_message.assert_not_awaited()
+
+
+async def test_auth_error_admin_notification_delivery_fails_gracefully():
+    """If admin notification delivery fails, user still gets notified."""
+    channel = AsyncMock()
+    channel.send_message.side_effect = [
+        Exception("Network error"),
+        None,
+    ]
+    deps = _make_deps(channels={"telegram": channel})
+    deps["runner"].run.return_value = ClaudeResult(
+        text=None, session_id=None, error=_AUTH_ERROR
+    )
+
+    handler = make_handle_message(**deps, admin_chat_id="admin-42")
+    await handler(_MSG)
+
+    assert channel.send_message.call_count == 2
+    deps["msg_repo"].mark_failed.assert_awaited_once()
+
+
+async def test_auth_error_without_platform_id():
+    """Auth error for message without platform_id marks failed, no crash."""
+    deps = _make_deps()
+    deps["runner"].run.return_value = ClaudeResult(
+        text=None, session_id=None, error=_AUTH_ERROR
+    )
+
+    msg_no_platform = {**_MSG, "platform_id": ""}
+    handler = make_handle_message(**deps, admin_chat_id="admin-42")
+    await handler(msg_no_platform)
+
+    deps["msg_repo"].mark_failed.assert_awaited_once()
