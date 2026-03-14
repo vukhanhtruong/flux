@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E2E tests verifying scheduled task cleanup on close, withdraw, and delete savings
 
 ### Changed
+- Default `compound_frequency` to `at_maturity` when user does not specify; agent confirms all details before saving
 - Moved `periods` lookup in ProcessInterest to avoid unused variable when frequency is `at_maturity`
 - Extracted shared test helpers for task assertions and at_maturity mock setup
 

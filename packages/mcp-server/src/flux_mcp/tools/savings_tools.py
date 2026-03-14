@@ -33,6 +33,9 @@ def register_savings_tools(
         """Create a new savings deposit with compound interest.
         compound_frequency must be 'monthly', 'quarterly', 'yearly', or 'at_maturity'.
         Use 'at_maturity' for fixed deposits where interest is applied once at the end.
+        Default compound_frequency to 'at_maturity' if the user does not specify.
+        IMPORTANT: Before calling this tool, confirm all details with the user
+        (name, amount, interest rate, compound frequency, maturity date).
         maturity_date is in YYYY-MM-DD format.
         start_date is optional — defaults to today in the user's timezone.
         interest_rate is annual percentage (e.g. 5.0 for 5%).

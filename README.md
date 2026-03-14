@@ -32,7 +32,7 @@ Flux is a self-hosted personal finance AI agent. Chat naturally to track spendin
 
 ### Natural Language Chat
 
-After setup, just chat naturally — no commands needed:
+# After setup, just chat naturally — no commands needed:
 
 ```
 You: spent 50k on groceries today
@@ -53,9 +53,8 @@ Bot: Deposited 500,000 VND to "Vacation Fund" (total: 3,500,000 / 10,000,000 VND
 
 You: show UI
 Bot: Dashboard is ready! URL: http://nnnn-nnn-nn.ngrok-free.app
-```
 
-````
+```
 
 ### Slash Commands
 
@@ -77,7 +76,7 @@ The easiest way to get started — a guided wizard handles everything:
 
 ```bash
 npx @flux-finance/cli@latest
-````
+```
 
 Prerequisites: [Node.js 18+](https://nodejs.org/) and [Docker](https://docs.docker.com/get-docker/)
 
