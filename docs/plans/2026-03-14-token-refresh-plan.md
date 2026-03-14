@@ -846,7 +846,178 @@ git commit -m "feat(agent-bot): detect auth errors and notify admin via Telegram
 
 ---
 
-### Task 5: Wire admin_chat_id in main.py + update management commands display
+### Task 5: Add Claude model selection to wizard
+
+**Files:**
+- Modify: `packages/cli/src/wizard.js:221-229` (Step 5: Configuration)
+- Modify: `packages/cli/tests/wizard.test.js`
+- Modify: `packages/cli/tests/index.test.js` (config display test)
+
+**Context:** The wizard currently only asks for port in the Configuration step. Add a model selection prompt so users are aware of the default (`claude-haiku-4-5-20251001`) and can change it. The `CLAUDE_MODEL` env var is already passed through to Docker via `buildEnvVars()` (not in `HOST_ONLY_KEYS`). The `config` command already displays all config keys, so model will show automatically once saved.
+
+**Step 1: Write the failing tests**
+
+In `packages/cli/tests/wizard.test.js`, update the `"completes full wizard flow successfully"` test (line 289) to include the model prompt. The prompt order after the model addition will be:
+
+1. `useExisting` (claude token)
+2. `botToken`
+3. `userId`
+4. `model` (NEW)
+5. `port`
+6. `setupNgrok`
+
+Update the mock prompt sequence:
+
+```js
+  it("completes full wizard flow successfully", async () => {
+    mockIsDockerRunning.mock.mockImplementation(async () => true);
+    mockReadClaudeToken.mock.mockImplementation(() => "sk-ant-test-token");
+    mockPullImage.mock.mockImplementation(async () => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+    mockShowQR.mock.mockImplementation(async () => {});
+
+    let callCount = 0;
+    mockPrompts.mock.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { useExisting: true };    // use existing claude token
+      if (callCount === 2) return { botToken: "123:ABC" };   // bot token
+      if (callCount === 3) return { userId: "456" };         // user ID
+      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" }; // model (NEW)
+      if (callCount === 5) return { port: "5173" };          // port
+      if (callCount === 6) return { setupNgrok: false };     // skip ngrok
+      return {};
+    });
+
+    await runWizard();
+    assert.equal(mockWriteConfig.mock.callCount(), 1);
+    const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
+    assert.equal(writtenConfig.CLAUDE_MODEL, "claude-haiku-4-5-20251001");
+  });
+```
+
+Add a test for custom model selection:
+
+```js
+  it("allows custom model selection in wizard", async () => {
+    mockIsDockerRunning.mock.mockImplementation(async () => true);
+    mockReadClaudeToken.mock.mockImplementation(() => "sk-ant-test-token");
+    mockPullImage.mock.mockImplementation(async () => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+    mockShowQR.mock.mockImplementation(async () => {});
+
+    let callCount = 0;
+    mockPrompts.mock.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { useExisting: true };
+      if (callCount === 2) return { botToken: "123:ABC" };
+      if (callCount === 3) return { userId: "456" };
+      if (callCount === 4) return { model: "custom" };        // choose custom
+      if (callCount === 5) return { customModel: "claude-sonnet-4-6" }; // enter custom
+      if (callCount === 6) return { port: "5173" };
+      if (callCount === 7) return { setupNgrok: false };
+      return {};
+    });
+
+    await runWizard();
+    const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
+    assert.equal(writtenConfig.CLAUDE_MODEL, "claude-sonnet-4-6");
+  });
+```
+
+**Important:** All other wizard tests that reach the prompt sequence past Step 4 (user ID) will need their prompt sequence numbers updated to account for the new model prompt. This includes the ngrok, bot verification, and user ID tests. Update `callCount` mappings in each affected test.
+
+**Step 2: Run tests to verify they fail**
+
+Run: `cd packages/cli && npm test 2>&1 | tail -20`
+Expected: FAIL — wizard doesn't have model prompt yet, prompt sequence mismatch
+
+**Step 3: Implement model selection in wizard**
+
+In `packages/cli/src/wizard.js`, add the model selection prompt after Step 4 (Get Telegram User ID) and before Step 5 (Configuration / port). Replace the current Step 5 section (around line 221-229):
+
+```js
+  // Step 5: Configuration
+  console.log(chalk.bold("\nStep 5: Configuration\n"));
+
+  const { model } = await prompts({
+    type: "select",
+    name: "model",
+    message: "Which Claude model should the bot use?",
+    choices: [
+      {
+        title: "claude-haiku-4-5-20251001 (fastest, cheapest — recommended)",
+        value: "claude-haiku-4-5-20251001",
+      },
+      {
+        title: "claude-sonnet-4-6 (balanced)",
+        value: "claude-sonnet-4-6",
+      },
+      {
+        title: "claude-opus-4-6 (most capable, slowest)",
+        value: "claude-opus-4-6",
+      },
+      {
+        title: "Custom (enter model ID)",
+        value: "custom",
+      },
+    ],
+    initial: 0,
+  });
+
+  let selectedModel = model || "claude-haiku-4-5-20251001";
+  if (selectedModel === "custom") {
+    const { customModel } = await prompts({
+      type: "text",
+      name: "customModel",
+      message: "Enter Claude model ID",
+      initial: "claude-haiku-4-5-20251001",
+    });
+    selectedModel = customModel || "claude-haiku-4-5-20251001";
+  }
+
+  const { port } = await prompts({
+    type: "text",
+    name: "port",
+    message: "Which port should FluxFinance run on?",
+    initial: "5173",
+    validate: validatePort,
+  });
+```
+
+Then update the config object (around line 234) to include `CLAUDE_MODEL`:
+
+```js
+  const config = {
+    TELEGRAM_BOT_TOKEN: botToken,
+    TELEGRAM_ALLOW_FROM: userId,
+    CLAUDE_AUTH_TOKEN: claudeToken,
+    CLAUDE_MODEL: selectedModel,
+    FLUX_SECRET_KEY: generateSecretKey(),
+    PORT: port || "5173",
+  };
+```
+
+**Step 4: Run tests to verify they pass**
+
+Run: `cd packages/cli && npm test`
+Expected: All tests PASS
+
+**Step 5: Commit**
+
+```bash
+git add -f packages/cli/src/wizard.js packages/cli/tests/wizard.test.js
+git commit -m "feat(cli): add Claude model selection to setup wizard"
+```
+
+---
+
+### Task 6: Wire admin_chat_id in main.py + update management commands display
+
+> Note: Task 5 (model selection) may have shifted prompt sequence numbers in wizard tests. Verify all wizard tests still pass before proceeding.
 
 **Files:**
 - Modify: `packages/agent-bot/src/flux_bot/main.py:73-78`
@@ -901,7 +1072,7 @@ git commit -m "feat: wire admin_chat_id and add refresh-token to help output"
 
 ---
 
-### Task 6: Final verification + full test suite
+### Task 7: Final verification + full test suite
 
 **Step 1: Run all tests across both packages**
 

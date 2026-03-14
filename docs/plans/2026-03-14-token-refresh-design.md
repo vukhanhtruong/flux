@@ -58,6 +58,21 @@ When the agent bot encounters an authentication error from the Claude SDK:
 - `packages/agent-bot/src/flux_bot/orchestrator/handler.py` — add auth error detection, admin notification, throttle logic
 - `packages/agent-bot/src/flux_bot/config.py` — add `admin_chat_id` from `TELEGRAM_ALLOW_FROM` env var
 
+### Part 4: Claude model selection in wizard
+
+**Current:** `CLAUDE_MODEL` defaults to `claude-haiku-4-5-20251001` via `.env` but users have no visibility into this during setup.
+
+**New:** Add a model selection prompt in the wizard's Configuration step (Step 5) with choices:
+- `claude-haiku-4-5-20251001` (fastest, cheapest — recommended) — default
+- `claude-sonnet-4-6` (balanced)
+- `claude-opus-4-6` (most capable, slowest)
+- Custom (enter model ID)
+
+The selected model is saved as `CLAUDE_MODEL` in `~/.flux-finance/.env` and passed to the Docker container (already supported by `buildEnvVars()`).
+
+**Files:**
+- `packages/cli/src/wizard.js` — add model prompt in Step 5
+
 ## Approach: Dropped
 
 **Mounting `~/.claude/.credentials.json` into Docker** — rejected because `setup-token` doesn't write there, `login` tokens are short-lived and don't auto-refresh in headless mode, and it adds Docker config complexity for no benefit.
