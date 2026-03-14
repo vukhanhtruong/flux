@@ -15,6 +15,8 @@ const mockRemoveContainer = mock.fn();
 const mockGetContainerStatus = mock.fn();
 const mockContainerLogs = mock.fn();
 const mockRunWizard = mock.fn();
+const mockRunSetupToken = mock.fn();
+const mockIsClaudeCliInstalled = mock.fn();
 const mockPrompts = mock.fn();
 const mockExistsSync = mock.fn();
 const mockUnlinkSync = mock.fn();
@@ -56,6 +58,14 @@ mock.module("../src/wizard.js", {
     validateUserId: () => true,
     validatePort: () => true,
     generateSecretKey: () => "test-uuid",
+  },
+});
+
+mock.module("../src/claude-auth.js", {
+  namedExports: {
+    readClaudeToken: () => null,
+    isClaudeCliInstalled: mockIsClaudeCliInstalled,
+    runSetupToken: mockRunSetupToken,
   },
 });
 
@@ -119,6 +129,8 @@ describe("cli commands", () => {
     mockContainerLogs.mock.resetCalls();
     mockRunWizard.mock.resetCalls();
     mockPrompts.mock.resetCalls();
+    mockRunSetupToken.mock.resetCalls();
+    mockIsClaudeCliInstalled.mock.resetCalls();
     mockExistsSync.mock.resetCalls();
     mockUnlinkSync.mock.resetCalls();
   });
@@ -376,5 +388,126 @@ describe("cli commands", () => {
     await program.parseAsync(["node", "flux-finance", "reset"]);
     assert.equal(mockRemoveContainer.mock.callCount(), 1);
     assert.equal(mockUnlinkSync.mock.callCount(), 0);
+  });
+
+  it("refresh-token runs setup-token, updates config, and restarts", async () => {
+    mockReadConfig.mock.mockImplementation(() => ({
+      PORT: "5173",
+      TELEGRAM_BOT_TOKEN: "123:ABC",
+      CLAUDE_AUTH_TOKEN: "sk-ant-oat01-old",
+    }));
+    mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
+    mockRunSetupToken.mock.mockImplementation(() => "sk-ant-oat01-new-token");
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+
+    await program.parseAsync(["node", "flux-finance", "refresh-token"]);
+    assert.equal(mockRunSetupToken.mock.callCount(), 1);
+    assert.equal(mockWriteConfig.mock.callCount(), 1);
+    const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
+    assert.equal(writtenConfig.CLAUDE_AUTH_TOKEN, "sk-ant-oat01-new-token");
+    assert.equal(mockStartContainer.mock.callCount(), 1);
+  });
+
+  it("refresh-token exits when no config exists", async () => {
+    mockReadConfig.mock.mockImplementation(() => ({}));
+
+    await assert.rejects(
+      () => program.parseAsync(["node", "flux-finance", "refresh-token"]),
+      { message: "EXIT_1" }
+    );
+    assert.equal(mockRunSetupToken.mock.callCount(), 0);
+  });
+
+  it("refresh-token falls back to manual paste when CLI not installed", async () => {
+    mockReadConfig.mock.mockImplementation(() => ({
+      PORT: "5173",
+      CLAUDE_AUTH_TOKEN: "sk-ant-oat01-old",
+    }));
+    mockIsClaudeCliInstalled.mock.mockImplementation(() => false);
+    mockPrompts.mock.mockImplementation(async () => ({
+      token: "sk-ant-oat01-manual",
+    }));
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+
+    await program.parseAsync(["node", "flux-finance", "refresh-token"]);
+    assert.equal(mockRunSetupToken.mock.callCount(), 0);
+    assert.equal(mockWriteConfig.mock.callCount(), 1);
+    const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
+    assert.equal(writtenConfig.CLAUDE_AUTH_TOKEN, "sk-ant-oat01-manual");
+  });
+
+  it("refresh-token exits when CLI not installed and no token pasted", async () => {
+    mockReadConfig.mock.mockImplementation(() => ({
+      PORT: "5173",
+      CLAUDE_AUTH_TOKEN: "sk-ant-oat01-old",
+    }));
+    mockIsClaudeCliInstalled.mock.mockImplementation(() => false);
+    mockPrompts.mock.mockImplementation(async () => ({ token: undefined }));
+
+    await assert.rejects(
+      () => program.parseAsync(["node", "flux-finance", "refresh-token"]),
+      { message: "EXIT_1" }
+    );
+    assert.equal(mockWriteConfig.mock.callCount(), 0);
+  });
+
+  it("refresh-token falls back to manual when setup-token fails", async () => {
+    mockReadConfig.mock.mockImplementation(() => ({
+      PORT: "5173",
+      CLAUDE_AUTH_TOKEN: "sk-ant-oat01-old",
+    }));
+    mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
+    mockRunSetupToken.mock.mockImplementation(() => null);
+    mockPrompts.mock.mockImplementation(async () => ({
+      token: "sk-ant-oat01-fallback",
+    }));
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+
+    await program.parseAsync(["node", "flux-finance", "refresh-token"]);
+    assert.equal(mockWriteConfig.mock.callCount(), 1);
+    const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
+    assert.equal(writtenConfig.CLAUDE_AUTH_TOKEN, "sk-ant-oat01-fallback");
+  });
+
+  it("refresh-token exits when setup-token fails and no manual token", async () => {
+    mockReadConfig.mock.mockImplementation(() => ({
+      PORT: "5173",
+      CLAUDE_AUTH_TOKEN: "sk-ant-oat01-old",
+    }));
+    mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
+    mockRunSetupToken.mock.mockImplementation(() => null);
+    mockPrompts.mock.mockImplementation(async () => ({ token: undefined }));
+
+    await assert.rejects(
+      () => program.parseAsync(["node", "flux-finance", "refresh-token"]),
+      { message: "EXIT_1" }
+    );
+    assert.equal(mockWriteConfig.mock.callCount(), 0);
+  });
+
+  it("refresh-token handles restart failure after config update", async () => {
+    mockReadConfig.mock.mockImplementation(() => ({
+      PORT: "5173",
+      CLAUDE_AUTH_TOKEN: "sk-ant-oat01-old",
+    }));
+    mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
+    mockRunSetupToken.mock.mockImplementation(() => "sk-ant-oat01-new");
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockStartContainer.mock.mockImplementation(async () => {
+      throw new Error("restart failed");
+    });
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+
+    await assert.rejects(
+      () => program.parseAsync(["node", "flux-finance", "refresh-token"]),
+      { message: "EXIT_1" }
+    );
+    assert.equal(mockWriteConfig.mock.callCount(), 1);
   });
 });
