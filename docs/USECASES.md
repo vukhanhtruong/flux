@@ -16,6 +16,7 @@ Living document — all use cases implemented in FluxFinance. Keep in sync with 
 | **Budgets**       | `SetBudget`            | SQLite            | —             | —                      |
 |                   | `ListBudgets`          | —                 | —             | —                      |
 |                   | `RemoveBudget`         | SQLite            | —             | —                      |
+|                   | `CheckBudgets`         | —                 | —             | —                      |
 | **Goals**         | `CreateGoal`           | SQLite            | —             | —                      |
 |                   | `ListGoals`            | —                 | —             | —                      |
 |                   | `DepositToGoal`        | SQLite            | —             | —                      |
@@ -105,7 +106,8 @@ packages/core/src/flux_core/use_cases/
 ├── budgets/
 │   ├── set_budget.py
 │   ├── list_budgets.py
-│   └── remove_budget.py
+│   ├── remove_budget.py
+│   └── check_budgets.py
 ├── goals/
 │   ├── create_goal.py
 │   ├── list_goals.py
