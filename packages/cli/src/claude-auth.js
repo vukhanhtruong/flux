@@ -23,3 +23,16 @@ export function isClaudeCliInstalled() {
     return false;
   }
 }
+
+export function runSetupToken() {
+  try {
+    const output = execSync("claude setup-token", {
+      encoding: "utf-8",
+      stdio: ["inherit", "pipe", "inherit"],
+    });
+    const match = output.match(/sk-ant-oat\S+/);
+    return match ? match[0].trim() : null;
+  } catch {
+    return null;
+  }
+}
