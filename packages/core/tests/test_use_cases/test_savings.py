@@ -62,6 +62,24 @@ def _mock_uow():
     return uow
 
 
+def _setup_at_maturity_mocks(mock_asset_repo_cls, maturity, start):
+    """Configure mocks for at_maturity ProcessInterest tests."""
+    asset = _make_asset(
+        amount=Decimal("200000000.00"),
+        principal_amount=Decimal("200000000.00"),
+        compound_frequency="at_maturity",
+        frequency=AssetFrequency.at_maturity,
+        next_date=maturity,
+        maturity_date=maturity,
+        start_date=start,
+    )
+    past_maturity = maturity.replace(year=maturity.year + 1)
+    advanced = _make_asset(next_date=past_maturity, maturity_date=maturity)
+    mock_asset_repo_cls.return_value.get.return_value = asset
+    mock_asset_repo_cls.return_value.update_amount.return_value = None
+    mock_asset_repo_cls.return_value.advance_next_date.return_value = advanced
+
+
 # ── CreateSavings ───────────────────────────────────────────────────────
 
 
@@ -363,22 +381,7 @@ async def test_process_interest_at_maturity_months(
     mat_year = 2026 + (mat_month - 1) // 12
     mat_month = (mat_month - 1) % 12 + 1
     maturity = date(mat_year, mat_month, 14)
-
-    asset = _make_asset(
-        amount=Decimal("200000000.00"),
-        principal_amount=Decimal("200000000.00"),
-        compound_frequency="at_maturity",
-        frequency=AssetFrequency.at_maturity,
-        next_date=maturity,
-        maturity_date=maturity,
-        start_date=start,
-    )
-    # After advance, next_date exceeds maturity → matured
-    past_maturity = maturity.replace(year=maturity.year + 1)
-    advanced = _make_asset(next_date=past_maturity, maturity_date=maturity)
-    mock_asset_repo_cls.return_value.get.return_value = asset
-    mock_asset_repo_cls.return_value.update_amount.return_value = None
-    mock_asset_repo_cls.return_value.advance_next_date.return_value = advanced
+    _setup_at_maturity_mocks(mock_asset_repo_cls, maturity, start)
 
     uc = ProcessInterest(uow)
     result = await uc.execute(FAKE_ID, USER_ID)
@@ -414,21 +417,7 @@ async def test_process_interest_at_maturity_years(
     uow = _mock_uow()
     start = date(2026, 3, 14)
     maturity = date(2026 + years, 3, 14)
-
-    asset = _make_asset(
-        amount=Decimal("200000000.00"),
-        principal_amount=Decimal("200000000.00"),
-        compound_frequency="at_maturity",
-        frequency=AssetFrequency.at_maturity,
-        next_date=maturity,
-        maturity_date=maturity,
-        start_date=start,
-    )
-    past_maturity = maturity.replace(year=maturity.year + 1)
-    advanced = _make_asset(next_date=past_maturity, maturity_date=maturity)
-    mock_asset_repo_cls.return_value.get.return_value = asset
-    mock_asset_repo_cls.return_value.update_amount.return_value = None
-    mock_asset_repo_cls.return_value.advance_next_date.return_value = advanced
+    _setup_at_maturity_mocks(mock_asset_repo_cls, maturity, start)
 
     uc = ProcessInterest(uow)
     result = await uc.execute(FAKE_ID, USER_ID)

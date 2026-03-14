@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
     from flux_core.uow.unit_of_work import UnitOfWork
 
-COMPOUND_PERIODS = {"monthly": 12, "quarterly": 4, "yearly": 1, "at_maturity": None}
+COMPOUND_PERIODS = {"monthly": 12, "quarterly": 4, "yearly": 1}
 
 
 class ProcessInterest:
@@ -38,7 +38,6 @@ class ProcessInterest:
                 raise ValueError(f"Savings deposit {asset_id} is not active")
 
             freq = asset.compound_frequency or asset.frequency.value
-            periods = COMPOUND_PERIODS[freq]
             if freq == "at_maturity" and asset.start_date and asset.maturity_date:
                 months = (
                     (asset.maturity_date.year - asset.start_date.year) * 12
@@ -49,6 +48,7 @@ class ProcessInterest:
                     asset.amount * asset.interest_rate / 100 / 12 * months
                 ).quantize(Decimal("0.01"))
             else:
+                periods = COMPOUND_PERIODS[freq]
                 interest = (asset.amount * (asset.interest_rate / 100 / periods)).quantize(
                     Decimal("0.01")
                 )
