@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from flux_core.models.budget import BudgetOut
-from flux_core.use_cases.budgets import ListBudgets, RemoveBudget, SetBudget
+from flux_core.use_cases.budgets import CheckBudgets, ListBudgets, RemoveBudget, SetBudget
 
 USER_ID = "tg:12345"
 FAKE_ID = uuid4()
@@ -98,3 +98,60 @@ async def test_remove_budget_not_found(mock_repo_cls):
     result = await uc.execute(USER_ID, "nonexistent")
 
     assert result is False
+
+
+# ── CheckBudgets ───────────────────────────────────────────────────────
+
+
+async def test_check_budgets():
+    budgets = [_make_budget(category="Food", monthly_limit=Decimal("1000000"))]
+    budget_repo = MagicMock()
+    budget_repo.list_by_user.return_value = budgets
+
+    txn_repo = MagicMock()
+    txn_repo.get_category_breakdown.return_value = [
+        {"category": "Food", "total": 1100000.0, "count": 5},
+    ]
+
+    uc = CheckBudgets(budget_repo, txn_repo)
+    result = await uc.execute(USER_ID)
+
+    assert len(result) == 1
+    assert result[0]["category"] == "Food"
+    assert result[0]["monthly_limit"] == "1000000"
+    assert result[0]["spent_this_month"] == "1100000.00"
+    assert result[0]["percent_used"] == 110.0
+    assert result[0]["remaining"] == "-100000.00"
+    assert result[0]["is_over_budget"] is True
+    budget_repo.list_by_user.assert_called_once_with(USER_ID)
+
+
+async def test_check_budgets_no_spending():
+    budgets = [_make_budget(category="Transport", monthly_limit=Decimal("200000"))]
+    budget_repo = MagicMock()
+    budget_repo.list_by_user.return_value = budgets
+
+    txn_repo = MagicMock()
+    txn_repo.get_category_breakdown.return_value = []
+
+    uc = CheckBudgets(budget_repo, txn_repo)
+    result = await uc.execute(USER_ID)
+
+    assert len(result) == 1
+    assert result[0]["spent_this_month"] == "0.00"
+    assert result[0]["percent_used"] == 0.0
+    assert result[0]["remaining"] == "200000.00"
+    assert result[0]["is_over_budget"] is False
+
+
+async def test_check_budgets_empty():
+    budget_repo = MagicMock()
+    budget_repo.list_by_user.return_value = []
+
+    txn_repo = MagicMock()
+
+    uc = CheckBudgets(budget_repo, txn_repo)
+    result = await uc.execute(USER_ID)
+
+    assert result == []
+    txn_repo.get_category_breakdown.assert_not_called()
