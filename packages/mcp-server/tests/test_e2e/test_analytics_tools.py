@@ -1,4 +1,6 @@
 """E2E tests for analytics MCP tools."""
+from datetime import datetime, timezone
+
 from .conftest import extract_json
 
 
@@ -119,8 +121,6 @@ async def test_check_budgets_with_spending(seeded_server):
     await seeded_server.call_tool(
         "set_budget", {"category": "Food", "monthly_limit": 500.0}
     )
-
-    from datetime import datetime, timezone
 
     today = datetime.now(timezone.utc).date().isoformat()
     await seeded_server.call_tool(

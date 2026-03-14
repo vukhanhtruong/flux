@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-14
+
+### Added
+- Budget monitoring — `check_budgets` MCP tool for monthly budget status in one call
+- CheckBudgets use case — budget limits with current-month spending summary
+
+### Changed
+- Phase 2: deduplicate infrastructure, analytics use cases, helpers, and test fixtures
+- Phase 4: replace raw strings with StrEnums, fix S3 async, fix frontend types, remove dead code
+- Prepared repository for open-source publication
+
+### Fixed
+- Phase 1: correctness bugs across all packages
+- Resolved ruff lint errors across core, api-server, and agent-bot
+
+### Performance
+- Phase 3: RETURNING clause, caching, indexes, bounded queries, worker cleanup
+
 ## [1.1.0] - 2026-03-13
 
 ### Added

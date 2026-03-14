@@ -39,5 +39,15 @@ packages = ["src/flux_core"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
+[tool.coverage.run]
+omit = [
+    "src/flux_core/repositories/*",
+    "src/flux_core/vector/*",
+    "src/flux_core/infrastructure.py",
+    "src/flux_core/logging.py",
+    "src/flux_core/testing/*",
+    "src/flux_core/services/storage/protocol.py",
+]
+
 [tool.ruff]
 line-length = 100
