@@ -2,11 +2,13 @@ from datetime import date
 from typing import Callable
 
 from fastmcp import FastMCP
+from flux_core.sqlite.budget_repo import SqliteBudgetRepository
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.transaction_repo import SqliteTransactionRepository
 from flux_core.use_cases.analytics.calculate_financial_health import CalculateFinancialHealth
 from flux_core.use_cases.analytics.generate_spending_report import GenerateSpendingReport
 from flux_core.use_cases.analytics.get_trends import GetTrends
+from flux_core.use_cases.budgets.check_budgets import CheckBudgets
 
 
 def register_analytics_tools(
@@ -52,3 +54,18 @@ def register_analytics_tools(
             date.fromisoformat(previous_start),
             date.fromisoformat(previous_end),
         )
+
+    @mcp.tool()
+    async def check_budgets() -> list[dict]:
+        """Check all budgets with current-month spending status.
+
+        Returns each budget with: category, monthly_limit, spent_this_month,
+        percent_used, remaining, and is_over_budget. Automatically scopes
+        spending to the current calendar month.
+        """
+        db = get_db()
+        conn = db.connection()
+        budget_repo = SqliteBudgetRepository(conn)
+        txn_repo = SqliteTransactionRepository(conn)
+        uc = CheckBudgets(budget_repo, txn_repo)
+        return await uc.execute(get_user_id())

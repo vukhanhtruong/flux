@@ -112,3 +112,42 @@ async def test_get_trends(seeded_server):
     assert "previous_income" in data
     assert "income_change" in data
     assert "income_change_pct" in data
+
+
+async def test_check_budgets_with_spending(seeded_server):
+    """check_budgets returns budget limits with current-month spending."""
+    await seeded_server.call_tool(
+        "set_budget", {"category": "Food", "monthly_limit": 500.0}
+    )
+
+    from datetime import datetime, timezone
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    await seeded_server.call_tool(
+        "add_transaction",
+        {
+            "date": today,
+            "amount": 150.0,
+            "category": "Food",
+            "description": "Groceries",
+            "transaction_type": "expense",
+        },
+    )
+
+    result = await seeded_server.call_tool("check_budgets", {})
+    data = extract_json(result)
+
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["category"] == "Food"
+    assert float(data[0]["monthly_limit"]) == 500.0
+    assert float(data[0]["spent_this_month"]) == 150.0
+    assert data[0]["percent_used"] == 30.0
+    assert data[0]["is_over_budget"] is False
+
+
+async def test_check_budgets_empty(seeded_server):
+    """check_budgets returns empty list when no budgets set."""
+    result = await seeded_server.call_tool("check_budgets", {})
+    data = extract_json(result)
+    assert data == []
