@@ -89,6 +89,14 @@ async def test_close_savings_early(seeded_server):
         },
     )
     asset_id = extract_json(create_result)["id"]
+
+    # Verify scheduled task exists before closing
+    tasks_before = extract_json(
+        await seeded_server.call_tool("list_scheduled_tasks", {})
+    )
+    task_asset_ids = [t["asset_id"] for t in tasks_before["tasks"]]
+    assert asset_id in task_asset_ids
+
     result = await seeded_server.call_tool(
         "close_savings_early", {"asset_id": asset_id}
     )
@@ -101,10 +109,16 @@ async def test_close_savings_early(seeded_server):
     list_data = extract_json(list_result)
     ids = [s["id"] for s in list_data]
     assert asset_id not in ids
+    # Verify scheduled task deleted
+    tasks_after = extract_json(
+        await seeded_server.call_tool("list_scheduled_tasks", {})
+    )
+    task_asset_ids_after = [t["asset_id"] for t in tasks_after["tasks"]]
+    assert asset_id not in task_asset_ids_after
 
 
 async def test_withdraw_savings(seeded_server):
-    """withdraw_savings creates income transaction and deactivates asset."""
+    """withdraw_savings creates income transaction, deactivates asset, and removes tasks."""
     create_result = await seeded_server.call_tool(
         "create_savings_deposit",
         {
@@ -117,12 +131,26 @@ async def test_withdraw_savings(seeded_server):
         },
     )
     asset_id = extract_json(create_result)["id"]
+
+    # Verify scheduled task exists before withdrawal
+    tasks_before = extract_json(
+        await seeded_server.call_tool("list_scheduled_tasks", {})
+    )
+    task_asset_ids = [t["asset_id"] for t in tasks_before["tasks"]]
+    assert asset_id in task_asset_ids
+
     result = await seeded_server.call_tool(
         "withdraw_savings", {"asset_id": asset_id}
     )
     data = extract_json(result)
     assert Decimal(data["withdrawn_amount"]) == Decimal("8000")
     assert data["asset_name"] == "Withdraw Test"
+    # Verify scheduled task deleted
+    tasks_after = extract_json(
+        await seeded_server.call_tool("list_scheduled_tasks", {})
+    )
+    task_asset_ids_after = [t["asset_id"] for t in tasks_after["tasks"]]
+    assert asset_id not in task_asset_ids_after
 
 
 async def test_create_savings_deposit_at_maturity(seeded_server):
@@ -159,6 +187,14 @@ async def test_delete_savings(seeded_server):
         },
     )
     asset_id = extract_json(create_result)["id"]
+
+    # Verify scheduled task exists before deletion
+    tasks_before = extract_json(
+        await seeded_server.call_tool("list_scheduled_tasks", {})
+    )
+    task_asset_ids = [t["asset_id"] for t in tasks_before["tasks"]]
+    assert asset_id in task_asset_ids
+
     result = await seeded_server.call_tool(
         "delete_savings", {"asset_id": asset_id}
     )
@@ -170,3 +206,9 @@ async def test_delete_savings(seeded_server):
     list_data = extract_json(list_result)
     ids = [s["id"] for s in list_data]
     assert asset_id not in ids
+    # Verify scheduled task deleted
+    tasks_after = extract_json(
+        await seeded_server.call_tool("list_scheduled_tasks", {})
+    )
+    task_asset_ids_after = [t["asset_id"] for t in tasks_after["tasks"]]
+    assert asset_id not in task_asset_ids_after
