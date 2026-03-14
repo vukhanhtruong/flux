@@ -4,7 +4,7 @@ import prompts from "prompts";
 import ora from "ora";
 import { isDockerRunning, pullImage, startContainer } from "./docker.js";
 import { readConfig, writeConfig, getDataDir, getConfigPath } from "./config.js";
-import { readClaudeToken, isClaudeCliInstalled } from "./claude-auth.js";
+import { readClaudeToken, isClaudeCliInstalled, runSetupToken } from "./claude-auth.js";
 import {
   showQR,
   BOTFATHER_URL,
@@ -98,32 +98,15 @@ export async function runWizard() {
   }
 
   if (!claudeToken) {
-    const hasClaude = isClaudeCliInstalled();
-    if (hasClaude) {
-      const { method } = await prompts({
-        type: "select",
-        name: "method",
-        message: "How would you like to authenticate with Claude?",
-        choices: [
-          {
-            title: "Auto-setup (recommended) — opens browser to sign in",
-            value: "auto",
-          },
-          { title: "Paste token manually", value: "manual" },
-        ],
-      });
-
-      if (method === "auto") {
-        console.log(chalk.dim("\n  Running: claude setup-token\n"));
-        const { execSync } = await import("node:child_process");
-        try {
-          execSync("claude setup-token", { stdio: "inherit" });
-          claudeToken = readClaudeToken();
-        } catch {
-          console.log(
-            chalk.yellow("  Auto-setup failed. Please paste token manually.\n")
-          );
-        }
+    if (isClaudeCliInstalled()) {
+      console.log(chalk.dim("  Running: claude setup-token\n"));
+      claudeToken = runSetupToken();
+      if (claudeToken) {
+        console.log(chalk.green("  Token captured successfully.\n"));
+      } else {
+        console.log(
+          chalk.yellow("  Auto-setup failed. Please paste token manually.\n")
+        );
       }
     }
 

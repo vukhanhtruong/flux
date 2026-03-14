@@ -13,6 +13,7 @@ const mockExecSync = mock.fn();
 const mockGetDataDir = mock.fn();
 const mockReadClaudeToken = mock.fn();
 const mockIsClaudeCliInstalled = mock.fn();
+const mockRunSetupToken = mock.fn();
 const mockShowQR = mock.fn();
 
 mock.module("prompts", {
@@ -53,6 +54,7 @@ mock.module("../src/claude-auth.js", {
   namedExports: {
     readClaudeToken: mockReadClaudeToken,
     isClaudeCliInstalled: mockIsClaudeCliInstalled,
+    runSetupToken: mockRunSetupToken,
   },
 });
 
@@ -226,6 +228,7 @@ describe("runWizard", () => {
     mockGetDataDir.mock.resetCalls();
     mockReadClaudeToken.mock.resetCalls();
     mockIsClaudeCliInstalled.mock.resetCalls();
+    mockRunSetupToken.mock.resetCalls();
     mockShowQR.mock.resetCalls();
     mockExecSync.mock.resetCalls();
   });
@@ -414,10 +417,10 @@ describe("runWizard", () => {
     await runWizard();
   });
 
-  it("handles auto-setup with Claude CLI installed", async () => {
+  it("goes to manual paste when Claude CLI is not installed", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
     mockReadClaudeToken.mock.mockImplementation(() => null);
-    mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
+    mockIsClaudeCliInstalled.mock.mockImplementation(() => false);
     mockPullImage.mock.mockImplementation(async () => {});
     mockStartContainer.mock.mockImplementation(async () => {});
     mockWriteConfig.mock.mockImplementation(() => {});
@@ -427,16 +430,16 @@ describe("runWizard", () => {
     let callCount = 0;
     mockPrompts.mock.mockImplementation(async () => {
       callCount++;
-      if (callCount === 1) return { method: "manual" };      // choose manual method
-      if (callCount === 2) return { token: "pasted-token" }; // paste token
-      if (callCount === 3) return { botToken: "123:ABC" };
-      if (callCount === 4) return { userId: "456" };
-      if (callCount === 5) return { port: "5173" };
-      if (callCount === 6) return { setupNgrok: false };
+      if (callCount === 1) return { token: "sk-ant-oat01-pasted" };
+      if (callCount === 2) return { botToken: "123:ABC" };
+      if (callCount === 3) return { userId: "456" };
+      if (callCount === 4) return { port: "5173" };
+      if (callCount === 5) return { setupNgrok: false };
       return {};
     });
 
     await runWizard();
+    assert.equal(mockRunSetupToken.mock.callCount(), 0);
   });
 
   it("handles ngrok restart failure gracefully", async () => {
@@ -468,11 +471,11 @@ describe("runWizard", () => {
     await runWizard();
   });
 
-  it("handles auto-setup success path", async () => {
+  it("auto-runs setup-token when CLI is installed and captures token", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
     mockReadClaudeToken.mock.mockImplementation(() => null);
     mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
-    mockExecSync.mock.mockImplementation(() => {});
+    mockRunSetupToken.mock.mockImplementation(() => "sk-ant-oat01-new-token");
     mockPullImage.mock.mockImplementation(async () => {});
     mockStartContainer.mock.mockImplementation(async () => {});
     mockWriteConfig.mock.mockImplementation(() => {});
@@ -480,16 +483,35 @@ describe("runWizard", () => {
     mockShowQR.mock.mockImplementation(async () => {});
 
     let callCount = 0;
-    let readTokenCalls = 0;
-    mockReadClaudeToken.mock.mockImplementation(() => {
-      readTokenCalls++;
-      if (readTokenCalls >= 2) return "auto-setup-token";
-      return null;
-    });
-
     mockPrompts.mock.mockImplementation(async () => {
       callCount++;
-      if (callCount === 1) return { method: "auto" };        // choose auto method
+      if (callCount === 1) return { botToken: "123:ABC" };
+      if (callCount === 2) return { userId: "456" };
+      if (callCount === 3) return { port: "5173" };
+      if (callCount === 4) return { setupNgrok: false };
+      return {};
+    });
+
+    await runWizard();
+    assert.equal(mockRunSetupToken.mock.callCount(), 1);
+    assert.equal(mockWriteConfig.mock.callCount(), 1);
+  });
+
+  it("falls back to manual paste when setup-token fails", async () => {
+    mockIsDockerRunning.mock.mockImplementation(async () => true);
+    mockReadClaudeToken.mock.mockImplementation(() => null);
+    mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
+    mockRunSetupToken.mock.mockImplementation(() => null);
+    mockPullImage.mock.mockImplementation(async () => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+    mockShowQR.mock.mockImplementation(async () => {});
+
+    let callCount = 0;
+    mockPrompts.mock.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { token: "sk-ant-oat01-manual" };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "456" };
       if (callCount === 4) return { port: "5173" };
@@ -498,39 +520,7 @@ describe("runWizard", () => {
     });
 
     await runWizard();
-    assert.equal(mockExecSync.mock.callCount(), 1);
-  });
-
-  it("handles auto-setup failure falling back to manual", async () => {
-    mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
-    mockExecSync.mock.mockImplementation(() => { throw new Error("claude not found"); });
-    mockPullImage.mock.mockImplementation(async () => {});
-    mockStartContainer.mock.mockImplementation(async () => {});
-    mockWriteConfig.mock.mockImplementation(() => {});
-    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
-    mockShowQR.mock.mockImplementation(async () => {});
-
-    let readTokenCalls = 0;
-    mockReadClaudeToken.mock.mockImplementation(() => {
-      readTokenCalls++;
-      return null; // always null — auto-setup failed
-    });
-
-    let callCount = 0;
-    mockPrompts.mock.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) return { method: "auto" };        // choose auto
-      if (callCount === 2) return { token: "manual-token" }; // fallback to manual
-      if (callCount === 3) return { botToken: "123:ABC" };
-      if (callCount === 4) return { userId: "456" };
-      if (callCount === 5) return { port: "5173" };
-      if (callCount === 6) return { setupNgrok: false };
-      return {};
-    });
-
-    await runWizard();
-    assert.equal(mockExecSync.mock.callCount(), 1);
+    assert.equal(mockRunSetupToken.mock.callCount(), 1);
   });
 
   it("exits when bot token verification fails and user declines to continue", async () => {
