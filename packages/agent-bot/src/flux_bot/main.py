@@ -70,12 +70,15 @@ async def main():
     if not channels:
         logger.warning("No channels enabled! Set TELEGRAM_BOT_TOKEN.")
 
+    admin_chat_id = config.telegram.allow_from[0] if config.telegram.allow_from else None
+
     handle_message = make_handle_message(
         runner=runner,
         msg_repo=msg_repo,
         session_repo=session_repo,
         profile_repo=profile_repo,
         channels=channels,
+        admin_chat_id=admin_chat_id,
     )
 
     queue = UserQueue(handler=handle_message)

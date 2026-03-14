@@ -357,5 +357,6 @@ export async function runWizard() {
   console.log(`    ${chalk.cyan("npx @flux-finance/cli logs")}      View logs`);
   console.log(`    ${chalk.cyan("npx @flux-finance/cli update")}    Update to latest version`);
   console.log(`    ${chalk.cyan("npx @flux-finance/cli config")}    Show configuration`);
+  console.log(`    ${chalk.cyan("npx @flux-finance/cli refresh-token")} Refresh Claude token`);
   console.log();
 }
