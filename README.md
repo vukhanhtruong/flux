@@ -1,6 +1,6 @@
 # Flux
 
-Flux is a self-hosted personal finance AI agent. Chat naturally to track spending, manage budgets, set savings goals, and get insights — all running locally on your machine. Your financial data never leaves your infrastructure.
+Flux is a self-hosted personal finance AI agent. Chat naturally to get financial advisor, track spending, manage budgets, set savings goals, and get insights — all running locally on your machine. Your financial data never leaves your infrastructure.
 
 ## Table of Contents
 
