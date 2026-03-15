@@ -41,6 +41,7 @@ export function buildContainerConfig(config, dataDir) {
         "80/tcp": [{ HostPort: port }],
       },
       Binds: [`${dataDir}:/data`],
+      Dns: ["8.8.8.8", "8.8.4.4"],
       RestartPolicy: { Name: "unless-stopped" },
     },
   };
