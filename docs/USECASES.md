@@ -22,23 +22,32 @@ Living document — all use cases implemented in FluxFinance. Keep in sync with 
 |                   | `DepositToGoal`        | SQLite            | —             | —                      |
 |                   | `WithdrawFromGoal`     | SQLite            | —             | —                      |
 |                   | `DeleteGoal`           | SQLite            | —             | —                      |
-| **Subscriptions** | `CreateSubscription`   | SQLite (2 tables) | —             | `SubscriptionCreated`  |
-|                   | `ListSubscriptions`    | —                 | —             | —                      |
-|                   | `ToggleSubscription`   | SQLite (2 tables) | —             | —                      |
-|                   | `DeleteSubscription`   | SQLite (2 tables) | —             | —                      |
+| **Subscriptions** | `CreateSubscription`         | SQLite (2 tables) | —             | `SubscriptionCreated`  |
+|                   | `ListSubscriptions`          | —                 | —             | —                      |
+|                   | `ToggleSubscription`         | SQLite (2 tables) | —             | —                      |
+|                   | `DeleteSubscription`         | SQLite (2 tables) | —             | —                      |
+|                   | `ProcessSubscriptionBilling` | SQLite (2 tables) | zvec          | —                      |
 | **Savings**       | `CreateSavings`        | SQLite (2 tables) | —             | `SavingsCreated`       |
 |                   | `ProcessInterest`      | SQLite            | —             | —                      |
 |                   | `WithdrawSavings`      | SQLite (3 tables) | —             | —                      |
 | **Memory**        | `Remember`             | SQLite            | zvec          | `MemoryCreated`        |
 |                   | `Recall`               | —                 | zvec (read)   | —                      |
 |                   | `ListMemories`         | —                 | —             | —                      |
-| **Analytics**     | `GetSummary`           | —                 | —             | —                      |
-|                   | `GetTrends`            | —                 | —             | —                      |
-|                   | `GetCategoryBreakdown` | —                 | —             | —                      |
-| **Bot**           | `ProcessMessage`       | SQLite (3 tables) | —             | `OutboundCreated`      |
-|                   | `SendOutbound`         | SQLite            | —             | —                      |
-|                   | `CreateScheduledTask`  | SQLite            | —             | `ScheduledTaskCreated` |
-|                   | `FireScheduledTask`    | SQLite (2 tables) | —             | `MessageCreated`       |
+| **Analytics**     | `GetSummary`                 | —                 | —             | —                      |
+|                   | `GetTrends`                  | —                 | —             | —                      |
+|                   | `GetCategoryBreakdown`       | —                 | —             | —                      |
+|                   | `GenerateSpendingReport`     | —                 | —             | —                      |
+|                   | `CalculateFinancialHealth`   | —                 | —             | —                      |
+| **Bot**           | `ProcessMessage`             | SQLite (3 tables) | —             | `OutboundCreated`      |
+|                   | `SendOutbound`               | SQLite            | —             | —                      |
+|                   | `SendMessage`                | SQLite            | —             | `OutboundCreated`      |
+|                   | `CreateScheduledTask`        | SQLite            | —             | `ScheduledTaskCreated` |
+|                   | `FireScheduledTask`          | SQLite (2 tables) | —             | `MessageCreated`       |
+|                   | `ScheduleTask`               | SQLite            | —             | `ScheduledTaskCreated` |
+|                   | `ListTasks`                  | —                 | —             | —                      |
+|                   | `PauseTask`                  | SQLite            | —             | —                      |
+|                   | `ResumeTask`                 | SQLite            | —             | —                      |
+|                   | `CancelTask`                 | SQLite            | —             | —                      |
 
 ---
 
@@ -80,6 +89,19 @@ class SearchTransactions:
         # 3. Fetch full records from SQLite
 ```
 
+### Dual-method use cases
+
+```python
+class SendOutbound:
+    def __init__(self, uow: UnitOfWork): ...
+    async def mark_sent(self, msg_id: int) -> None:
+        # UPDATE status='sent', completed_at
+    async def mark_failed(self, msg_id: int, error: str) -> None:
+        # UPDATE status='failed', error, completed_at
+```
+
+Note: `SendOutbound` does not follow the standard `execute()` pattern — it exposes two methods, each managing its own UoW transaction.
+
 ### SQLite-only write use cases
 
 ```python
@@ -118,7 +140,8 @@ packages/core/src/flux_core/use_cases/
 │   ├── create_subscription.py
 │   ├── list_subscriptions.py
 │   ├── toggle_subscription.py
-│   └── delete_subscription.py
+│   ├── delete_subscription.py
+│   └── process_billing.py
 ├── savings/
 │   ├── create_savings.py
 │   ├── process_interest.py
@@ -130,12 +153,20 @@ packages/core/src/flux_core/use_cases/
 ├── analytics/
 │   ├── get_summary.py
 │   ├── get_trends.py
-│   └── get_category_breakdown.py
+│   ├── get_category_breakdown.py
+│   ├── generate_spending_report.py
+│   └── calculate_financial_health.py
 ├── bot/
 │   ├── process_message.py
 │   ├── send_outbound.py
+│   ├── send_message.py
 │   ├── create_scheduled_task.py
-│   └── fire_scheduled_task.py
+│   ├── fire_scheduled_task.py
+│   ├── schedule_task.py
+│   ├── list_tasks.py
+│   ├── pause_task.py
+│   ├── resume_task.py
+│   └── cancel_task.py
 └── backup/
     ├── create_backup.py
     ├── restore_backup.py
