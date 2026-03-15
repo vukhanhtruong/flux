@@ -38,12 +38,8 @@ flowchart TD
     C["npx @flux-finance/cli refresh-token"] --> D{Config exists?}
     D -- No --> E[EXIT 1: Run setup first]
     D -- Yes --> F[acquireClaudeToken]
-    B --> G[readClaudeToken from .credentials.json]
-    G -- Found --> H{Use existing token?}
-    G -- Not found --> F
-    H -- Yes --> I[Continue wizard]
-    H -- No --> F
-    F --> J[Save token + start/restart container]
+    B --> F
+    F --> G[Save token + start/restart container]
 ```
 
 ### 2. Token Acquisition (`acquireClaudeToken`)

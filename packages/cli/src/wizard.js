@@ -4,7 +4,7 @@ import prompts from "prompts";
 import ora from "ora";
 import { isDockerRunning, pullImage, startContainer } from "./docker.js";
 import { readConfig, writeConfig, getDataDir, getConfigPath } from "./config.js";
-import { readClaudeToken, acquireClaudeToken } from "./claude-auth.js";
+import { acquireClaudeToken } from "./claude-auth.js";
 import {
   showQR,
   BOTFATHER_URL,
@@ -84,22 +84,7 @@ export async function runWizard() {
 
   // Step 2: Claude Authentication
   console.log(chalk.bold("Step 2: Claude Authentication\n"));
-  let claudeToken = readClaudeToken();
-
-  if (claudeToken) {
-    console.log(chalk.green("  Found existing Claude token.\n"));
-    const { useExisting } = await prompts({
-      type: "confirm",
-      name: "useExisting",
-      message: "Use the existing Claude token from Claude CLI?",
-      initial: true,
-    });
-    if (!useExisting) claudeToken = null;
-  }
-
-  if (!claudeToken) {
-    claudeToken = await acquireClaudeToken();
-  }
+  const claudeToken = await acquireClaudeToken();
 
   if (!claudeToken) {
     console.log(chalk.red("\n  Claude token is required. Exiting.\n"));
