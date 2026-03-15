@@ -24,14 +24,20 @@ export function isClaudeCliInstalled() {
   }
 }
 
+const MIN_TOKEN_LENGTH = 80;
+
 export function runSetupToken() {
   try {
     const output = execSync("claude setup-token", {
       encoding: "utf-8",
       stdio: ["inherit", "pipe", "inherit"],
     });
-    const match = output.match(/sk-ant-oat\S+/);
-    return match ? match[0].trim() : null;
+    // Strip ANSI escape codes before matching
+    const clean = output.replace(/\x1b\[[0-9;]*m/g, "");
+    const match = clean.match(/sk-ant-oat\S+/);
+    if (!match) return null;
+    const token = match[0].trim();
+    return token.length >= MIN_TOKEN_LENGTH ? token : null;
   } catch {
     return null;
   }
@@ -92,5 +98,42 @@ export async function acquireClaudeToken() {
     token = pasted;
   }
 
-  return token || null;
+  if (!token) return null;
+
+  const ora = (await import("ora")).default;
+  const spinner = ora("Verifying token with Claude API...").start();
+  const valid = await verifyClaudeToken(token);
+  if (valid) {
+    spinner.succeed("Token verified successfully.");
+  } else {
+    spinner.warn("Could not verify token — it may still work with Claude Code.");
+  }
+
+  return token;
+}
+
+export async function verifyClaudeToken(token) {
+  try {
+    const headers = {
+      "content-type": "application/json",
+      "anthropic-version": "2023-06-01",
+    };
+    if (token.startsWith("sk-ant-api")) {
+      headers["x-api-key"] = token;
+    } else {
+      headers["authorization"] = `Bearer ${token}`;
+    }
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1,
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
 }
