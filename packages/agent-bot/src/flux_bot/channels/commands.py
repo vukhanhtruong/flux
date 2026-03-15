@@ -125,6 +125,10 @@ _MENU, _EDIT_CURRENCY, _EDIT_TIMEZONE, _EDIT_USERNAME = range(4)
 # ConversationHandler states for /onboard
 _OB_CURRENCY, _OB_TIMEZONE, _OB_USERNAME, _OB_BACKUP, _OB_BACKUP_CONFIRM, _OB_ADVISOR = range(6)
 
+# Single source of truth for backup frequency → cron expression mapping
+_BACKUP_CRON_MAP = {"weekly": "0 2 * * 0", "biweekly": "0 2 1,15 * *"}
+_CRON_TO_LABEL = {v: k for k, v in _BACKUP_CRON_MAP.items()}
+
 HELP_TEXT = """\
 Here are some things you can ask me:
 
@@ -551,11 +555,7 @@ class CommandHandlers:
                 context.user_data["ob_backup_choice"] = choice
                 context.user_data["ob_backup_existing_id"] = backup_tasks[0]["id"]
                 sv = backup_tasks[0].get("schedule_value", "")
-                existing_type = (
-                    "daily" if sv == "0 2 * * *"
-                    else "biweekly" if sv == "0 2 1,15 * *"
-                    else "weekly"
-                )
+                existing_type = _CRON_TO_LABEL.get(sv, sv)
                 keyboard = [
                     [InlineKeyboardButton(
                         f"Replace ({existing_type} → {choice})",
@@ -585,7 +585,7 @@ class CommandHandlers:
     ) -> int:
         await update.callback_query.answer()
         action = update.callback_query.data.split(":", 1)[1]
-        choice = context.user_data.get("ob_backup_choice", "daily")
+        choice = context.user_data.get("ob_backup_choice", "weekly")
         existing_id = context.user_data.get("ob_backup_existing_id")
 
         if action == "replace":
@@ -683,8 +683,7 @@ class CommandHandlers:
         """Create a backup scheduled task for the given frequency choice."""
         if not profile:
             return
-        cron_map = {"weekly": "0 2 * * 0", "biweekly": "0 2 1,15 * *"}
-        cron_expr = cron_map[choice]
+        cron_expr = _BACKUP_CRON_MAP[choice]
         from flux_bot.orchestrator.scheduler import compute_next_run
         next_run = compute_next_run("cron", cron_expr, profile.timezone or "UTC")
         await self._task_repo.create(

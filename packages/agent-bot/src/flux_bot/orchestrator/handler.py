@@ -53,38 +53,47 @@ _AUTH_ERROR_ADMIN_MSG = (
 _AUTH_NOTIFY_THROTTLE_SECS = 3600  # 1 hour
 
 
-def _is_auth_error(error: str) -> bool:
-    """Check if the error is an authentication/token error."""
-    err = error.lower()
-    return any(pattern in err for pattern in _AUTH_ERROR_PATTERNS)
-
-
 _SESSION_RETRY_PATTERNS = (
-    _THINKING_SIGNATURE_ERROR,
+    _THINKING_SIGNATURE_ERROR.lower(),
     "command failed with exit code 1",
 )
 
 
-def _should_retry_without_session(error: str) -> bool:
-    """Check if the error is likely caused by a stale/invalid session."""
+def _matches_any(error: str, patterns: tuple[str, ...]) -> bool:
+    """Check if error (case-insensitive) contains any of the given patterns."""
     err = error.lower()
-    return any(pattern.lower() in err for pattern in _SESSION_RETRY_PATTERNS)
+    return any(p in err for p in patterns)
+
+
+def _is_auth_error(error: str) -> bool:
+    return _matches_any(error, _AUTH_ERROR_PATTERNS)
+
+
+def _should_retry_without_session(error: str) -> bool:
+    return _matches_any(error, _SESSION_RETRY_PATTERNS)
 
 
 def _should_notify_usage_limit(error: str) -> bool:
-    err = error.lower()
-    return any(pattern in err for pattern in _USAGE_LIMIT_ERROR_PATTERNS)
+    return _matches_any(error, _USAGE_LIMIT_ERROR_PATTERNS)
 
 
 def _error_notification_for_user(error: str) -> str | None:
-    err = error.lower()
     if _should_notify_usage_limit(error):
         return _USAGE_LIMIT_ERROR_MSG
 
+    err = error.lower()
     if "command failed with exit code 1" in err and "check stderr output for details" in err:
         return _SDK_UPSTREAM_ERROR_MSG
 
     return None
+
+
+async def _safe_send(channel, target: str, text: str, context: str) -> None:
+    """Send a message via channel, logging errors without raising."""
+    try:
+        await channel.send_message(target, text)
+    except Exception as e:
+        logger.error(f"{context}: {e}")
 
 
 def make_handle_message(
@@ -100,8 +109,10 @@ def make_handle_message(
         channel_name = msg["channel"]
         channel = channels.get(channel_name)
 
-        profile = await profile_repo.get_by_user_id(user_id)
-        session_id = await session_repo.get_session_id(user_id)
+        profile, session_id = await asyncio.gather(
+            profile_repo.get_by_user_id(user_id),
+            session_repo.get_session_id(user_id),
+        )
 
         heartbeat_task = None
         if channel and platform_id:
@@ -152,25 +163,23 @@ def make_handle_message(
                     now = time.monotonic()
                     if now - last_admin_notify >= _AUTH_NOTIFY_THROTTLE_SECS:
                         last_admin_notify = now
-                        try:
-                            await channel.send_message(admin_chat_id, _AUTH_ERROR_ADMIN_MSG)
-                        except Exception as e:
-                            logger.error(f"Could not notify admin: {e}")
+                        await _safe_send(
+                            channel, admin_chat_id, _AUTH_ERROR_ADMIN_MSG,
+                            "Could not notify admin",
+                        )
                 # Notify user
                 if channel and platform_id:
-                    try:
-                        await channel.send_message(platform_id, _AUTH_ERROR_USER_MSG)
-                    except Exception as e:
-                        logger.error(f"Could not notify user {user_id}: {e}")
+                    await _safe_send(
+                        channel, platform_id, _AUTH_ERROR_USER_MSG,
+                        f"Could not notify user {user_id}",
+                    )
             else:
                 user_msg = _error_notification_for_user(result.error)
                 if channel and platform_id and user_msg:
-                    try:
-                        await channel.send_message(platform_id, user_msg)
-                    except Exception as e:
-                        logger.error(
-                            f"Could not deliver usage-limit notification to {user_id}: {e}"
-                        )
+                    await _safe_send(
+                        channel, platform_id, user_msg,
+                        f"Could not deliver error notification to {user_id}",
+                    )
             return
 
         if result.session_id:

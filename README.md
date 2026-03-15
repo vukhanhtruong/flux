@@ -243,6 +243,7 @@ ruff check packages/*/src/ packages/*/tests/
 
 ## Roadmap
 
+- [ ] **LLM-agnostic agent layer** — Replace the Claude-coupled agent bot , enabling pluggable LLM backends, built-in task planning, subagent delegation, and persistent memory across any model provider
 - [ ] **CSV/bank import** — import transaction history from bank exports or financial apps
 - [ ] **WhatsApp channel** — connect via WhatsApp as an alternative to Telegram
 

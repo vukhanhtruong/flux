@@ -58,29 +58,25 @@ export async function acquireClaudeToken() {
 
   let token = null;
 
-  if (authType === "oauth") {
-    if (isClaudeCliInstalled()) {
-      console.log(chalk.dim("\n  Running: claude setup-token\n"));
-      runSetupToken();
-      console.log(
-        chalk.dim("\n  Copy the token shown above and paste it below.\n")
-      );
-    }
-
-    const { token: pasted } = await prompts({
-      type: "password",
-      name: "token",
-      message: "Paste your OAuth token (sk-ant-oat...)",
-    });
-    token = pasted;
-  } else {
-    const { token: pasted } = await prompts({
-      type: "password",
-      name: "token",
-      message: "Paste your API key (sk-ant-api...)",
-    });
-    token = pasted;
+  if (authType === "oauth" && isClaudeCliInstalled()) {
+    console.log(chalk.dim("\n  Running: claude setup-token\n"));
+    runSetupToken();
+    console.log(
+      chalk.dim("\n  Copy the token shown above and paste it below.\n")
+    );
   }
+
+  const tokenMessage =
+    authType === "oauth"
+      ? "Paste your OAuth token (sk-ant-oat...)"
+      : "Paste your API key (sk-ant-api...)";
+
+  const { token: pasted } = await prompts({
+    type: "password",
+    name: "token",
+    message: tokenMessage,
+  });
+  token = pasted;
 
   return token || null;
 }
