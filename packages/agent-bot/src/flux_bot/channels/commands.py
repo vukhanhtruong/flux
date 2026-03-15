@@ -519,8 +519,8 @@ class CommandHandlers:
 
     async def _send_ob_backup_prompt(self, source) -> None:
         keyboard = [
-            [InlineKeyboardButton("Daily", callback_data="ob_backup:daily")],
             [InlineKeyboardButton("Weekly", callback_data="ob_backup:weekly")],
+            [InlineKeyboardButton("Biweekly", callback_data="ob_backup:biweekly")],
             [InlineKeyboardButton("Never", callback_data="ob_backup:never")],
         ]
         await source.message.reply_text(
@@ -550,8 +550,11 @@ class CommandHandlers:
             if backup_tasks:
                 context.user_data["ob_backup_choice"] = choice
                 context.user_data["ob_backup_existing_id"] = backup_tasks[0]["id"]
+                sv = backup_tasks[0].get("schedule_value", "")
                 existing_type = (
-                    "daily" if backup_tasks[0].get("schedule_value") == "0 2 * * *" else "weekly"
+                    "daily" if sv == "0 2 * * *"
+                    else "biweekly" if sv == "0 2 1,15 * *"
+                    else "weekly"
                 )
                 keyboard = [
                     [InlineKeyboardButton(
@@ -680,13 +683,17 @@ class CommandHandlers:
         """Create a backup scheduled task for the given frequency choice."""
         if not profile:
             return
-        cron_map = {"daily": "0 2 * * *", "weekly": "0 2 * * 0"}
+        cron_map = {"weekly": "0 2 * * 0", "biweekly": "0 2 1,15 * *"}
         cron_expr = cron_map[choice]
         from flux_bot.orchestrator.scheduler import compute_next_run
         next_run = compute_next_run("cron", cron_expr, profile.timezone or "UTC")
         await self._task_repo.create(
             user_id=profile.user_id,
-            prompt="Create a backup of my data",
+            prompt=(
+                "Create a backup of my data. After the backup completes, "
+                "remind me that I can manage backups and configure S3 cloud "
+                "storage in the web UI settings page."
+            ),
             schedule_type="cron",
             schedule_value=cron_expr,
             next_run_at=next_run,

@@ -621,13 +621,13 @@ async def test_onboard_conversation_handles_ob_tz_callbacks():
 # /onboard — backup preference step (4/4)
 # ---------------------------------------------------------------------------
 
-async def test_ob_handle_backup_daily_creates_scheduled_task():
+async def test_ob_handle_backup_weekly_creates_scheduled_task():
 
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     handlers.task_repo.create = AsyncMock(return_value=1)
     handlers.task_repo.list_by_user = AsyncMock(return_value=[])  # no existing backup
-    update = _make_callback_update(callback_data="ob_backup:daily")
+    update = _make_callback_update(callback_data="ob_backup:weekly")
     result = await handlers._ob_handle_backup(update, _make_context())
     assert result == _OB_ADVISOR
     update.callback_query.answer.assert_called_once()
@@ -636,17 +636,18 @@ async def test_ob_handle_backup_daily_creates_scheduled_task():
     call_kwargs = handlers.task_repo.create.call_args
     assert call_kwargs[1]["user_id"] == "tg:12345"
     assert call_kwargs[1]["schedule_type"] == "cron"
-    assert call_kwargs[1]["schedule_value"] == "0 2 * * *"
+    assert call_kwargs[1]["schedule_value"] == "0 2 * * 0"
     assert "backup" in call_kwargs[1]["prompt"].lower()
+    assert "web ui" in call_kwargs[1]["prompt"].lower()
 
 
-async def test_ob_handle_backup_weekly_creates_scheduled_task():
+async def test_ob_handle_backup_biweekly_creates_scheduled_task():
 
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     handlers.task_repo.create = AsyncMock(return_value=2)
     handlers.task_repo.list_by_user = AsyncMock(return_value=[])  # no existing backup
-    update = _make_callback_update(callback_data="ob_backup:weekly")
+    update = _make_callback_update(callback_data="ob_backup:biweekly")
     result = await handlers._ob_handle_backup(update, _make_context())
     assert result == _OB_ADVISOR
     # Must actually create a scheduled task
@@ -654,8 +655,9 @@ async def test_ob_handle_backup_weekly_creates_scheduled_task():
     call_kwargs = handlers.task_repo.create.call_args
     assert call_kwargs[1]["user_id"] == "tg:12345"
     assert call_kwargs[1]["schedule_type"] == "cron"
-    assert call_kwargs[1]["schedule_value"] == "0 2 * * 0"
+    assert call_kwargs[1]["schedule_value"] == "0 2 1,15 * *"
     assert "backup" in call_kwargs[1]["prompt"].lower()
+    assert "web ui" in call_kwargs[1]["prompt"].lower()
 
 
 async def test_ob_handle_backup_never_does_not_create_task():
@@ -669,16 +671,16 @@ async def test_ob_handle_backup_never_does_not_create_task():
     handlers.task_repo.create.assert_not_called()
 
 
-async def test_ob_handle_backup_daily_existing_asks_confirm():
-    """Selecting daily when a backup task exists → asks user to replace or keep."""
+async def test_ob_handle_backup_weekly_existing_asks_confirm():
+    """Selecting weekly when a backup task exists → asks user to replace or keep."""
     profile = _make_profile()
     handlers = _make_handlers(profile=profile)
     handlers.task_repo.create = AsyncMock(return_value=1)
     handlers.task_repo.list_by_user = AsyncMock(return_value=[
         {"id": 99, "prompt": "Create a backup of my data", "schedule_type": "cron",
-         "schedule_value": "0 2 * * 0", "next_run_at": None, "status": "active"},
+         "schedule_value": "0 2 1,15 * *", "next_run_at": None, "status": "active"},
     ])
-    update = _make_callback_update(callback_data="ob_backup:daily")
+    update = _make_callback_update(callback_data="ob_backup:weekly")
     context = _make_context()
     result = await handlers._ob_handle_backup(update, context)
     assert result == _OB_BACKUP_CONFIRM
@@ -688,7 +690,7 @@ async def test_ob_handle_backup_daily_existing_asks_confirm():
     call_kwargs = update.callback_query.message.reply_text.call_args[1]
     assert "reply_markup" in call_kwargs
     # Choice stored in context for the confirm handler
-    assert context.user_data["ob_backup_choice"] == "daily"
+    assert context.user_data["ob_backup_choice"] == "weekly"
     assert context.user_data["ob_backup_existing_id"] == 99
 
 
@@ -701,7 +703,7 @@ async def test_ob_handle_backup_confirm_replace_deletes_old_creates_new():
     handlers.task_repo.delete = AsyncMock()
     update = _make_callback_update(callback_data="ob_backup_confirm:replace")
     context = _make_context({
-        "ob_backup_choice": "daily",
+        "ob_backup_choice": "weekly",
         "ob_backup_existing_id": 99,
     })
     result = await handlers._ob_handle_backup_confirm(update, context)
@@ -709,7 +711,7 @@ async def test_ob_handle_backup_confirm_replace_deletes_old_creates_new():
     handlers.task_repo.delete.assert_called_once_with(99)
     handlers.task_repo.create.assert_called_once()
     call_kwargs = handlers.task_repo.create.call_args[1]
-    assert call_kwargs["schedule_value"] == "0 2 * * *"
+    assert call_kwargs["schedule_value"] == "0 2 * * 0"
 
 
 async def test_ob_handle_backup_confirm_keep_skips_creation():
