@@ -4,7 +4,7 @@ import prompts from "prompts";
 import ora from "ora";
 import { isDockerRunning, pullImage, startContainer } from "./docker.js";
 import { readConfig, writeConfig, getDataDir, getConfigPath } from "./config.js";
-import { readClaudeToken, isClaudeCliInstalled, runSetupToken } from "./claude-auth.js";
+import { readClaudeToken, acquireClaudeToken } from "./claude-auth.js";
 import {
   showQR,
   BOTFATHER_URL,
@@ -98,26 +98,7 @@ export async function runWizard() {
   }
 
   if (!claudeToken) {
-    if (isClaudeCliInstalled()) {
-      console.log(chalk.dim("  Running: claude setup-token\n"));
-      claudeToken = runSetupToken();
-      if (claudeToken) {
-        console.log(chalk.green("  Token captured successfully.\n"));
-      } else {
-        console.log(
-          chalk.yellow("  Auto-setup failed. Please paste token manually.\n")
-        );
-      }
-    }
-
-    if (!claudeToken) {
-      const { token } = await prompts({
-        type: "password",
-        name: "token",
-        message: "Paste your Claude auth token (sk-ant-...)",
-      });
-      claudeToken = token;
-    }
+    claudeToken = await acquireClaudeToken();
   }
 
   if (!claudeToken) {

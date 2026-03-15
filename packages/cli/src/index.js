@@ -15,7 +15,7 @@ import {
   CONTAINER_NAME,
 } from "./docker.js";
 import { runWizard } from "./wizard.js";
-import { isClaudeCliInstalled, runSetupToken } from "./claude-auth.js";
+import { acquireClaudeToken } from "./claude-auth.js";
 import fs from "node:fs";
 
 export const program = new Command();
@@ -237,29 +237,7 @@ program
       process.exit(1);
     }
 
-    let newToken = null;
-
-    if (isClaudeCliInstalled()) {
-      console.log(chalk.dim("\n  Running: claude setup-token\n"));
-      newToken = runSetupToken();
-      if (newToken) {
-        console.log(chalk.green("  Token captured successfully.\n"));
-      } else {
-        console.log(
-          chalk.yellow("  Auto-setup failed. Please paste token manually.\n")
-        );
-      }
-    }
-
-    if (!newToken) {
-      const prompts = (await import("prompts")).default;
-      const { token } = await prompts({
-        type: "password",
-        name: "token",
-        message: "Paste your Claude auth token (sk-ant-...)",
-      });
-      newToken = token;
-    }
+    const newToken = await acquireClaudeToken();
 
     if (!newToken) {
       console.log(chalk.red("\n  No token provided. Aborting.\n"));

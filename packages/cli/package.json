@@ -7,7 +7,8 @@
     "flux-finance": "src/index.js"
   },
   "scripts": {
-    "test": "c8 --check-coverage --lines 90 --functions 90 --branches 90 --include src/ node --experimental-test-module-mocks --test tests/claude-auth.test.js tests/claude-auth-setup-token.test.js tests/config.test.js tests/docker.test.js tests/index.test.js tests/qr.test.js tests/wizard.test.js"
+    "start": "node src/index.js",
+    "test": "c8 --check-coverage --lines 90 --functions 90 --branches 90 --include src/ node --experimental-test-module-mocks --test tests/claude-auth.test.js tests/claude-auth-setup-token.test.js tests/claude-auth-acquire.test.js tests/config.test.js tests/docker.test.js tests/index.test.js tests/qr.test.js tests/wizard.test.js"
   },
   "files": [
     "src/",

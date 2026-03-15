@@ -92,7 +92,7 @@ def make_handle_message(
 ):
     """Return a handle_message coroutine bound to the given dependencies."""
 
-    last_admin_notify = [0.0]  # mutable container for closure
+    last_admin_notify = 0.0
 
     async def handle_message(msg: dict) -> None:
         user_id = msg["user_id"]
@@ -148,9 +148,10 @@ def make_handle_message(
             if _is_auth_error(result.error):
                 # Notify admin (throttled)
                 if admin_chat_id and channel:
+                    nonlocal last_admin_notify
                     now = time.monotonic()
-                    if now - last_admin_notify[0] >= _AUTH_NOTIFY_THROTTLE_SECS:
-                        last_admin_notify[0] = now
+                    if now - last_admin_notify >= _AUTH_NOTIFY_THROTTLE_SECS:
+                        last_admin_notify = now
                         try:
                             await channel.send_message(admin_chat_id, _AUTH_ERROR_ADMIN_MSG)
                         except Exception as e:

@@ -12,8 +12,7 @@ const mockWriteConfig = mock.fn();
 const mockExecSync = mock.fn();
 const mockGetDataDir = mock.fn();
 const mockReadClaudeToken = mock.fn();
-const mockIsClaudeCliInstalled = mock.fn();
-const mockRunSetupToken = mock.fn();
+const mockAcquireClaudeToken = mock.fn();
 const mockShowQR = mock.fn();
 
 mock.module("prompts", {
@@ -53,8 +52,7 @@ mock.module("../src/config.js", {
 mock.module("../src/claude-auth.js", {
   namedExports: {
     readClaudeToken: mockReadClaudeToken,
-    isClaudeCliInstalled: mockIsClaudeCliInstalled,
-    runSetupToken: mockRunSetupToken,
+    acquireClaudeToken: mockAcquireClaudeToken,
   },
 });
 
@@ -227,8 +225,7 @@ describe("runWizard", () => {
     mockWriteConfig.mock.resetCalls();
     mockGetDataDir.mock.resetCalls();
     mockReadClaudeToken.mock.resetCalls();
-    mockIsClaudeCliInstalled.mock.resetCalls();
-    mockRunSetupToken.mock.resetCalls();
+    mockAcquireClaudeToken.mock.resetCalls();
     mockShowQR.mock.resetCalls();
     mockExecSync.mock.resetCalls();
   });
@@ -249,9 +246,7 @@ describe("runWizard", () => {
   it("exits when no Claude token is provided", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
     mockReadClaudeToken.mock.mockImplementation(() => null);
-    mockIsClaudeCliInstalled.mock.mockImplementation(() => false);
-    // prompts returns empty token
-    mockPrompts.mock.mockImplementation(async () => ({ token: undefined }));
+    mockAcquireClaudeToken.mock.mockImplementation(async () => null);
 
     await assert.rejects(() => runWizard(), { message: "EXIT_1" });
   });
@@ -394,14 +389,8 @@ describe("runWizard", () => {
 
   it("handles choosing not to use existing Claude token", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    // First call returns a token, but user says no
-    let readTokenCalls = 0;
-    mockReadClaudeToken.mock.mockImplementation(() => {
-      readTokenCalls++;
-      if (readTokenCalls === 1) return "existing-token";
-      return null;
-    });
-    mockIsClaudeCliInstalled.mock.mockImplementation(() => false);
+    mockReadClaudeToken.mock.mockImplementation(() => "existing-token");
+    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-oat01-new");
     mockPullImage.mock.mockImplementation(async () => {});
     mockStartContainer.mock.mockImplementation(async () => {});
     mockWriteConfig.mock.mockImplementation(() => {});
@@ -412,32 +401,6 @@ describe("runWizard", () => {
     mockPrompts.mock.mockImplementation(async () => {
       callCount++;
       if (callCount === 1) return { useExisting: false };    // decline existing token
-      if (callCount === 2) return { token: "manual-token" }; // manual token entry
-      if (callCount === 3) return { botToken: "123:ABC" };
-      if (callCount === 4) return { userId: "456" };
-      if (callCount === 5) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 6) return { port: "5173" };
-      if (callCount === 7) return { setupNgrok: false };
-      return {};
-    });
-
-    await runWizard();
-  });
-
-  it("goes to manual paste when Claude CLI is not installed", async () => {
-    mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockReadClaudeToken.mock.mockImplementation(() => null);
-    mockIsClaudeCliInstalled.mock.mockImplementation(() => false);
-    mockPullImage.mock.mockImplementation(async () => {});
-    mockStartContainer.mock.mockImplementation(async () => {});
-    mockWriteConfig.mock.mockImplementation(() => {});
-    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
-    mockShowQR.mock.mockImplementation(async () => {});
-
-    let callCount = 0;
-    mockPrompts.mock.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) return { token: "sk-ant-oat01-pasted" };
       if (callCount === 2) return { botToken: "123:ABC" };
       if (callCount === 3) return { userId: "456" };
       if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
@@ -447,7 +410,33 @@ describe("runWizard", () => {
     });
 
     await runWizard();
-    assert.equal(mockRunSetupToken.mock.callCount(), 0);
+    assert.equal(mockAcquireClaudeToken.mock.callCount(), 1);
+  });
+
+  it("acquires token via acquireClaudeToken when no existing token", async () => {
+    mockIsDockerRunning.mock.mockImplementation(async () => true);
+    mockReadClaudeToken.mock.mockImplementation(() => null);
+    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-oat01-acquired");
+    mockPullImage.mock.mockImplementation(async () => {});
+    mockStartContainer.mock.mockImplementation(async () => {});
+    mockWriteConfig.mock.mockImplementation(() => {});
+    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
+    mockShowQR.mock.mockImplementation(async () => {});
+
+    let callCount = 0;
+    mockPrompts.mock.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { botToken: "123:ABC" };
+      if (callCount === 2) return { userId: "456" };
+      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
+      if (callCount === 4) return { port: "5173" };
+      if (callCount === 5) return { setupNgrok: false };
+      return {};
+    });
+
+    await runWizard();
+    assert.equal(mockAcquireClaudeToken.mock.callCount(), 1);
+    assert.equal(mockWriteConfig.mock.callCount(), 1);
   });
 
   it("handles ngrok restart failure gracefully", async () => {
@@ -478,60 +467,6 @@ describe("runWizard", () => {
 
     // Should NOT throw — ngrok restart failure is non-fatal
     await runWizard();
-  });
-
-  it("auto-runs setup-token when CLI is installed and captures token", async () => {
-    mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockReadClaudeToken.mock.mockImplementation(() => null);
-    mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
-    mockRunSetupToken.mock.mockImplementation(() => "sk-ant-oat01-new-token");
-    mockPullImage.mock.mockImplementation(async () => {});
-    mockStartContainer.mock.mockImplementation(async () => {});
-    mockWriteConfig.mock.mockImplementation(() => {});
-    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
-    mockShowQR.mock.mockImplementation(async () => {});
-
-    let callCount = 0;
-    mockPrompts.mock.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) return { botToken: "123:ABC" };
-      if (callCount === 2) return { userId: "456" };
-      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: false };
-      return {};
-    });
-
-    await runWizard();
-    assert.equal(mockRunSetupToken.mock.callCount(), 1);
-    assert.equal(mockWriteConfig.mock.callCount(), 1);
-  });
-
-  it("falls back to manual paste when setup-token fails", async () => {
-    mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockReadClaudeToken.mock.mockImplementation(() => null);
-    mockIsClaudeCliInstalled.mock.mockImplementation(() => true);
-    mockRunSetupToken.mock.mockImplementation(() => null);
-    mockPullImage.mock.mockImplementation(async () => {});
-    mockStartContainer.mock.mockImplementation(async () => {});
-    mockWriteConfig.mock.mockImplementation(() => {});
-    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
-    mockShowQR.mock.mockImplementation(async () => {});
-
-    let callCount = 0;
-    mockPrompts.mock.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) return { token: "sk-ant-oat01-manual" };
-      if (callCount === 2) return { botToken: "123:ABC" };
-      if (callCount === 3) return { userId: "456" };
-      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 5) return { port: "5173" };
-      if (callCount === 6) return { setupNgrok: false };
-      return {};
-    });
-
-    await runWizard();
-    assert.equal(mockRunSetupToken.mock.callCount(), 1);
   });
 
   it("exits when bot token verification fails and user declines to continue", async () => {
