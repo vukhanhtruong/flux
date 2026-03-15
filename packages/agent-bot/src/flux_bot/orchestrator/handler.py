@@ -101,7 +101,7 @@ def make_handle_message(
 ):
     """Return a handle_message coroutine bound to the given dependencies."""
 
-    last_admin_notify = 0.0
+    last_admin_notify = -_AUTH_NOTIFY_THROTTLE_SECS
 
     async def handle_message(msg: dict) -> None:
         user_id = msg["user_id"]

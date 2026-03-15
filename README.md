@@ -2,6 +2,8 @@
 
 Flux is a self-hosted personal finance AI agent. Chat naturally to get financial advisor, track spending, manage budgets, set savings goals, and get insights — all running locally on your machine. Your financial data never leaves your infrastructure.
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/hhjYkaMc)
+
 ## Table of Contents
 
 - [What It Does](#what-it-does)
