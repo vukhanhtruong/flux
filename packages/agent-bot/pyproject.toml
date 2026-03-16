@@ -1,7 +1,7 @@
 [project]
 name = "flux-bot"
 version = "0.2.0"
-description = "flux Agent Bot — NanoClaw-style orchestrator with Claude Agent SDK"
+description = "flux Agent Bot — Orchestrator with Claude Agent SDK"
 requires-python = ">=3.12"
 dependencies = [
     "flux-core",

@@ -74,7 +74,7 @@ flowchart LR
 
 ## 1. Event Bus
 
-In-process pub/sub replacing PostgreSQL LISTEN/NOTIFY.
+In-process pub/sub.
 
 ```mermaid
 stateDiagram-v2

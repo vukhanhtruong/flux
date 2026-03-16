@@ -1,4 +1,4 @@
-"""flux Agent Bot — NanoClaw-style orchestrator."""
+"""flux Agent Bot — Orchestrator with Claude Agent SDK."""
 
 import asyncio
 import signal

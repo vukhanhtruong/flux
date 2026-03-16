@@ -165,7 +165,7 @@ def test_build_mcp_servers_injects_user_id(tmp_path):
             "flux": {
                 "command": "python",
                 "args": ["-m", "flux_mcp.server"],
-                "env": {"DATABASE_URL": "${DATABASE_URL}"},
+                "env": {"DATABASE_PATH": "${DATABASE_PATH}"},
             }
         }
     }
@@ -175,14 +175,14 @@ def test_build_mcp_servers_injects_user_id(tmp_path):
     runner = ClaudeRunner(mcp_config_path=str(config_path), system_prompt=None)
     profile = _make_profile()
 
-    with patch.dict("os.environ", {"DATABASE_URL": "postgres://localhost/flux"}):
+    with patch.dict("os.environ", {"DATABASE_PATH": "/data/sqlite/flux.db"}):
         servers = runner._build_mcp_servers(profile)
 
     assert "flux" in servers
     args = servers["flux"]["args"]
     assert "--user-id" in args
     assert "tg:truong-vu" in args
-    assert servers["flux"]["env"]["DATABASE_URL"] == "postgres://localhost/flux"
+    assert servers["flux"]["env"]["DATABASE_PATH"] == "/data/sqlite/flux.db"
 
 
 def test_build_mcp_servers_no_profile_skips_user_id(tmp_path):

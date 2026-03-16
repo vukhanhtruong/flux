@@ -5,7 +5,7 @@
       "command": "python",
       "args": ["-m", "flux_mcp.server"],
       "env": {
-        "DATABASE_URL": "${DATABASE_URL}"
+        "DATABASE_PATH": "${DATABASE_PATH}"
       }
     }
   }

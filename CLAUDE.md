@@ -8,10 +8,8 @@ flux is a headless, MCP-first personal finance AI agent with a modern web UI. Us
 
 - **Web UI**: React 19 + TypeScript + Tailwind CSS (packages/web-ui)
 - **REST API**: FastAPI backend (packages/api-server)
-- **Telegram Bot**: NanoClaw-style orchestrator using Python Agent SDK (packages/agent-bot)
+- **Telegram Bot**: Orchestrator using Python Agent SDK (packages/agent-bot)
 - **MCP Protocol**: FastMCP server for Claude Desktop / other MCP clients (packages/mcp-server)
-
-The `firebase/` directory contains the legacy browser-based React app (localStorage + Gemini AI). It is **not** the active codebase — it serves only as a reference for the domain model and feature set being ported.
 
 ## Monorepo Structure
 
@@ -20,7 +18,7 @@ packages/
   core/              # Shared business logic, models, repositories, use cases
   api-server/        # FastAPI REST API
   mcp-server/        # FastMCP protocol server
-  agent-bot/         # Telegram bot — NanoClaw-style orchestrator with Python Agent SDK
+  agent-bot/         # Telegram bot — Orchestrator with Python Agent SDK
   web-ui/            # React 19 + Vite + TypeScript frontend
 ```
 
@@ -71,7 +69,7 @@ SQLite Implementation    ZvecStore      Subscribers
 
 - **packages/api-server**: FastAPI routes → instantiate Use Case → call `execute()` → return response
 - **packages/mcp-server**: FastMCP tool registration → instantiate Use Case → call `execute()` → return dict
-- **packages/agent-bot**: NanoClaw-style orchestrator — uses `claude-agent-sdk` Python which connects to MCP server for tools
+- **packages/agent-bot**: Orchestrator — uses `claude-agent-sdk` Python which connects to MCP server for tools
 - **packages/web-ui**: React components consuming REST API
 
 ### Core Package Structure
@@ -283,7 +281,7 @@ async with uow:
 
 ### Event Bus Pattern
 
-In-process async pub/sub replacing PostgreSQL LISTEN/NOTIFY:
+In-process async pub/sub:
 
 - Subscribers are `async` callables
 - One subscriber failure doesn't block others (error logged, continues)

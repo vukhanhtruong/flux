@@ -346,10 +346,10 @@ export function Settings() {
 
             <div className="p-4 md:p-6 bg-dark/50 border border-white/5 rounded-2xl">
               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 text-center">
-                Infrastructure Connection String
+                Infrastructure Storage
               </label>
               <p className="text-center font-mono text-xs text-slate-600 truncate py-2">
-                postgresql://***:***@postgres:5432/fluxfinance
+                SQLite (WAL) + zvec @ /data/
               </p>
             </div>
           </div>
