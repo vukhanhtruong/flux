@@ -2,10 +2,30 @@
 
 Flux is a self-hosted personal finance AI agent. Chat naturally to get financial advisor, track spending, manage budgets, set savings goals, and get insights — all running locally on your machine. Your financial data never leaves your infrastructure.
 
-[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/hhjYkaMc)
+## Demos
+
+<table cellspacing="0" cellpadding="2">
+  <tr>
+    <td align="center"><strong>Onboard</strong></td>
+    <td align="center"><strong>Log expenses & track budgets</strong></td>
+    <td align="center"><strong>Remember your preferences</strong></td>
+    <td align="center"><strong>Add subscriptions</strong></td>
+    <td align="center"><strong>Financial health analysis</strong></td>
+    <td align="center"><strong>Web UI</strong></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/assets/onboard.gif" width="200" alt="Onboard"></td>
+    <td align="center"><img src="docs/assets/budget-log.gif" width="200" alt="Budget logging"></td>
+    <td align="center"><img src="docs/assets/memory.gif" width="200" alt="Remember your preferences"></td>
+    <td align="center"><img src="docs/assets/subscription.gif" width="200" alt="Subscription tracking"></td>
+    <td align="center"><img src="docs/assets/analyze.gif" width="200" alt="Analyze finances"></td>
+    <td align="center"><img src="docs/assets/webui-tunnel.gif" width="200" alt="Web UI tunnel"></td>
+  </tr>
+</table>
 
 ## Table of Contents
 
+- [Demos](#demos)
 - [What It Does](#what-it-does)
 - [Usage Examples](#usage-examples)
 - [Quick Start](#quick-start)
