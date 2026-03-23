@@ -259,9 +259,9 @@ ruff check packages/*/src/ packages/*/tests/
 
 ## Documentation
 
-- **[CLAUDE.md](./CLAUDE.md)** — Full architecture, design patterns, and development guidelines
 - **[STATE-MACHINES.md](./docs/STATE-MACHINES.md)** — State machine diagrams for all stateful components
 - **[USECASES.md](./docs/USECASES.md)** — Complete use case inventory
+- **[MESSAGE-FLOWS.md](./docs/MESSAGE-FLOWS.md.md)** — Cross-module event flows
 
 ## Roadmap
 

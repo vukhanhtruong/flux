@@ -226,6 +226,7 @@ migrate(db)
 
 - **[`docs/STATE-MACHINES.md`](docs/STATE-MACHINES.md)** — update whenever: state transitions change, new events are added/removed, worker behavior changes, new stateful components are introduced, error handling or retry logic changes, timing/polling constants change.
 - **[`docs/USECASES.md`](docs/USECASES.md)** — update whenever: use cases are added/removed/renamed, a use case's write/vector/event characteristics change, file locations change.
+- **[`docs/MESSAGE-FLOWS.md`](docs/MESSAGE-FLOWS.md)** — update whenever: events are added/removed/renamed, event handlers are added/removed, cross-module flows change, new subscribers are wired.
 
 Failing to update these docs is equivalent to failing to write tests — the work is not complete until the docs reflect the code.
 
@@ -340,3 +341,4 @@ Environment variables:
 
 - **[State Machine Diagrams](docs/STATE-MACHINES.md)** — Mermaid diagrams with input/output schema contracts and dataflow for all backend stateful components: EventBus, Unit of Work, Database Connection, message pipeline, outbound delivery, scheduled tasks, subscription/savings lifecycles, session management, backup/restore, onboarding, and worker lifecycles. **NON-NEGOTIABLE: update in the same commit** whenever stateful logic changes.
 - **[Use Cases](docs/USECASES.md)** — Living document inventorying all use cases with their write/vector/event characteristics. **NON-NEGOTIABLE: update in the same commit** whenever use cases are added, removed, or modified.
+- **[Message Flows](docs/MESSAGE-FLOWS.md)** — Sequence diagrams showing cross-module event flows (command → event → handler chains). **NON-NEGOTIABLE: update in the same commit** whenever events are added/removed/renamed, event handlers change, or cross-module flows change.
