@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import structlog
 import sqlite3
 from pathlib import Path
+
+import sqlite_vec
+import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -28,6 +30,9 @@ class Database:
         self._conn.execute("PRAGMA synchronous = NORMAL")
         self._conn.execute("PRAGMA cache_size = -8000")
         self._conn.execute("PRAGMA wal_autocheckpoint = 1000")
+        self._conn.enable_load_extension(True)
+        sqlite_vec.load(self._conn)
+        self._conn.enable_load_extension(False)
         logger.info("Connected to SQLite: %s (WAL mode)", self._path)
 
     def disconnect(self) -> None:
