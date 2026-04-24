@@ -18,6 +18,8 @@ from telegram.ext import (
 
 from telegram.warnings import PTBUserWarning
 
+from flux_bot.crypto import mask_api_key
+from flux_bot.db.llm_config import UserLlmConfig, UserLlmConfigRepository
 from flux_bot.db.profile import ProfileRepository
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
 from flux_bot.db.sessions import SessionRepository
@@ -120,7 +122,17 @@ def _format_tz_button_label(iana_id: str) -> str:
 
 
 # ConversationHandler states for /settings
-_MENU, _EDIT_CURRENCY, _EDIT_TIMEZONE, _EDIT_USERNAME = range(4)
+(
+    _MENU,
+    _EDIT_CURRENCY,
+    _EDIT_TIMEZONE,
+    _EDIT_USERNAME,
+    _LLM_MENU,
+    _LLM_PROVIDER,
+    _LLM_MODEL,
+    _LLM_BASE_URL,
+    _LLM_API_KEY,
+) = range(9)
 
 # ConversationHandler states for /onboard
 _OB_CURRENCY, _OB_TIMEZONE, _OB_USERNAME, _OB_BACKUP, _OB_BACKUP_CONFIRM, _OB_ADVISOR = range(6)
@@ -154,16 +166,21 @@ Here are some things you can ask me:
 """
 
 
+_DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
+
+
 class CommandHandlers:
     def __init__(
         self,
         profile_repo: ProfileRepository,
         session_repo: SessionRepository,
         task_repo: ScheduledTaskRepository,
+        llm_config_repo: UserLlmConfigRepository | None = None,
     ):
         self._profile_repo = profile_repo
         self._session_repo = session_repo
         self._task_repo = task_repo
+        self._llm_config_repo = llm_config_repo
 
     async def _get_profile(self, update: Update):
         return await self._profile_repo.get_by_platform_id(
@@ -212,6 +229,7 @@ class CommandHandlers:
             [InlineKeyboardButton(f"💱 Currency: {profile.currency}", callback_data="currency")],
             [InlineKeyboardButton(f"🕐 Timezone: {profile.timezone}", callback_data="timezone")],
             [InlineKeyboardButton(f"👤 Username: {profile.username}", callback_data="username")],
+            [InlineKeyboardButton("🤖 LLM Configuration", callback_data="llm")],
             [InlineKeyboardButton("✅ Done", callback_data="done")],
         ]
         text = "⚙️ Settings — tap a field to change it:"
@@ -241,6 +259,9 @@ class CommandHandlers:
         elif query.data == "username":
             await query.edit_message_text("Enter a new display name:")
             return _EDIT_USERNAME
+        elif query.data == "llm":
+            await self._handle_llm_menu(update, context)
+            return _LLM_MENU
         return _MENU
 
     async def _handle_currency_input(
@@ -323,6 +344,121 @@ class CommandHandlers:
         await self._send_settings_menu(update, profile)
         return _MENU
 
+    # ------------------------------------------------------------------
+    # /settings llm — LLM configuration handlers
+    # ------------------------------------------------------------------
+
+    async def _handle_llm_menu(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        user_id = context.user_data.get("user_id", "")
+        llm_cfg = None
+        if self._llm_config_repo and user_id:
+            llm_cfg = await self._llm_config_repo.get(user_id)
+
+        if llm_cfg:
+            masked = mask_api_key(llm_cfg.api_key)
+            status = (
+                f"Provider: {llm_cfg.provider}\n"
+                f"Model: {llm_cfg.model}\n"
+                f"Base URL: {llm_cfg.base_url or '(default)'}\n"
+                f"API key: {masked}"
+            )
+        else:
+            status = "LLM not configured."
+
+        keyboard = [
+            [InlineKeyboardButton("⚡ Use Anthropic", callback_data="llm_anthropic")],
+            [InlineKeyboardButton("🔧 Custom provider", callback_data="llm_custom")],
+            [InlineKeyboardButton("← Back", callback_data="done")],
+        ]
+        text = f"🤖 LLM Configuration\n\n{status}\n\nChoose an option:"
+        await update.callback_query.edit_message_text(
+            text, reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return _LLM_MENU
+
+    async def _handle_llm_menu_callback(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        query = update.callback_query
+        await query.answer()
+        if query.data == "llm_anthropic":
+            await query.edit_message_text(
+                "Enter your Anthropic API key\n"
+                "(will be saved with provider=anthropic, model=claude-sonnet-4-6):"
+            )
+            context.user_data["llm_provider"] = "anthropic"
+            context.user_data["llm_model"] = _DEFAULT_ANTHROPIC_MODEL
+            context.user_data["llm_base_url"] = None
+            return _LLM_API_KEY
+        elif query.data == "llm_custom":
+            await query.edit_message_text("Enter provider name (e.g. openai, anthropic, ollama):")
+            context.user_data["llm_custom"] = True
+            return _LLM_PROVIDER
+        return _LLM_MENU
+
+    async def _handle_llm_provider(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        provider = update.message.text.strip()
+        context.user_data["llm_provider"] = provider
+        await update.message.reply_text(f"✓ Provider: {provider}\n\nEnter model name (e.g. gpt-4o):")
+        return _LLM_MODEL
+
+    async def _handle_llm_model(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        model = update.message.text.strip()
+        context.user_data["llm_model"] = model
+        await update.message.reply_text(
+            f"✓ Model: {model}\n\n"
+            "Enter base URL (e.g. https://api.openai.com/v1), or type 'skip' to use default:"
+        )
+        return _LLM_BASE_URL
+
+    async def _handle_llm_base_url(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        text = update.message.text.strip()
+        if text.lower() == "skip":
+            context.user_data["llm_base_url"] = None
+            await update.message.reply_text("Base URL: (default)\n\nEnter your API key:")
+        else:
+            context.user_data["llm_base_url"] = text
+            await update.message.reply_text(f"✓ Base URL: {text}\n\nEnter your API key:")
+        return _LLM_API_KEY
+
+    async def _handle_llm_api_key(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> int:
+        api_key = update.message.text.strip()
+        user_id = context.user_data.get("user_id", "")
+        provider = context.user_data.get("llm_provider", "anthropic")
+        model = context.user_data.get("llm_model", _DEFAULT_ANTHROPIC_MODEL)
+        base_url = context.user_data.get("llm_base_url")
+
+        if self._llm_config_repo:
+            cfg = UserLlmConfig(
+                user_id=user_id,
+                provider=provider,
+                model=model,
+                base_url=base_url,
+                api_key=api_key,
+            )
+            await self._llm_config_repo.upsert(cfg)
+
+        masked = mask_api_key(api_key)
+        await update.message.reply_text(
+            f"✓ LLM configured!\n"
+            f"Provider: {provider} | Model: {model}\n"
+            f"API key: {masked}"
+        )
+        profile = await self._profile_repo.get_by_user_id(user_id)
+        if profile:
+            await self._send_settings_menu(update, profile)
+        return _MENU
+
     def settings_conversation(self) -> ConversationHandler:
         """Return a configured ConversationHandler for /settings."""
         with warnings.catch_warnings():
@@ -347,6 +483,29 @@ class CommandHandlers:
                     _EDIT_USERNAME: [
                         MessageHandler(
                             filters.TEXT & ~filters.COMMAND, self._handle_username_input
+                        )
+                    ],
+                    _LLM_MENU: [
+                        CallbackQueryHandler(self._handle_llm_menu_callback),
+                    ],
+                    _LLM_PROVIDER: [
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._handle_llm_provider
+                        )
+                    ],
+                    _LLM_MODEL: [
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._handle_llm_model
+                        )
+                    ],
+                    _LLM_BASE_URL: [
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._handle_llm_base_url
+                        )
+                    ],
+                    _LLM_API_KEY: [
+                        MessageHandler(
+                            filters.TEXT & ~filters.COMMAND, self._handle_llm_api_key
                         )
                     ],
                 },

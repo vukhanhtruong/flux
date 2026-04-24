@@ -19,6 +19,7 @@ from telegram.request import HTTPXRequest
 from flux_bot.channels.base import Channel
 from flux_bot.channels.commands import CommandHandlers
 from flux_bot.channels.formatting import convert_markdown
+from flux_bot.db.llm_config import UserLlmConfigRepository
 from flux_bot.db.messages import MessageRepository
 from flux_bot.db.profile import ProfileRepository
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
@@ -64,6 +65,7 @@ class TelegramChannel(Channel):
         task_repo: ScheduledTaskRepository,
         allow_from: list[str] | None = None,
         image_dir: str = "/tmp/flux-images",
+        llm_config_repo: UserLlmConfigRepository | None = None,
     ):
         self.bot_token = bot_token
         self.message_repo = message_repo
@@ -72,6 +74,7 @@ class TelegramChannel(Channel):
         self.task_repo = task_repo
         self.allow_from = set(allow_from) if allow_from else None
         self.image_dir = image_dir
+        self.llm_config_repo = llm_config_repo
         self._app: Application | None = None
         Path(self.image_dir).mkdir(parents=True, exist_ok=True)
 
@@ -95,6 +98,7 @@ class TelegramChannel(Channel):
             profile_repo=self.profile_repo,
             session_repo=self.session_repo,
             task_repo=self.task_repo,
+            llm_config_repo=self.llm_config_repo,
         )
 
         # ConversationHandlers registered first in group 0 — within a group PTB calls only

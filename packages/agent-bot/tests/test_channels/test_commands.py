@@ -8,6 +8,11 @@ from flux_bot.channels.commands import (  # noqa: E501
     _EDIT_CURRENCY,
     _EDIT_TIMEZONE,
     _EDIT_USERNAME,
+    _LLM_MENU,
+    _LLM_PROVIDER,
+    _LLM_MODEL,
+    _LLM_BASE_URL,
+    _LLM_API_KEY,
     _OB_CURRENCY,
     _OB_TIMEZONE,
     _OB_USERNAME,
@@ -18,6 +23,7 @@ from flux_bot.channels.commands import (  # noqa: E501
     _validate_timezone,
     _lookup_timezone_for_location,
 )
+from flux_bot.db.llm_config import UserLlmConfig
 from flux_core.models.user_profile import UserProfile
 
 
@@ -50,7 +56,7 @@ def test_validate_timezone_invalid():
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
 
-def _make_handlers(profile=None):
+def _make_handlers(profile=None, llm_config=None):
     profile_repo = AsyncMock()
     profile_repo.get_by_platform_id.return_value = profile
     profile_repo.get_by_user_id.return_value = profile
@@ -63,15 +69,21 @@ def _make_handlers(profile=None):
     task_repo = AsyncMock()
     task_repo.list_by_user = AsyncMock(return_value=[])
 
+    llm_config_repo = AsyncMock()
+    llm_config_repo.get = AsyncMock(return_value=llm_config)
+    llm_config_repo.upsert = AsyncMock()
+
     handlers = CommandHandlers(
         profile_repo=profile_repo,
         session_repo=session_repo,
         task_repo=task_repo,
+        llm_config_repo=llm_config_repo,
     )
     # Expose mocks for assertion in tests
     handlers.session_repo = session_repo
     handlers.task_repo = task_repo
     handlers.profile_repo = profile_repo
+    handlers.llm_config_repo = llm_config_repo
     return handlers
 
 
@@ -846,3 +858,162 @@ async def test_onboard_conversation_handles_ob_advisor_callbacks():
         if isinstance(h, CQH) and h.pattern is not None
     ]
     assert any("ob_advisor" in p for p in patterns)
+
+
+# ---------------------------------------------------------------------------
+# /settings llm — LLM configuration flow
+# ---------------------------------------------------------------------------
+
+
+def _make_llm_config(user_id="tg:12345"):
+    return UserLlmConfig(
+        user_id=user_id,
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        base_url=None,
+        api_key="sk-ant-1234567890abcdef",
+    )
+
+
+async def test_settings_shows_llm_button():
+    """/settings menu must include an LLM button in reply_markup."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="/settings")
+    result = await handlers.cmd_settings(update, MagicMock())
+
+    from telegram.ext import ConversationHandler
+    assert result != ConversationHandler.END
+    call_kwargs = update.message.reply_text.call_args[1]
+    markup = call_kwargs["reply_markup"]
+    all_buttons = [btn for row in markup.inline_keyboard for btn in row]
+    button_texts = [btn.text for btn in all_buttons]
+    assert any("llm" in t.lower() or "LLM" in t for t in button_texts)
+
+
+async def test_settings_menu_llm_advances_to_llm_menu():
+    """Callback 'llm' in settings menu → returns _LLM_MENU state."""
+    handlers = _make_handlers()
+    update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.data = "llm"
+    result = await handlers._settings_menu_callback(update, MagicMock())
+    assert result == _LLM_MENU
+
+
+async def test_llm_menu_shows_not_configured_when_missing():
+    """LLM menu with no config → message contains 'not configured'."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    handlers.llm_config_repo.get = AsyncMock(return_value=None)
+    update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.data = "llm_menu"
+    context = _make_context({"user_id": "tg:12345"})
+    await handlers._handle_llm_menu(update, context)
+    update.callback_query.edit_message_text.assert_called_once()
+    text = update.callback_query.edit_message_text.call_args[0][0]
+    assert "not configured" in text.lower() or "llm" in text.lower()
+
+
+async def test_llm_menu_shows_masked_key_when_configured():
+    """LLM menu with existing config → masked API key shown."""
+    profile = _make_profile()
+    llm_cfg = _make_llm_config()
+    handlers = _make_handlers(profile=profile, llm_config=llm_cfg)
+    update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.data = "llm_menu"
+    context = _make_context({"user_id": "tg:12345"})
+    await handlers._handle_llm_menu(update, context)
+    text = update.callback_query.edit_message_text.call_args[0][0]
+    # Masked key shows first 4 + last 4 chars
+    assert "sk-a" in text
+    assert "cdef" in text
+
+
+async def test_llm_anthropic_shortcut_saves_on_api_key_input():
+    """Anthropic shortcut: entering API key saves with hardcoded provider/model."""
+    profile = _make_profile()
+    handlers = _make_handlers(profile=profile)
+    update = _make_update(text="sk-ant-my-key-12345678")
+    context = _make_context({"user_id": "tg:12345"})
+    result = await handlers._handle_llm_api_key(update, context)
+    assert result == _MENU
+    handlers.llm_config_repo.upsert.assert_called_once()
+    call_arg = handlers.llm_config_repo.upsert.call_args[0][0]
+    assert call_arg.user_id == "tg:12345"
+    assert call_arg.api_key == "sk-ant-my-key-12345678"
+    update.message.reply_text.assert_called()
+
+
+async def test_llm_custom_flow_provider_step():
+    """Custom LLM flow: entering provider name → stored in context, advance to model."""
+    handlers = _make_handlers()
+    update = _make_update(text="openai")
+    context = _make_context({"user_id": "tg:12345", "llm_custom": True})
+    result = await handlers._handle_llm_provider(update, context)
+    assert result == _LLM_MODEL
+    assert context.user_data["llm_provider"] == "openai"
+
+
+async def test_llm_custom_flow_model_step():
+    """Custom LLM flow: entering model name → stored in context, advance to base_url."""
+    handlers = _make_handlers()
+    update = _make_update(text="gpt-4o")
+    context = _make_context({"user_id": "tg:12345", "llm_provider": "openai"})
+    result = await handlers._handle_llm_model(update, context)
+    assert result == _LLM_BASE_URL
+    assert context.user_data["llm_model"] == "gpt-4o"
+
+
+async def test_llm_custom_flow_base_url_step():
+    """Custom LLM flow: entering base URL → stored in context, advance to api_key."""
+    handlers = _make_handlers()
+    update = _make_update(text="https://api.openai.com/v1")
+    context = _make_context({"user_id": "tg:12345", "llm_provider": "openai", "llm_model": "gpt-4o"})
+    result = await handlers._handle_llm_base_url(update, context)
+    assert result == _LLM_API_KEY
+    assert context.user_data["llm_base_url"] == "https://api.openai.com/v1"
+
+
+async def test_llm_custom_flow_base_url_skip():
+    """Custom LLM flow: skipping base URL (typing 'skip') → advance to api_key with None."""
+    handlers = _make_handlers()
+    update = _make_update(text="skip")
+    context = _make_context({"user_id": "tg:12345", "llm_provider": "openai", "llm_model": "gpt-4o"})
+    result = await handlers._handle_llm_base_url(update, context)
+    assert result == _LLM_API_KEY
+    assert context.user_data.get("llm_base_url") is None
+
+
+async def test_llm_custom_flow_saves_on_api_key():
+    """Custom LLM flow: entering API key → upsert called with full config, return _MENU."""
+    handlers = _make_handlers()
+    update = _make_update(text="my-custom-key-12345678")
+    context = _make_context({
+        "user_id": "tg:12345",
+        "llm_provider": "openai",
+        "llm_model": "gpt-4o",
+        "llm_base_url": "https://api.openai.com/v1",
+    })
+    result = await handlers._handle_llm_api_key(update, context)
+    assert result == _MENU
+    handlers.llm_config_repo.upsert.assert_called_once()
+    call_arg = handlers.llm_config_repo.upsert.call_args[0][0]
+    assert call_arg.user_id == "tg:12345"
+    assert call_arg.provider == "openai"
+    assert call_arg.model == "gpt-4o"
+    assert call_arg.base_url == "https://api.openai.com/v1"
+    assert call_arg.api_key == "my-custom-key-12345678"
+
+
+async def test_settings_conversation_includes_llm_states():
+    """Settings ConversationHandler must include _LLM_MENU and related states."""
+    handlers = _make_handlers()
+    conv = handlers.settings_conversation()
+    assert _LLM_MENU in conv.states
+    assert _LLM_PROVIDER in conv.states
+    assert _LLM_MODEL in conv.states
+    assert _LLM_BASE_URL in conv.states
+    assert _LLM_API_KEY in conv.states

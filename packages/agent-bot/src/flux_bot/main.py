@@ -79,6 +79,7 @@ async def main():
             task_repo=task_repo,
             allow_from=config.telegram.allow_from or None,
             image_dir=config.image_dir,
+            llm_config_repo=llm_config_repo,
         )
         await telegram.start()
         channels["telegram"] = telegram
