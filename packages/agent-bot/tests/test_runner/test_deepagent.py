@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.messages import AIMessage
@@ -106,3 +107,43 @@ async def test_runner_maps_non_timeout_exception(tmp_path, monkeypatch, core_db)
         assert result.error is not None
         # map_runner_error is applied — raw exception text not exposed to users
         assert "/settings llm" in result.error
+
+
+async def test_checkpointer_uses_separate_db_file(tmp_path, monkeypatch, core_db):
+    """Checkpointer must NOT use flux.db — concurrent writes cause 'database is locked'."""
+    monkeypatch.setenv("FLUX_SECRET_KEY", "x" * 32)
+    profile = _profile()
+    cfg = UserLlmConfig("tg:1", "anthropic", "claude-sonnet-4-6", None, "sk-ant-api-KEY")
+
+    fake_graph = MagicMock()
+    fake_graph.ainvoke = AsyncMock(return_value={"messages": [AIMessage(content="ok")]})
+
+    captured = {}
+
+    @asynccontextmanager
+    async def fake_checkpointer(path):
+        captured["path"] = path
+        yield MagicMock()
+
+    with patch("flux_bot.agent.factory.init_chat_model"), patch(
+        "flux_bot.agent.factory.create_deep_agent", return_value=fake_graph
+    ), patch(
+        "flux_bot.runner.deepagent.build_checkpointer", side_effect=fake_checkpointer
+    ):
+        runner = DeepAgentRunner(
+            db=core_db,
+            flux_db_path=str(tmp_path / "flux.db"),
+            timeout=30,
+        )
+        await runner.run(
+            prompt="hi",
+            user_id="tg:1",
+            thread_id="t1",
+            profile=profile,
+            llm_config=cfg,
+        )
+
+    assert "path" in captured
+    assert captured["path"] != str(tmp_path / "flux.db"), (
+        "Checkpointer must use a separate file, not flux.db"
+    )

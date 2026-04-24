@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from pathlib import Path
 
 from flux_core.sqlite.database import Database
 from flux_core.models.user_profile import UserProfile
@@ -38,9 +39,12 @@ class DeepAgentRunner:
 
         tools = build_tools(user_id=user_id, db=self.db)
 
+        p = Path(self.flux_db_path)
+        checkpoint_db_path = str(p.parent / (p.stem + "_checkpoints" + p.suffix))
+
         try:
             async with asyncio.timeout(self.timeout):
-                async with build_checkpointer(self.flux_db_path) as ckpt:
+                async with build_checkpointer(checkpoint_db_path) as ckpt:
                     agent = build_agent(
                         llm_config=llm_config,
                         profile=profile,
