@@ -24,6 +24,7 @@ class InMemoryVectorStore:
         limit: int,
         filter: dict[str, str] | None = None,
     ) -> list[str]:
+        del vector  # signature-only; fake returns insertion order, not similarity
         docs = self._docs.get(collection, {})
         if not filter:
             return list(docs.keys())[:limit]
