@@ -34,3 +34,17 @@ async def test_delete_removes_session(sqlite_db):
 async def test_delete_nonexistent_user_is_noop(sqlite_db):
     repo = SessionRepository(sqlite_db)
     await repo.delete("tg:no-such-user")  # Should not raise
+
+
+async def test_get_thread_id_creates_stable_value(sqlite_db):
+    repo = SessionRepository(sqlite_db)
+    t1 = await repo.get_thread_id("tg:1", "telegram")
+    t2 = await repo.get_thread_id("tg:1", "telegram")
+    assert t1 == t2
+
+
+async def test_thread_id_per_channel_is_distinct(sqlite_db):
+    repo = SessionRepository(sqlite_db)
+    tg = await repo.get_thread_id("tg:1", "telegram")
+    cli = await repo.get_thread_id("tg:1", "cli")
+    assert tg != cli

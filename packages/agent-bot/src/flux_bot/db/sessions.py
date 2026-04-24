@@ -24,3 +24,15 @@ class SessionRepository:
         """Delete the session for a user, forcing a fresh session on next run."""
         self._repo().delete(user_id)
         self._db.connection().commit()
+
+    async def get_thread_id(self, user_id: str, channel: str) -> str:
+        """Get or create a stable LangGraph thread_id for user+channel pair."""
+        import uuid
+
+        key = f"thread:{user_id}:{channel}"
+        existing = await self.get_session_id(key)
+        if existing:
+            return existing
+        new_id = f"{user_id}:{channel}:{uuid.uuid4().hex[:8]}"
+        await self.upsert(key, new_id)
+        return new_id
