@@ -90,9 +90,11 @@ def configure_logging() -> None:
     root.addHandler(handler)
     root.setLevel(level_num)
 
-    # Also attach the filter at the root so any ancestral handler path
-    # (including pytest's caplog) benefits from redaction.
-    root.addFilter(RedactSecretsFilter())
+    # The handler-level RedactSecretsFilter above is sufficient: stdlib's
+    # Logger.handle() applies handler filters on every record. A second
+    # root-level filter would accumulate on reinvocation (handlers.clear()
+    # does not clear root filters), and would never catch anything the
+    # handler filter misses.
 
     # Suppress noisy third-party loggers
     for name in _NOISY_LOGGERS:

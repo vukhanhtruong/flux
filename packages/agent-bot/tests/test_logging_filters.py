@@ -42,6 +42,30 @@ def test_filter_wired_into_root_logger():
     )
 
 
+def test_configure_logging_is_idempotent_for_redact_filter():
+    """Calling configure_logging() twice must not accumulate RedactSecretsFilter.
+
+    Regression test: root.handlers.clear() does not clear root-level
+    filters, so any root.addFilter() in configure_logging() would stack
+    on reinvocation.
+    """
+    from flux_core.logging import configure_logging
+
+    configure_logging()
+    configure_logging()
+
+    root = logging.getLogger()
+    sources: list[object] = list(root.filters)
+    for h in root.handlers:
+        sources.extend(h.filters)
+
+    redact_count = sum(1 for f in sources if isinstance(f, RedactSecretsFilter))
+    assert redact_count <= 1, (
+        f"RedactSecretsFilter attached {redact_count} times after two "
+        f"configure_logging() calls; expected at most 1."
+    )
+
+
 def test_redact_filter_mutates_record_message():
     """RedactSecretsFilter masks secrets directly on a LogRecord."""
     record = logging.LogRecord(
