@@ -36,6 +36,8 @@ def build_runner(config: BotConfig, *, db: Database | None, flux_db_path: str):
         from flux_bot.runner.deepagent import DeepAgentRunner
 
         return DeepAgentRunner(db=db, flux_db_path=flux_db_path, timeout=config.runner.timeout)
+    if config.runner.kind != "claude":
+        logger.warning("Unknown FLUX_RUNNER=%r, falling back to claude runner", config.runner.kind)
     return ClaudeRunner(
         mcp_config_path=config.runner.mcp_config_path,
         timeout=config.runner.timeout,

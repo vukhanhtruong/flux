@@ -9,6 +9,7 @@ from flux_bot.agent.factory import build_agent
 from flux_bot.agent.checkpointer import build_checkpointer
 from flux_bot.agent.prompt import prepend_datetime
 from flux_bot.db.llm_config import UserLlmConfig
+from flux_bot.runner.errors import map_runner_error
 from flux_bot.runner.result import AgentResult
 from flux_bot.tools import build_tools
 
@@ -54,7 +55,7 @@ class DeepAgentRunner:
             return AgentResult(text=text, thread_id=thread_id)
         except asyncio.TimeoutError:
             logger.error("DeepAgent timed out for user=%s", user_id)
-            return AgentResult(text=None, thread_id=thread_id, error="Timeout")
+            return AgentResult(text=None, thread_id=thread_id, error=map_runner_error("timeout"))
         except Exception as e:
             logger.exception("DeepAgent error for user=%s", user_id)
-            return AgentResult(text=None, thread_id=thread_id, error=str(e))
+            return AgentResult(text=None, thread_id=thread_id, error=map_runner_error(str(e)))

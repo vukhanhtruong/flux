@@ -1,5 +1,7 @@
 """Async wrapper for bot_sessions — delegates to core SQLite repo."""
 
+import uuid
+
 from flux_core.sqlite.bot.session_repo import SqliteBotSessionRepository
 from flux_core.sqlite.database import Database
 
@@ -27,8 +29,6 @@ class SessionRepository:
 
     async def get_thread_id(self, user_id: str, channel: str) -> str:
         """Get or create a stable LangGraph thread_id for user+channel pair."""
-        import uuid
-
         key = f"thread:{user_id}:{channel}"
         existing = await self.get_session_id(key)
         if existing:

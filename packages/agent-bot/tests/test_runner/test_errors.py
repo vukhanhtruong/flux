@@ -17,6 +17,11 @@ def test_context_overflow_mapped():
     assert "/reset" in msg
 
 
+def test_timeout_mapped():
+    msg = map_runner_error("TimeoutError: request timed out")
+    assert "too long" in msg.lower()
+
+
 def test_unknown_passes_through():
     msg = map_runner_error("SomeWeirdError: exploding")
     assert "something broke" in msg.lower()
