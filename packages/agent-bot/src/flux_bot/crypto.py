@@ -1,30 +1,18 @@
-"""Fernet-based encryption for per-user LLM API keys.
+"""Encryption facade for per-user LLM API keys.
 
-Keys are derived from FLUX_SECRET_KEY via SHA-256 so any secret length works.
+Delegates to the canonical `flux_core.services.encryption.EncryptionService`
+so there is exactly one KDF derived from `FLUX_SECRET_KEY` in the project.
+Keeps a local `mask_api_key` helper (a display concern, not crypto).
 """
-import base64
-import hashlib
-import os
-
-from cryptography.fernet import Fernet
-
-
-def derive_fernet_key() -> bytes:
-    secret = os.environ.get("FLUX_SECRET_KEY")
-    if not secret:
-        raise RuntimeError("FLUX_SECRET_KEY environment variable is required")
-    digest = hashlib.sha256(secret.encode("utf-8")).digest()
-    return base64.urlsafe_b64encode(digest)
+from flux_core.services.encryption import EncryptionService
 
 
 def encrypt_api_key(plaintext: str) -> str:
-    f = Fernet(derive_fernet_key())
-    return f.encrypt(plaintext.encode("utf-8")).decode("ascii")
+    return EncryptionService.from_env().encrypt(plaintext)
 
 
 def decrypt_api_key(ciphertext: str) -> str:
-    f = Fernet(derive_fernet_key())
-    return f.decrypt(ciphertext.encode("ascii")).decode("utf-8")
+    return EncryptionService.from_env().decrypt(ciphertext)
 
 
 def mask_api_key(plaintext: str) -> str:

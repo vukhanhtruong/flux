@@ -1,9 +1,8 @@
-"""Tests for Fernet-based encryption of per-user LLM API keys."""
+"""Tests for encryption facade over `flux_core.services.encryption`."""
 import pytest
 
 from flux_bot.crypto import (
     decrypt_api_key,
-    derive_fernet_key,
     encrypt_api_key,
     mask_api_key,
 )
@@ -30,17 +29,11 @@ def test_wrong_secret_fails(flux_secret, monkeypatch):
 
 def test_missing_secret_raises(monkeypatch):
     monkeypatch.delenv("FLUX_SECRET_KEY", raising=False)
-    with pytest.raises(RuntimeError, match="FLUX_SECRET_KEY"):
+    # EncryptionService.from_env raises ValueError when FLUX_SECRET_KEY is absent.
+    with pytest.raises(ValueError, match="FLUX_SECRET_KEY"):
         encrypt_api_key("whatever")
 
 
 def test_mask_shows_last_four():
     assert mask_api_key("sk-ant-api-abcd1234") == "sk-a…1234"
     assert mask_api_key("short") == "…hort"
-
-
-def test_derive_fernet_key_stable(flux_secret):
-    k1 = derive_fernet_key()
-    k2 = derive_fernet_key()
-    assert k1 == k2
-    assert len(k1) == 44  # Fernet base64 key length
