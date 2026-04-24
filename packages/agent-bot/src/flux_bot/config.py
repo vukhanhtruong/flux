@@ -21,6 +21,7 @@ class RunnerConfig:
     model: str | None = None
     mcp_config_path: str = "/app/mcp-config.json"
     system_prompt_path: str = str(_SRC_DIR / "system-prompt.txt")
+    kind: str = "claude"  # "claude" | "deepagent" — set via FLUX_RUNNER env var
 
 
 @dataclass
@@ -63,5 +64,6 @@ def load_config() -> BotConfig:
     config.runner.system_prompt_path = os.getenv(
         "SYSTEM_PROMPT_PATH", config.runner.system_prompt_path
     )
+    config.runner.kind = os.getenv("FLUX_RUNNER", config.runner.kind)
 
     return config
