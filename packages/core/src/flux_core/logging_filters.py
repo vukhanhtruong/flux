@@ -17,9 +17,20 @@ _PATTERNS = [
 
 class RedactSecretsFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        msg = record.getMessage()
-        for pattern, repl in _PATTERNS:
-            msg = pattern.sub(repl, msg)
-        record.msg = msg
-        record.args = ()
+        if isinstance(record.msg, dict):
+            # structlog record: msg is the event_dict; redact only the event string
+            # to avoid converting the dict to a string (which breaks ProcessorFormatter)
+            event = record.msg.get("event", "")
+            if isinstance(event, str):
+                redacted = event
+                for pattern, repl in _PATTERNS:
+                    redacted = pattern.sub(repl, redacted)
+                if redacted != event:
+                    record.msg = {**record.msg, "event": redacted}
+        else:
+            msg = record.getMessage()
+            for pattern, repl in _PATTERNS:
+                msg = pattern.sub(repl, msg)
+            record.msg = msg
+            record.args = ()
         return True

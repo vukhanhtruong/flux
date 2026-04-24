@@ -52,6 +52,47 @@ export TELEGRAM_BOT_TOKEN="..."
 python -m flux_bot.main
 ```
 
+## CLI (Development Mode)
+
+The `flux` CLI lets you chat with the agent and manage configuration directly from your terminal — no Telegram needed.
+
+**Install (editable):**
+
+```bash
+cd packages/agent-bot
+pip install -e ".[dev]"
+```
+
+**Required env var:**
+
+```bash
+export FLUX_SECRET_KEY="any-secret-string-for-local-dev"
+# Optional: defaults to /data/sqlite/flux.db
+export DATABASE_PATH="/tmp/flux-dev.db"
+```
+
+**First-time setup:**
+
+```bash
+flux onboard          # set your name, currency, timezone
+flux config llm       # set LLM provider, model, and API key
+```
+
+**Chat:**
+
+```bash
+flux chat "what's my balance?"   # one-shot
+flux chat                        # REPL mode (Ctrl-D to exit)
+flux chat --reset "fresh start"  # clear conversation history first
+```
+
+**Other commands:**
+
+```bash
+flux flush            # print and drain pending outbound messages
+flux --help           # show all subcommands
+```
+
 ## Running via Docker
 
 ```bash

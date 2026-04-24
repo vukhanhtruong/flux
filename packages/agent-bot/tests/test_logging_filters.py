@@ -79,3 +79,51 @@ def test_redact_filter_mutates_record_message():
     )
     RedactSecretsFilter().filter(record)
     assert "AAAAAAAAAA1234" not in record.getMessage()
+
+
+def test_redact_filter_dict_msg_preserves_dict():
+    """When record.msg is a structlog event dict, filter must not convert it to a string."""
+    event_dict = {
+        "event": "api_key=sk-ant-api-AAAAAAAAAA1234 received",
+        "logger": "test",
+        "level": "info",
+    }
+    record = logging.LogRecord(
+        name="flux.test.dict",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg=event_dict,
+        args=(),
+        exc_info=None,
+    )
+    RedactSecretsFilter().filter(record)
+    assert isinstance(record.msg, dict), "msg must remain a dict (not be converted to str)"
+    assert "AAAAAAAAAA1234" not in record.msg["event"]
+
+
+def test_redact_filter_dict_msg_no_secret_unchanged():
+    """When record.msg is a dict with no secret, the dict object is unchanged."""
+    event_dict = {"event": "safe message", "logger": "test"}
+    record = logging.LogRecord(
+        name="flux.test.dict",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg=event_dict,
+        args=(),
+        exc_info=None,
+    )
+    RedactSecretsFilter().filter(record)
+    assert record.msg is event_dict  # no copy made when nothing to redact
+
+
+def test_structlog_configure_logging_no_crash():
+    """configure_logging() + structlog logger.info() must not emit a Logging error."""
+    import structlog
+    from flux_core.logging import configure_logging
+
+    configure_logging()
+    logger = structlog.get_logger("flux.test.no_crash")
+    # Should not raise or print --- Logging error ---
+    logger.info("hello %s", "world", foo="bar")
