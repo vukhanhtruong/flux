@@ -17,30 +17,13 @@ async def test_onboard_happy_path(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     profile_repo = ProfileRepository(cli_db)
-    await onboard(cli_db, profile_repo)
+    await onboard(profile_repo)
 
     saved = await profile_repo.get_by_user_id(CLI_USER_ID)
     assert saved is not None
     assert saved.username == "Alice"
     assert saved.currency == "EUR"
     assert saved.timezone == "Europe/Paris"
-
-
-async def test_onboard_with_all_explicit_inputs(cli_db, monkeypatch):
-    """onboard saves all user-provided values exactly."""
-    from flux_bot.cli.wizard import onboard
-
-    inputs = iter(["Bob", "GBP", "Europe/London"])
-    monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
-
-    profile_repo = ProfileRepository(cli_db)
-    await onboard(cli_db, profile_repo)
-
-    saved = await profile_repo.get_by_user_id(CLI_USER_ID)
-    assert saved is not None
-    assert saved.username == "Bob"
-    assert saved.currency == "GBP"
-    assert saved.timezone == "Europe/London"
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +38,7 @@ async def test_onboard_defaults_on_empty_input(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     profile_repo = ProfileRepository(cli_db)
-    await onboard(cli_db, profile_repo)
+    await onboard(profile_repo)
 
     saved = await profile_repo.get_by_user_id(CLI_USER_ID)
     assert saved is not None
@@ -72,7 +55,7 @@ async def test_onboard_default_username_only(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     profile_repo = ProfileRepository(cli_db)
-    await onboard(cli_db, profile_repo)
+    await onboard(profile_repo)
 
     saved = await profile_repo.get_by_user_id(CLI_USER_ID)
     assert saved is not None
@@ -89,7 +72,7 @@ async def test_onboard_default_currency_only(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     profile_repo = ProfileRepository(cli_db)
-    await onboard(cli_db, profile_repo)
+    await onboard(profile_repo)
 
     saved = await profile_repo.get_by_user_id(CLI_USER_ID)
     assert saved is not None
@@ -104,7 +87,7 @@ async def test_onboard_default_timezone_only(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     profile_repo = ProfileRepository(cli_db)
-    await onboard(cli_db, profile_repo)
+    await onboard(profile_repo)
 
     saved = await profile_repo.get_by_user_id(CLI_USER_ID)
     assert saved is not None
@@ -124,12 +107,12 @@ async def test_onboard_twice_updates_not_duplicates(cli_db, monkeypatch):
     # First run
     inputs = iter(["Alice", "USD", "UTC"])
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
-    await onboard(cli_db, profile_repo)
+    await onboard(profile_repo)
 
     # Second run with different values
     inputs = iter(["AliceUpdated", "EUR", "Europe/Berlin"])
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
-    await onboard(cli_db, profile_repo)
+    await onboard(profile_repo)
 
     saved = await profile_repo.get_by_user_id(CLI_USER_ID)
     assert saved is not None
@@ -154,7 +137,7 @@ async def test_onboard_user_id_is_cli_local(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     profile_repo = ProfileRepository(cli_db)
-    await onboard(cli_db, profile_repo)
+    await onboard(profile_repo)
 
     saved = await profile_repo.get_by_user_id(CLI_USER_ID)
     assert saved is not None

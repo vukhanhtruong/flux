@@ -6,8 +6,8 @@ independently testable without touching argparse or the database bootstrap
 
 Public API
 ----------
-config_llm(db, llm_config_repo)  — configure LLM provider / model / key
-onboard(db, profile_repo)         — configure currency / timezone / username
+config_llm(llm_config_repo)  — configure LLM provider / model / key
+onboard(profile_repo)         — configure currency / timezone / username
 
 Raises
 ------
@@ -23,7 +23,6 @@ from rich.console import Console
 if TYPE_CHECKING:
     from flux_bot.db.llm_config import UserLlmConfigRepository
     from flux_bot.db.profile import ProfileRepository
-    from flux_core.sqlite.database import Database
 
 console = Console()
 
@@ -68,7 +67,7 @@ def _prompt(message: str) -> str:
 # config llm wizard
 # ──────────────────────────────────────────────────────────────────────────────
 
-async def config_llm(db: "Database", llm_config_repo: "UserLlmConfigRepository") -> None:
+async def config_llm(llm_config_repo: "UserLlmConfigRepository") -> None:
     """Interactive wizard: configure LLM provider / model / API key.
 
     Persists to ``bot_user_llm_config`` for user ``cli:local``.
@@ -135,7 +134,7 @@ async def config_llm(db: "Database", llm_config_repo: "UserLlmConfigRepository")
 # onboard wizard
 # ──────────────────────────────────────────────────────────────────────────────
 
-async def onboard(db: "Database", profile_repo: "ProfileRepository") -> None:
+async def onboard(profile_repo: "ProfileRepository") -> None:
     """Interactive wizard: configure user profile (username / currency / timezone).
 
     Creates or updates the profile for ``cli:local``.

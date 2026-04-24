@@ -51,7 +51,7 @@ def _cmd_config_llm(args: argparse.Namespace) -> int:
     db = _setup_db(config.database_path)
     try:
         repo = UserLlmConfigRepository(db)
-        asyncio.run(config_llm(db, repo))
+        asyncio.run(config_llm(repo))
         return 0
     except CliError as exc:
         err_console.print(f"[red]Error:[/red] {exc}")
@@ -66,7 +66,7 @@ def _cmd_onboard(args: argparse.Namespace) -> int:
     db = _setup_db(config.database_path)
     try:
         repo = ProfileRepository(db)
-        asyncio.run(onboard(db, repo))
+        asyncio.run(onboard(repo))
         return 0
     except CliError as exc:
         err_console.print(f"[red]Error:[/red] {exc}")

@@ -22,7 +22,7 @@ async def test_config_llm_anthropic_happy_path(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     llm_config_repo = UserLlmConfigRepository(cli_db)
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     saved = await llm_config_repo.get(CLI_USER_ID)
     assert saved is not None
@@ -42,7 +42,7 @@ async def test_config_llm_openai_happy_path(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     llm_config_repo = UserLlmConfigRepository(cli_db)
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     saved = await llm_config_repo.get(CLI_USER_ID)
     assert saved is not None
@@ -62,7 +62,7 @@ async def test_config_llm_groq_happy_path(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     llm_config_repo = UserLlmConfigRepository(cli_db)
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     saved = await llm_config_repo.get(CLI_USER_ID)
     assert saved is not None
@@ -81,7 +81,7 @@ async def test_config_llm_custom_with_base_url(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     llm_config_repo = UserLlmConfigRepository(cli_db)
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     saved = await llm_config_repo.get(CLI_USER_ID)
     assert saved is not None
@@ -101,7 +101,7 @@ async def test_config_llm_openrouter_with_base_url(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     llm_config_repo = UserLlmConfigRepository(cli_db)
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     saved = await llm_config_repo.get(CLI_USER_ID)
     assert saved is not None
@@ -126,7 +126,7 @@ async def test_config_llm_anthropic_default_model(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     llm_config_repo = UserLlmConfigRepository(cli_db)
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     saved = await llm_config_repo.get(CLI_USER_ID)
     assert saved is not None
@@ -143,7 +143,7 @@ async def test_config_llm_openai_default_model(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     llm_config_repo = UserLlmConfigRepository(cli_db)
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     saved = await llm_config_repo.get(CLI_USER_ID)
     assert saved is not None
@@ -160,7 +160,7 @@ async def test_config_llm_groq_default_model(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     llm_config_repo = UserLlmConfigRepository(cli_db)
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     saved = await llm_config_repo.get(CLI_USER_ID)
     assert saved is not None
@@ -178,7 +178,7 @@ async def test_config_llm_missing_secret_key_raises(cli_db, monkeypatch):
     from flux_bot.cli.wizard import config_llm, CliError
 
     with pytest.raises(CliError, match="FLUX_SECRET_KEY"):
-        await config_llm(cli_db, UserLlmConfigRepository(cli_db))
+        await config_llm(UserLlmConfigRepository(cli_db))
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +195,68 @@ async def test_config_llm_invalid_provider_raises(cli_db, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
 
     with pytest.raises(CliError, match="provider"):
-        await config_llm(cli_db, UserLlmConfigRepository(cli_db))
+        await config_llm(UserLlmConfigRepository(cli_db))
+
+
+# ---------------------------------------------------------------------------
+# Upsert behaviour: second run overwrites first
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Empty provider defaults to anthropic
+# ---------------------------------------------------------------------------
+
+async def test_config_llm_empty_provider_defaults_to_anthropic(cli_db, monkeypatch):
+    """Empty provider input defaults to 'anthropic' with its default model."""
+    monkeypatch.setenv("FLUX_SECRET_KEY", SECRET_KEY)
+
+    from flux_bot.cli.wizard import config_llm
+
+    # Empty provider → anthropic; empty model → claude-sonnet-4-6
+    inputs = iter(["", "", "sk-ant-api-KEY", ""])
+    monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
+
+    llm_config_repo = UserLlmConfigRepository(cli_db)
+    await config_llm(llm_config_repo)
+
+    saved = await llm_config_repo.get(CLI_USER_ID)
+    assert saved is not None
+    assert saved.provider == "anthropic"
+    assert saved.model == "claude-sonnet-4-6"
+
+
+# ---------------------------------------------------------------------------
+# Empty api_key raises CliError
+# ---------------------------------------------------------------------------
+
+async def test_config_llm_empty_api_key_raises(cli_db, monkeypatch):
+    """Empty api_key raises CliError."""
+    monkeypatch.setenv("FLUX_SECRET_KEY", SECRET_KEY)
+
+    from flux_bot.cli.wizard import config_llm, CliError
+
+    inputs = iter(["anthropic", "claude-sonnet-4-6", "", ""])
+    monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
+
+    with pytest.raises(CliError, match="API key"):
+        await config_llm(UserLlmConfigRepository(cli_db))
+
+
+# ---------------------------------------------------------------------------
+# custom provider with empty base_url raises CliError
+# ---------------------------------------------------------------------------
+
+async def test_config_llm_custom_empty_base_url_raises(cli_db, monkeypatch):
+    """custom provider with empty base_url raises CliError."""
+    monkeypatch.setenv("FLUX_SECRET_KEY", SECRET_KEY)
+
+    from flux_bot.cli.wizard import config_llm, CliError
+
+    inputs = iter(["custom", "my-model", "my-api-key", ""])
+    monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
+
+    with pytest.raises(CliError, match="Base URL"):
+        await config_llm(UserLlmConfigRepository(cli_db))
 
 
 # ---------------------------------------------------------------------------
@@ -213,12 +274,12 @@ async def test_config_llm_upsert_overwrites_previous(cli_db, monkeypatch):
     # First run: anthropic
     inputs = iter(["anthropic", "claude-sonnet-4-6", "sk-ant-api-FIRST", ""])
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     # Second run: openai
     inputs = iter(["openai", "gpt-4o", "sk-openai-SECOND", ""])
     monkeypatch.setattr("builtins.input", lambda _="": next(inputs))
-    await config_llm(cli_db, llm_config_repo)
+    await config_llm(llm_config_repo)
 
     saved = await llm_config_repo.get(CLI_USER_ID)
     assert saved is not None

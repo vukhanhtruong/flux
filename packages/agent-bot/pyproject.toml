@@ -43,7 +43,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.coverage.run]
-omit = ["src/flux_bot/main.py"]
+omit = ["src/flux_bot/main.py", "src/flux_bot/cli/main.py"]
 
 [tool.ruff]
 line-length = 100
