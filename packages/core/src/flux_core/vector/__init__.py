@@ -1,3 +1,5 @@
-from flux_core.vector.store import ZvecStore
+"""Vector embedding storage — sqlite-vec backed."""
 
-__all__ = ["ZvecStore"]
+from flux_core.vector.store import SqliteVecStore
+
+__all__ = ["SqliteVecStore"]

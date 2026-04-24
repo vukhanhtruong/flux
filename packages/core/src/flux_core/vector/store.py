@@ -1,107 +1,79 @@
 from __future__ import annotations
 
-import structlog
-from pathlib import Path
-from typing import Any
+import struct
+from typing import TYPE_CHECKING
 
-try:
-    import zvec
-    ZVEC_AVAILABLE = True
-except ImportError:
-    zvec = None  # type: ignore[assignment]
-    ZVEC_AVAILABLE = False
+import structlog
+
+if TYPE_CHECKING:
+    from flux_core.sqlite.database import Database
 
 logger = structlog.get_logger(__name__)
 
 
-class ZvecStore:
-    def __init__(self, path: str):
-        self._path = Path(path)
-        self._collections: dict[str, Any] = {}
+def _serialize(vector: list[float]) -> bytes:
+    return struct.pack(f"{len(vector)}f", *vector)
+
+
+class SqliteVecStore:
+    """EmbeddingRepository backed by sqlite-vec vec0 virtual tables.
+
+    Collections map to tables named `vec_{collection}`. Writes normally run
+    inside the UnitOfWork's open SQLite transaction; this class is used for
+    read-only `search()` calls and for standalone writes.
+    """
+
+    def __init__(self, db: Database):
+        self._db = db
 
     def upsert(
-        self, collection: str, doc_id: str, vector: list[float], metadata: dict
+        self,
+        collection: str,
+        doc_id: str,
+        vector: list[float],
+        metadata: dict,
     ) -> None:
-        logger.debug("zvec upsert", collection=collection, doc_id=doc_id, dim=len(vector))
-        coll = self._get_or_create(collection, len(vector), metadata)
-        doc = zvec.Doc(
-            id=doc_id,
-            vectors={"embedding": vector},
-            fields={k: v for k, v in metadata.items()},
+        logger.debug("sqlite-vec upsert", collection=collection, doc_id=doc_id)
+        table = f"vec_{collection}"
+        # sqlite-vec vec0 does not support INSERT OR REPLACE conflict resolution;
+        # upsert is implemented as delete-then-insert.
+        self._db.execute(f"DELETE FROM {table} WHERE id = ?", (doc_id,))
+        self._db.execute(
+            f"INSERT INTO {table}(id, embedding, user_id) VALUES (?, ?, ?)",
+            (doc_id, _serialize(vector), metadata.get("user_id")),
         )
-        coll.upsert(doc)
 
     def delete(self, collection: str, doc_id: str) -> None:
-        logger.debug("zvec delete", collection=collection, doc_id=doc_id)
-        coll = self._get(collection)
-        if coll is not None:
-            coll.delete(ids=doc_id)
+        logger.debug("sqlite-vec delete", collection=collection, doc_id=doc_id)
+        table = f"vec_{collection}"
+        self._db.execute(f"DELETE FROM {table} WHERE id = ?", (doc_id,))
 
     def search(
         self,
         collection: str,
         vector: list[float],
         limit: int,
-        filter: str | None = None,
+        filter: dict[str, str] | None = None,
     ) -> list[str]:
-        logger.debug("zvec search", collection=collection, limit=limit, has_filter=filter is not None)
-        coll = self._get(collection)
-        if coll is None:
-            return []
-        query = zvec.VectorQuery(field_name="embedding", vector=vector)
-        try:
-            if filter:
-                results = coll.query(query, topk=limit, filter=filter)
-            else:
-                results = coll.query(query, topk=limit)
-        except Exception:
-            logger.debug("zvec query failed, returning empty", exc_info=True)
-            return []
-        return [doc.id for doc in results]
-
-    def optimize(self, collection: str) -> None:
-        coll = self._get(collection)
-        if coll is not None:
-            coll.optimize()
-
-    def _get(self, name: str) -> Any | None:
-        if name in self._collections:
-            return self._collections[name]
-        collection_path = self._path / name
-        if not collection_path.exists():
-            return None
-        try:
-            coll = zvec.open(path=str(collection_path))
-            self._collections[name] = coll
-            return coll
-        except Exception:
-            logger.debug("Failed to open zvec collection %s", name, exc_info=True)
-            return None
-
-    def _get_or_create(self, name: str, dimension: int, metadata: dict) -> Any:
-        coll = self._get(name)
-        if coll is not None:
-            return coll
-
-        collection_path = self._path / name
-        collection_path.parent.mkdir(parents=True, exist_ok=True)
-
-        fields = [
-            zvec.FieldSchema(name=key, data_type=zvec.DataType.STRING, nullable=True)
-            for key in metadata.keys()
-        ]
-        schema = zvec.CollectionSchema(
-            name=name,
-            fields=fields,
-            vectors=[
-                zvec.VectorSchema(
-                    name="embedding",
-                    data_type=zvec.DataType.VECTOR_FP32,
-                    dimension=dimension,
-                ),
-            ],
+        logger.debug(
+            "sqlite-vec search", collection=collection, limit=limit,
+            filter_keys=list(filter.keys()) if filter else [],
         )
-        coll = zvec.create_and_open(path=str(collection_path), schema=schema)
-        self._collections[name] = coll
-        logger.info("Created zvec collection: %s (dim=%d)", name, dimension)
-        return coll
+        table = f"vec_{collection}"
+        filter_sql = ""
+        params: list = [_serialize(vector), limit]
+        if filter:
+            clauses = []
+            for key, value in filter.items():
+                clauses.append(f"{key} = ?")
+                params.append(value)
+            filter_sql = " AND " + " AND ".join(clauses)
+        try:
+            rows = self._db.fetchall(
+                f"SELECT id FROM {table} WHERE embedding MATCH ? AND k = ?{filter_sql} ORDER BY distance",
+                tuple(params),
+            )
+        except Exception:
+            logger.debug("sqlite-vec query failed, returning empty", exc_info=True)
+            return []
+        return [r["id"] for r in rows]
