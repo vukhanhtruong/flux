@@ -1,4 +1,4 @@
-"""Recall use case — semantic search of memories via zvec."""
+"""Recall use case — semantic search of memories via sqlite-vec."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from flux_core.embeddings.service import EmbeddingProvider
     from flux_core.models.memory import MemoryOut
     from flux_core.repositories.memory_repo import MemoryRepository
-    from flux_core.vector.store import ZvecStore
+    from flux_core.vector.store import SqliteVecStore
 
 
 class Recall:
@@ -17,7 +17,7 @@ class Recall:
     def __init__(
         self,
         memory_repo: MemoryRepository,
-        vector_store: ZvecStore,
+        vector_store: SqliteVecStore,
         embedding_svc: EmbeddingProvider,
     ):
         self._memory_repo = memory_repo
@@ -36,7 +36,7 @@ class Recall:
             "memory_embeddings",
             embedding,
             limit,
-            filter=f'user_id = "{user_id}"',
+            filter={"user_id": user_id},
         )
         if not doc_ids:
             return []
