@@ -6,11 +6,11 @@
 CREATE VIRTUAL TABLE IF NOT EXISTS vec_transaction_embeddings USING vec0(
     id TEXT PRIMARY KEY,
     embedding float[384],
-    +user_id TEXT
+    user_id TEXT
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS vec_memory_embeddings USING vec0(
     id TEXT PRIMARY KEY,
     embedding float[384],
-    +user_id TEXT
+    user_id TEXT
 );
