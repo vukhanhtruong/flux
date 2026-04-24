@@ -16,7 +16,12 @@ def decrypt_api_key(ciphertext: str) -> str:
 
 
 def mask_api_key(plaintext: str) -> str:
-    """Safe-for-display masking. Keeps first 4 and last 4 characters."""
-    if len(plaintext) <= 8:
-        return "…" + plaintext[-4:]
+    """Safe-for-display masking. Keeps first 4 and last 4 characters.
+
+    Inputs shorter than 8 characters collapse to a single ellipsis —
+    showing any suffix from a short value would leak a disproportionate
+    fraction of the secret.
+    """
+    if len(plaintext) < 8:
+        return "…"
     return f"{plaintext[:4]}…{plaintext[-4:]}"

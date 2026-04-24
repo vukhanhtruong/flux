@@ -36,4 +36,13 @@ def test_missing_secret_raises(monkeypatch):
 
 def test_mask_shows_last_four():
     assert mask_api_key("sk-ant-api-abcd1234") == "sk-a…1234"
-    assert mask_api_key("short") == "…hort"
+
+
+def test_mask_collapses_short_inputs():
+    # Inputs shorter than 8 chars must NOT leak tail characters —
+    # collapse to a single ellipsis.
+    assert mask_api_key("short") == "…"
+    assert mask_api_key("") == "…"
+    assert mask_api_key("abcdefg") == "…"
+    # Boundary: exactly 8 chars is long enough to show 4+4.
+    assert mask_api_key("abcdefgh") == "abcd…efgh"
