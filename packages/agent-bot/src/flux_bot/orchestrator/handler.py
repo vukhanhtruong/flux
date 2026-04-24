@@ -122,6 +122,9 @@ def make_handle_message(
             # ----------------------------------------------------------------
             # DeepAgentRunner path — uses thread_id + llm_config
             # ----------------------------------------------------------------
+            if llm_config_repo is None:
+                await msg_repo.mark_failed(msg["id"], "llm_config_repo required for DeepAgentRunner")
+                return
             llm_cfg = await llm_config_repo.get(user_id)
             if llm_cfg is None:
                 if channel and platform_id:

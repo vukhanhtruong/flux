@@ -395,6 +395,26 @@ async def test_handler_still_works_for_claude_runner():
     deps["msg_repo"].mark_processed.assert_awaited_once_with(70)
 
 
+async def test_deepagent_no_channel_still_marks_processed():
+    """DeepAgentRunner + no channel configured: mark_processed is still called."""
+    runner = _make_deepagent_runner()
+    llm_cfg = _make_llm_config()
+    runner.run.return_value = AgentResult(text="some reply", thread_id="t-abc")
+
+    llm_config_repo = AsyncMock()
+    llm_config_repo.get = AsyncMock(return_value=llm_cfg)
+
+    deps = _make_deps(runner=runner, channels={})
+    deps["session_repo"].get_thread_id = AsyncMock(return_value="t-abc")
+
+    handler = make_handle_message(**deps, llm_config_repo=llm_config_repo)
+    await handler(_MSG)
+
+    runner.run.assert_awaited_once()
+    deps["msg_repo"].mark_processed.assert_awaited_once_with(70)
+    deps["msg_repo"].mark_failed.assert_not_awaited()
+
+
 async def test_handler_replies_with_setup_prompt_when_llm_config_missing():
     """DeepAgentRunner + no llm_config → setup message sent, mark_processed called, not mark_failed."""
     runner = _make_deepagent_runner()
