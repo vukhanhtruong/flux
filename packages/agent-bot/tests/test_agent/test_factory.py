@@ -4,7 +4,7 @@ from flux_bot.db.llm_config import UserLlmConfig
 from flux_bot.agent.factory import build_agent
 
 
-def test_build_agent_passes_correct_kwargs(monkeypatch, tmp_path):
+def test_build_agent_passes_correct_kwargs(monkeypatch):
     monkeypatch.setenv("FLUX_SECRET_KEY", "test-secret-0123456789abcdef")
     from flux_core.models.user_profile import UserProfile
 

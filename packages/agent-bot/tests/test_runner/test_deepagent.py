@@ -54,7 +54,7 @@ async def test_runner_returns_error_on_timeout(tmp_path, monkeypatch, core_db):
 
     fake_graph = MagicMock()
 
-    async def slow_invoke(*a, **kw):
+    async def slow_invoke(*_, **__):
         await asyncio.sleep(10)
         return {}
 
