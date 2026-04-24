@@ -17,10 +17,12 @@ import sys
 from rich.console import Console
 
 from flux_bot.cli.chat import chat, chat_repl
-from flux_bot.cli.wizard import CliError, config_llm, onboard
+from flux_bot.cli.flush import flush
+from flux_bot.cli.wizard import CLI_USER_ID, CliError, config_llm, onboard
 from flux_bot.config import load_config
 from flux_bot.db.llm_config import UserLlmConfigRepository
 from flux_bot.db.migrate import run_migrations
+from flux_bot.db.outbound import OutboundRepository
 from flux_bot.db.profile import ProfileRepository
 from flux_bot.db.sessions import SessionRepository
 from flux_core.sqlite.database import Database
@@ -78,7 +80,7 @@ def _cmd_onboard(args: argparse.Namespace) -> int:
 
 
 def _cmd_chat(args: argparse.Namespace) -> int:
-    """Handle: flux chat [prompt] [--reset]"""
+    """Handle: flux chat [prompt] [--reset] [--user user_id]"""
     from flux_bot.main import build_runner
 
     config = load_config()
@@ -91,6 +93,7 @@ def _cmd_chat(args: argparse.Namespace) -> int:
 
         prompt: str | None = getattr(args, "prompt", None)
         reset: bool = getattr(args, "reset", False)
+        user_id: str = getattr(args, "user_id", None) or CLI_USER_ID
 
         if prompt is not None:
             # One-shot: prompt supplied as CLI argument
@@ -102,6 +105,7 @@ def _cmd_chat(args: argparse.Namespace) -> int:
                     profile_repo=profile_repo,
                     runner=runner,
                     reset=reset,
+                    user_id=user_id,
                 )
             )
         elif not sys.stdin.isatty():
@@ -116,6 +120,7 @@ def _cmd_chat(args: argparse.Namespace) -> int:
                         profile_repo=profile_repo,
                         runner=runner,
                         reset=reset,
+                        user_id=user_id,
                     )
                 )
             return 0
@@ -128,8 +133,25 @@ def _cmd_chat(args: argparse.Namespace) -> int:
                     profile_repo=profile_repo,
                     runner=runner,
                     reset=reset,
+                    user_id=user_id,
                 )
             )
+    except CliError as exc:
+        err_console.print(f"[red]Error:[/red] {exc}")
+        return 1
+    finally:
+        db.disconnect()
+
+
+def _cmd_flush(args: argparse.Namespace) -> int:
+    """Handle: flux flush [--user user_id]"""
+    config = load_config()
+    db = _setup_db(config.database_path)
+    try:
+        outbound_repo = OutboundRepository(db)
+        user_id: str = getattr(args, "user_id", None) or CLI_USER_ID
+        asyncio.run(flush(outbound_repo, user_id=user_id))
+        return 0
     except CliError as exc:
         err_console.print(f"[red]Error:[/red] {exc}")
         return 1
@@ -170,6 +192,23 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Clear conversation history and start a fresh session",
     )
+    chat_parser.add_argument(
+        "--user",
+        dest="user_id",
+        default=None,
+        help="User ID to chat as (default: cli:local)",
+    )
+
+    # flush
+    flush_parser = sub.add_parser(
+        "flush", help="Print and clear pending agent-initiated messages"
+    )
+    flush_parser.add_argument(
+        "--user",
+        dest="user_id",
+        default=None,
+        help="User ID to flush messages for (default: cli:local)",
+    )
 
     return parser
 
@@ -191,6 +230,8 @@ def main() -> None:
         sys.exit(_cmd_onboard(args))
     elif args.command == "chat":
         sys.exit(_cmd_chat(args))
+    elif args.command == "flush":
+        sys.exit(_cmd_flush(args))
     else:
         parser.print_help()
         sys.exit(0)

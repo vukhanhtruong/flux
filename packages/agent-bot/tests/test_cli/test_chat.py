@@ -220,3 +220,92 @@ async def test_chat_repl_reset_deletes_session(monkeypatch, capsys):
 
     assert rc == 0
     session_repo.delete.assert_awaited_once_with(f"thread:{CLI_USER_ID}:{CLI_CHANNEL}")
+
+
+# ---------------------------------------------------------------------------
+# 7. Custom user_id passed to runner.run
+# ---------------------------------------------------------------------------
+
+async def test_chat_custom_user_id(capsys):
+    """chat() with user_id='tg:999' passes that user_id to runner.run."""
+    from flux_bot.cli.chat import chat
+    from flux_bot.db.llm_config import UserLlmConfig
+
+    custom_user = "tg:999"
+    llm_cfg = UserLlmConfig(
+        user_id=custom_user,
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        base_url=None,
+        api_key="sk-test",
+    )
+    llm_config_repo = MagicMock()
+    llm_config_repo.get = AsyncMock(return_value=llm_cfg)
+
+    session_repo = MagicMock()
+    session_repo.get_thread_id = AsyncMock(return_value="tg-thread-999")
+    session_repo.delete = AsyncMock()
+
+    profile_repo = MagicMock()
+    profile_repo.get_by_user_id = AsyncMock(return_value=None)
+
+    runner = _make_runner(text="Reply for tg:999.", thread_id="tg-thread-999")
+
+    rc = await chat(
+        "hello from tg",
+        llm_config_repo=llm_config_repo,
+        session_repo=session_repo,
+        profile_repo=profile_repo,
+        runner=runner,
+        user_id=custom_user,
+    )
+
+    assert rc == 0
+    call_kwargs = runner.run.call_args.kwargs
+    assert call_kwargs["user_id"] == custom_user
+    llm_config_repo.get.assert_awaited_once_with(custom_user)
+    session_repo.get_thread_id.assert_awaited_once_with(custom_user, CLI_CHANNEL)
+
+
+# ---------------------------------------------------------------------------
+# 8. Custom user_id + reset=True → delete uses custom thread key
+# ---------------------------------------------------------------------------
+
+async def test_chat_thread_key_uses_user_id(capsys):
+    """reset=True with custom user_id calls session_repo.delete with the correct key."""
+    from flux_bot.cli.chat import chat
+    from flux_bot.db.llm_config import UserLlmConfig
+
+    custom_user = "tg:999"
+    llm_cfg = UserLlmConfig(
+        user_id=custom_user,
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        base_url=None,
+        api_key="sk-test",
+    )
+    llm_config_repo = MagicMock()
+    llm_config_repo.get = AsyncMock(return_value=llm_cfg)
+
+    session_repo = MagicMock()
+    session_repo.get_thread_id = AsyncMock(return_value="tg-thread-999")
+    session_repo.delete = AsyncMock()
+
+    profile_repo = MagicMock()
+    profile_repo.get_by_user_id = AsyncMock(return_value=None)
+
+    runner = _make_runner(text="Fresh.", thread_id="tg-thread-999")
+
+    rc = await chat(
+        "hi",
+        llm_config_repo=llm_config_repo,
+        session_repo=session_repo,
+        profile_repo=profile_repo,
+        runner=runner,
+        user_id=custom_user,
+        reset=True,
+    )
+
+    assert rc == 0
+    expected_key = f"thread:{custom_user}:{CLI_CHANNEL}"
+    session_repo.delete.assert_awaited_once_with(expected_key)

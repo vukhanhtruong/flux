@@ -27,8 +27,6 @@ if TYPE_CHECKING:
 console = Console()
 err_console = Console(stderr=True)
 
-_THREAD_KEY = f"thread:{CLI_USER_ID}:{CLI_CHANNEL}"
-
 
 async def chat(
     prompt: str,
@@ -38,6 +36,8 @@ async def chat(
     profile_repo: "ProfileRepository",
     runner,
     reset: bool = False,
+    user_id: str = CLI_USER_ID,
+    channel: str = CLI_CHANNEL,
 ) -> int:
     """Send a single prompt to the runner and print the response.
 
@@ -52,6 +52,10 @@ async def chat(
     reset:
         If True, delete the existing thread before running so a fresh
         conversation is started.
+    user_id:
+        The user to chat as (default: CLI_USER_ID).
+    channel:
+        The channel name used for thread key namespacing (default: CLI_CHANNEL).
 
     Returns
     -------
@@ -61,27 +65,29 @@ async def chat(
     Raises
     ------
     CliError
-        When no LLM config is found for the CLI user.
+        When no LLM config is found for the user.
     """
+    thread_key = f"thread:{user_id}:{channel}"
+
     # 1. Require LLM config — clear user-facing message if missing.
-    llm_cfg = await llm_config_repo.get(CLI_USER_ID)
+    llm_cfg = await llm_config_repo.get(user_id)
     if llm_cfg is None:
         raise CliError("Run `flux config llm` to configure an LLM first.")
 
     # 2. Profile (may be None — runner handles it).
-    profile = await profile_repo.get_by_user_id(CLI_USER_ID)
+    profile = await profile_repo.get_by_user_id(user_id)
 
     # 3. Optionally reset the thread.
     if reset:
-        await session_repo.delete(_THREAD_KEY)
+        await session_repo.delete(thread_key)
 
     # 4. Fetch (or create) stable thread_id.
-    thread_id = await session_repo.get_thread_id(CLI_USER_ID, CLI_CHANNEL)
+    thread_id = await session_repo.get_thread_id(user_id, channel)
 
     # 5. Run the agent.
     result = await runner.run(
         prompt=prompt,
-        user_id=CLI_USER_ID,
+        user_id=user_id,
         thread_id=thread_id,
         profile=profile,
         llm_config=llm_cfg,
@@ -105,6 +111,8 @@ async def chat_repl(
     profile_repo: "ProfileRepository",
     runner,
     reset: bool = False,
+    user_id: str = CLI_USER_ID,
+    channel: str = CLI_CHANNEL,
 ) -> int:
     """Interactive REPL: read lines from stdin and call chat() for each.
 
@@ -116,6 +124,10 @@ async def chat_repl(
     reset:
         If True, delete the existing thread before entering the loop so a
         fresh conversation is started.
+    user_id:
+        The user to chat as (default: CLI_USER_ID).
+    channel:
+        The channel name used for thread key namespacing (default: CLI_CHANNEL).
 
     Returns
     -------
@@ -123,7 +135,8 @@ async def chat_repl(
         0 when the loop exits normally; 1 if any turn returned an error.
     """
     if reset:
-        await session_repo.delete(_THREAD_KEY)
+        thread_key = f"thread:{user_id}:{channel}"
+        await session_repo.delete(thread_key)
 
     last_rc = 0
     while True:
@@ -150,6 +163,8 @@ async def chat_repl(
             session_repo=session_repo,
             profile_repo=profile_repo,
             runner=runner,
+            user_id=user_id,
+            channel=channel,
         )
         if rc != 0:
             last_rc = rc
