@@ -1,5 +1,6 @@
 """Tests for encryption facade over `flux_core.services.encryption`."""
 import pytest
+from cryptography.fernet import InvalidToken
 
 from flux_bot.crypto import (
     decrypt_api_key,
@@ -23,7 +24,8 @@ def test_roundtrip(flux_secret):
 def test_wrong_secret_fails(flux_secret, monkeypatch):
     enc = encrypt_api_key("sk-ant-api-abcd1234")
     monkeypatch.setenv("FLUX_SECRET_KEY", "different-secret-0123456789abcd")
-    with pytest.raises(Exception):  # InvalidToken
+    # EncryptionService delegates to Fernet, which raises InvalidToken.
+    with pytest.raises(InvalidToken):
         decrypt_api_key(enc)
 
 
