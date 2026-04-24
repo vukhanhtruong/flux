@@ -32,13 +32,13 @@ def test_fallback_poll_interval_env_override(monkeypatch):
     assert config.fallback_poll_interval == 60.0
 
 
-def test_flux_runner_defaults_to_claude(monkeypatch):
+def test_flux_runner_defaults_to_deepagent(monkeypatch):
     monkeypatch.delenv("FLUX_RUNNER", raising=False)
     cfg = load_config()
-    assert cfg.runner.kind == "claude"
-
-
-def test_flux_runner_can_be_deepagent(monkeypatch):
-    monkeypatch.setenv("FLUX_RUNNER", "deepagent")
-    cfg = load_config()
     assert cfg.runner.kind == "deepagent"
+
+
+def test_flux_runner_can_be_set_to_claude(monkeypatch):
+    monkeypatch.setenv("FLUX_RUNNER", "claude")
+    cfg = load_config()
+    assert cfg.runner.kind == "claude"

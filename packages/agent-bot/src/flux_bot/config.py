@@ -21,7 +21,7 @@ class RunnerConfig:
     model: str | None = None
     mcp_config_path: str = "/app/mcp-config.json"
     system_prompt_path: str = str(_SRC_DIR / "system-prompt.txt")
-    kind: str = "claude"  # "claude" | "deepagent" — set via FLUX_RUNNER env var
+    kind: str = "deepagent"  # "claude" | "deepagent" — set via FLUX_RUNNER env var
 
 
 @dataclass
