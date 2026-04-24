@@ -27,3 +27,33 @@ def test_passes_through_safe_messages(caplog):
     msg = "user signed in"
     out = _emit(caplog, msg)
     assert out == msg
+
+
+def test_filter_wired_into_root_logger():
+    """After configure_logging(), the root handler carries RedactSecretsFilter."""
+    from flux_core.logging import configure_logging
+    configure_logging()
+    root = logging.getLogger()
+    # At least one filter on the root or on a handler must be RedactSecretsFilter.
+    filter_sources = list(root.filters)
+    for h in root.handlers:
+        filter_sources.extend(h.filters)
+    assert any(isinstance(f, RedactSecretsFilter) for f in filter_sources), (
+        "RedactSecretsFilter is not wired into the root logger"
+    )
+
+    # And it actually redacts when a record is emitted.
+    record = logging.LogRecord(
+        name="flux.test.wiring",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=1,
+        msg="emit sk-ant-api-AAAAAAAAAA1234 here",
+        args=(),
+        exc_info=None,
+    )
+    # Apply every filter in the chain.
+    for f in filter_sources:
+        if isinstance(f, RedactSecretsFilter):
+            f.filter(record)
+    assert "AAAAAAAAAA1234" not in record.getMessage()

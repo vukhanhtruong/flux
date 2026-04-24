@@ -7,6 +7,8 @@ import os
 
 import structlog
 
+from flux_core.logging_filters import RedactSecretsFilter
+
 
 LAYER_ENV_MAP = {
     "LOG_LEVEL_SQL": "flux_core.sqlite",
@@ -81,11 +83,16 @@ def configure_logging() -> None:
 
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
+    handler.addFilter(RedactSecretsFilter())
 
     root = logging.getLogger()
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level_num)
+
+    # Also attach the filter at the root so any ancestral handler path
+    # (including pytest's caplog) benefits from redaction.
+    root.addFilter(RedactSecretsFilter())
 
     # Suppress noisy third-party loggers
     for name in _NOISY_LOGGERS:
