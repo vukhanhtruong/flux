@@ -151,7 +151,7 @@ def _cmd_flush(args: argparse.Namespace) -> int:
         outbound_repo = OutboundRepository(db)
         user_id: str = getattr(args, "user_id", None) or CLI_USER_ID
         asyncio.run(flush(outbound_repo, user_id=user_id))
-        return 0
+        return 0  # count is informational; non-zero count is not a failure
     except CliError as exc:
         err_console.print(f"[red]Error:[/red] {exc}")
         return 1
