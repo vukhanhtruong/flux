@@ -15,26 +15,6 @@ def _tool(tools, name):
     return next(t for t in tools if t.name == name)
 
 
-def _create_sub(db, user_id, name="Netflix", amount="15.00"):
-    """Helper: seed a subscription via the real Use Case."""
-    from datetime import date
-
-    uow = UnitOfWork(db)
-    uc = CreateSubscription(uow)
-    import asyncio
-
-    return asyncio.get_event_loop().run_until_complete(
-        uc.execute(
-            user_id,
-            name,
-            Decimal(amount),
-            BillingCycle.monthly,
-            date(2026, 5, 1),
-            "entertainment",
-        )
-    )
-
-
 # ── create_subscription ──────────────────────────────────────────────────
 
 

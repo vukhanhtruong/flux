@@ -16,27 +16,10 @@ def _tool(tools, name):
     return next(t for t in tools if t.name == name)
 
 
-def _seed_txn(db, vs, emb, user_id, amount, category, txn_type=TransactionType.expense):
-    import asyncio
-
-    uow = UnitOfWork(db, vector_store=vs)
-    uc = AddTransaction(uow, emb)
-    return asyncio.get_event_loop().run_until_complete(
-        uc.execute(
-            user_id=user_id,
-            date=date(2026, 4, 15),
-            amount=Decimal(amount),
-            category=category,
-            description=f"{category} expense",
-            transaction_type=txn_type,
-        )
-    )
-
-
 # ── get_spending_summary ─────────────────────────────────────────────────
 
 
-async def test_get_spending_summary_returns_without_error(core_db, user_id, vector_store, embedding_svc):
+async def test_get_spending_summary_returns_without_error(core_db, user_id):
     tools = build_analytics_tools(user_id=user_id, db=core_db)
     summary = _tool(tools, "get_spending_summary")
 

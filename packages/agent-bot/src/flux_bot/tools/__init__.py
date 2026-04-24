@@ -34,7 +34,6 @@ def build_tools(
     db: Database,
     vector_store: ZvecStore | None = None,
     embedding_svc: EmbeddingProvider | None = None,
-    **kwargs,
 ) -> list[BaseTool]:
     """Return all domain tools bound to user_id.
 
