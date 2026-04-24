@@ -1,7 +1,7 @@
 """SchedulerWorker — polls bot_scheduled_tasks and fires due tasks.
 
 Due tasks are injected as synthetic bot_messages so the existing
-Poller → UserQueue → ClaudeRunner pipeline handles them normally.
+Poller → UserQueue → DeepAgentRunner pipeline handles them normally.
 """
 
 import asyncio

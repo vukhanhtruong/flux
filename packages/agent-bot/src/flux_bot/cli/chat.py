@@ -74,8 +74,10 @@ async def chat(
     if llm_cfg is None:
         raise CliError("Run `flux config llm` to configure an LLM first.")
 
-    # 2. Profile (may be None — runner handles it).
+    # 2. Require profile — runner accesses profile.timezone / profile.username.
     profile = await profile_repo.get_by_user_id(user_id)
+    if profile is None:
+        raise CliError("Run `flux onboard` to set up your profile first.")
 
     # 3. Optionally reset the thread.
     if reset:

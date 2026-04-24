@@ -89,6 +89,10 @@ _LLM_NOT_CONFIGURED_MSG = (
     "You haven't set up an LLM yet. Run /settings llm to configure one."
 )
 
+_PROFILE_NOT_CONFIGURED_MSG = (
+    "Your profile isn't set up yet. Please complete onboarding first."
+)
+
 
 def make_handle_message(
     *, runner, msg_repo, session_repo, profile_repo, channels, admin_chat_id=None,
@@ -105,6 +109,11 @@ def make_handle_message(
         channel = channels.get(channel_name)
 
         profile = await profile_repo.get_by_user_id(user_id)
+        if profile is None:
+            if channel and platform_id:
+                await channel.send_message(platform_id, _PROFILE_NOT_CONFIGURED_MSG)
+            await msg_repo.mark_processed(msg["id"])
+            return
 
         if llm_config_repo is None:
             await msg_repo.mark_failed(msg["id"], "llm_config_repo required")

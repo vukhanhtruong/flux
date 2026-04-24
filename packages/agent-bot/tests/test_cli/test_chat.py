@@ -15,7 +15,16 @@ from flux_bot.runner.result import AgentResult
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_repos(*, llm_cfg=..., thread_id="test-thread-123", profile=None):
+def _make_profile():
+    profile = MagicMock()
+    profile.user_id = CLI_USER_ID
+    profile.username = "testuser"
+    profile.currency = "USD"
+    profile.timezone = "UTC"
+    return profile
+
+
+def _make_repos(*, llm_cfg=..., thread_id="test-thread-123", profile=...):
     """Build mock repos with sensible defaults."""
     from flux_bot.db.llm_config import UserLlmConfig
 
@@ -27,6 +36,9 @@ def _make_repos(*, llm_cfg=..., thread_id="test-thread-123", profile=None):
             base_url=None,
             api_key="sk-test",
         )
+
+    if profile is ...:
+        profile = _make_profile()
 
     llm_config_repo = MagicMock()
     llm_config_repo.get = AsyncMock(return_value=llm_cfg)
@@ -85,7 +97,31 @@ async def test_chat_sends_prompt_to_runner(capsys):
 
 
 # ---------------------------------------------------------------------------
-# 2. Missing LLM config raises CliError
+# 2. Missing profile raises CliError
+# ---------------------------------------------------------------------------
+
+async def test_chat_missing_profile_raises():
+    """When no profile exists for the user, CliError is raised."""
+    from flux_bot.cli.chat import chat
+    from flux_bot.cli.wizard import CliError
+
+    llm_config_repo, session_repo, profile_repo = _make_repos(profile=None)
+    runner = _make_runner()
+
+    with pytest.raises(CliError, match="onboard"):
+        await chat(
+            "hello",
+            llm_config_repo=llm_config_repo,
+            session_repo=session_repo,
+            profile_repo=profile_repo,
+            runner=runner,
+        )
+
+    runner.run.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# 3. Missing LLM config raises CliError
 # ---------------------------------------------------------------------------
 
 async def test_chat_missing_llm_config_raises():
@@ -246,8 +282,10 @@ async def test_chat_custom_user_id(capsys):
     session_repo.get_thread_id = AsyncMock(return_value="tg-thread-999")
     session_repo.delete = AsyncMock()
 
+    custom_profile = _make_profile()
+    custom_profile.user_id = custom_user
     profile_repo = MagicMock()
-    profile_repo.get_by_user_id = AsyncMock(return_value=None)
+    profile_repo.get_by_user_id = AsyncMock(return_value=custom_profile)
 
     runner = _make_runner(text="Reply for tg:999.", thread_id="tg-thread-999")
 
@@ -291,8 +329,10 @@ async def test_chat_thread_key_uses_user_id(capsys):
     session_repo.get_thread_id = AsyncMock(return_value="tg-thread-999")
     session_repo.delete = AsyncMock()
 
+    custom_profile2 = _make_profile()
+    custom_profile2.user_id = custom_user
     profile_repo = MagicMock()
-    profile_repo.get_by_user_id = AsyncMock(return_value=None)
+    profile_repo.get_by_user_id = AsyncMock(return_value=custom_profile2)
 
     runner = _make_runner(text="Fresh.", thread_id="tg-thread-999")
 

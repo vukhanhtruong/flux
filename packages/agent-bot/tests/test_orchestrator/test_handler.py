@@ -1,6 +1,6 @@
 """Tests for make_handle_message."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import time
 
 from flux_bot.orchestrator.handler import make_handle_message
@@ -25,7 +25,12 @@ def _make_deps(**overrides):
     session_repo = AsyncMock()
     session_repo.get_thread_id = AsyncMock(return_value=None)
     profile_repo = AsyncMock()
-    profile_repo.get_by_user_id = AsyncMock(return_value=None)
+    _profile = MagicMock()
+    _profile.user_id = "tg:123"
+    _profile.username = "testuser"
+    _profile.currency = "USD"
+    _profile.timezone = "UTC"
+    profile_repo.get_by_user_id = AsyncMock(return_value=_profile)
     llm_config_repo = AsyncMock()
     llm_config_repo.get = AsyncMock(return_value=_make_llm_config())
     channels = {}
@@ -76,7 +81,7 @@ async def test_runner_called_with_thread_id_and_llm_config():
         user_id="tg:123",
         thread_id="t-abc",
         image_path=None,
-        profile=None,
+        profile=deps["profile_repo"].get_by_user_id.return_value,
         llm_config=llm_cfg,
     )
     channel.send_message.assert_awaited_once_with("42", "deep reply")
@@ -111,6 +116,25 @@ async def test_handler_replies_with_setup_prompt_when_llm_config_missing():
     channel.send_message.assert_awaited_once()
     sent_text = channel.send_message.call_args.args[1]
     assert "llm" in sent_text.lower() or "settings" in sent_text.lower()
+    deps["msg_repo"].mark_processed.assert_awaited_once_with(70)
+    deps["msg_repo"].mark_failed.assert_not_awaited()
+
+
+async def test_handler_sends_onboard_prompt_when_profile_missing():
+    """No profile → onboard message sent, mark_processed called, runner not invoked."""
+    deps = _make_deps()
+    deps["profile_repo"].get_by_user_id = AsyncMock(return_value=None)
+
+    channel = AsyncMock()
+    deps["channels"] = {"telegram": channel}
+
+    handler = make_handle_message(**deps)
+    await handler(_MSG)
+
+    deps["runner"].run.assert_not_awaited()
+    channel.send_message.assert_awaited_once()
+    sent_text = channel.send_message.call_args.args[1]
+    assert "profile" in sent_text.lower() or "onboard" in sent_text.lower()
     deps["msg_repo"].mark_processed.assert_awaited_once_with(70)
     deps["msg_repo"].mark_failed.assert_not_awaited()
 

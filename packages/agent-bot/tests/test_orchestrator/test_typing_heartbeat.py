@@ -92,8 +92,14 @@ async def test_typing_heartbeat_cancelled_on_success(monkeypatch):
     msg_repo.mark_failed = AsyncMock()
     session_repo = AsyncMock()
     session_repo.get_thread_id = AsyncMock(return_value=None)
+    from unittest.mock import MagicMock as _MagicMock
+    _profile = _MagicMock()
+    _profile.user_id = "tg:user"
+    _profile.username = "testuser"
+    _profile.currency = "USD"
+    _profile.timezone = "UTC"
     profile_repo = AsyncMock()
-    profile_repo.get_by_user_id = AsyncMock(return_value=None)
+    profile_repo.get_by_user_id = AsyncMock(return_value=_profile)
     llm_config_repo = AsyncMock()
     llm_config_repo.get = AsyncMock(return_value=_make_llm_config())
 
@@ -141,8 +147,14 @@ async def test_typing_heartbeat_cancelled_on_error(monkeypatch):
     msg_repo.mark_processed = AsyncMock()
     session_repo = AsyncMock()
     session_repo.get_thread_id = AsyncMock(return_value=None)
+    from unittest.mock import MagicMock as _MagicMock
+    _profile = _MagicMock()
+    _profile.user_id = "tg:user"
+    _profile.username = "testuser"
+    _profile.currency = "USD"
+    _profile.timezone = "UTC"
     profile_repo = AsyncMock()
-    profile_repo.get_by_user_id = AsyncMock(return_value=None)
+    profile_repo.get_by_user_id = AsyncMock(return_value=_profile)
     llm_config_repo = AsyncMock()
     llm_config_repo.get = AsyncMock(return_value=_make_llm_config())
 

@@ -31,8 +31,14 @@ async def test_full_message_flow(sqlite_db):
     mock_runner.run.return_value = AgentResult(
         text="Recorded 50k lunch expense!", thread_id=None
     )
+    from unittest.mock import MagicMock as _MM
+    _profile = _MM()
+    _profile.user_id = "tg:truong-vu"
+    _profile.username = "testuser"
+    _profile.currency = "USD"
+    _profile.timezone = "UTC"
     profile_repo = AsyncMock()
-    profile_repo.get_by_user_id = AsyncMock(return_value=None)
+    profile_repo.get_by_user_id = AsyncMock(return_value=_profile)
 
     llm_config_repo = AsyncMock()
     llm_config_repo.get = AsyncMock(return_value=_make_llm_config())

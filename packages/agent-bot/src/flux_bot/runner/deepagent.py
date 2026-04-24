@@ -1,4 +1,4 @@
-"""Deepagents-backed runner — drop-in replacement for ClaudeRunner."""
+"""DeepAgentRunner — LangGraph-based agent runner using the deepagents SDK."""
 
 import asyncio
 import logging

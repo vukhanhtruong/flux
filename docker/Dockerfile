@@ -48,9 +48,6 @@ RUN pip install --no-cache-dir \
     /app/packages/mcp-server \
     /app/packages/agent-bot
 
-# Copy MCP config for agent-bot
-COPY packages/agent-bot/src/flux_bot/mcp-config.json /app/mcp-config.json
-
 # Copy web-ui build output
 COPY --from=node-builder /build/dist /usr/share/nginx/html
 
