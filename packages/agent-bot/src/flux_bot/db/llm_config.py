@@ -71,3 +71,17 @@ class UserLlmConfigRepository:
             (user_id,),
         )
         self._db.connection().commit()
+
+
+class LlmConfigMissingError(Exception):
+    """Raised when a user's LLM config is not found.
+
+    Carries the offending user_id so upstream handlers can prompt them
+    to run `/settings llm` (or the equivalent CLI command).
+    """
+
+    def __init__(self, user_id: str):
+        super().__init__(
+            f"No LLM config for user_id={user_id}. Run /settings llm to set one up."
+        )
+        self.user_id = user_id
