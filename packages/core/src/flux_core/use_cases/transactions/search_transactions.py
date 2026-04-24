@@ -1,4 +1,4 @@
-"""SearchTransactions use case — semantic search via zvec then fetch from SQLite."""
+"""SearchTransactions use case — semantic search via sqlite-vec then fetch from SQLite."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from flux_core.embeddings.service import EmbeddingProvider
     from flux_core.models.transaction import TransactionOut
     from flux_core.repositories.transaction_repo import TransactionRepository
-    from flux_core.vector.store import ZvecStore
+    from flux_core.vector.store import SqliteVecStore
 
 
 class SearchTransactions:
@@ -17,7 +17,7 @@ class SearchTransactions:
     def __init__(
         self,
         txn_repo: TransactionRepository,
-        vector_store: ZvecStore,
+        vector_store: SqliteVecStore,
         embedding_svc: EmbeddingProvider,
     ):
         self._txn_repo = txn_repo
@@ -36,7 +36,7 @@ class SearchTransactions:
             "transaction_embeddings",
             embedding,
             limit,
-            filter=f'user_id = "{user_id}"',
+            filter={"user_id": user_id},
         )
         if not doc_ids:
             return []
