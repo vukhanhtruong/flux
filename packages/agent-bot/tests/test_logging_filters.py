@@ -34,15 +34,16 @@ def test_filter_wired_into_root_logger():
     from flux_core.logging import configure_logging
     configure_logging()
     root = logging.getLogger()
-    # At least one filter on the root or on a handler must be RedactSecretsFilter.
-    filter_sources = list(root.filters)
+    filter_sources: list[object] = list(root.filters)
     for h in root.handlers:
         filter_sources.extend(h.filters)
     assert any(isinstance(f, RedactSecretsFilter) for f in filter_sources), (
         "RedactSecretsFilter is not wired into the root logger"
     )
 
-    # And it actually redacts when a record is emitted.
+
+def test_redact_filter_mutates_record_message():
+    """RedactSecretsFilter masks secrets directly on a LogRecord."""
     record = logging.LogRecord(
         name="flux.test.wiring",
         level=logging.INFO,
@@ -52,8 +53,5 @@ def test_filter_wired_into_root_logger():
         args=(),
         exc_info=None,
     )
-    # Apply every filter in the chain.
-    for f in filter_sources:
-        if isinstance(f, RedactSecretsFilter):
-            f.filter(record)
+    RedactSecretsFilter().filter(record)
     assert "AAAAAAAAAA1234" not in record.getMessage()

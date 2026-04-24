@@ -43,6 +43,7 @@ def test_migrate_is_idempotent(tmp_path):
         migrate(db)
         migrate(db)
         row = db.fetchone("SELECT MAX(version) as v FROM schema_migrations")
+        assert row is not None
         assert row["v"] == 5
     finally:
         db.disconnect()
@@ -75,6 +76,7 @@ def test_system_config_table_schema(tmp_path):
         )
         db.connection().commit()
         row = db.fetchone("SELECT key, value, encrypted, updated_at FROM system_config WHERE key = ?", ("test_key",))
+        assert row is not None
         assert row["key"] == "test_key"
         assert row["value"] == "test_value"
         assert row["encrypted"] == 0
