@@ -11,7 +11,7 @@ dependencies = [
 
 [project.optional-dependencies]
 vector = [
-    "zvec>=0.2.1b0",
+    "sqlite-vec>=0.1.6",
 ]
 embeddings = [
     "fastembed>=0.4",
