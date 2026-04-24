@@ -122,7 +122,7 @@ async def test_rollback_discards_vectors(tmp_path):
     db.disconnect()
 
 
-async def test_uow_no_longer_accepts_vector_store(tmp_path):
+async def test_uow_no_longer_accepts_vector_store():
     import inspect
     sig = inspect.signature(UnitOfWork.__init__)
     assert "vector_store" not in sig.parameters

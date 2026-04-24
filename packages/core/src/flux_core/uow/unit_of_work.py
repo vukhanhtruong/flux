@@ -116,6 +116,7 @@ class UnitOfWork:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        del exc_type, exc_val, exc_tb  # required by async-context-manager protocol
         if not self._committed:
             logger.debug("UoW rollback")
             try:
