@@ -48,6 +48,8 @@ class UserLlmConfigRepository:
         )
 
     async def upsert(self, cfg: UserLlmConfig) -> None:
+        # flux_core.sqlite.Database opens with isolation_level=None
+        # (autocommit), so DML statements persist without explicit commit.
         enc = encrypt_api_key(cfg.api_key)
         self._db.execute(
             """
@@ -63,14 +65,12 @@ class UserLlmConfigRepository:
             """,
             (cfg.user_id, cfg.provider, cfg.model, cfg.base_url, enc),
         )
-        self._db.connection().commit()
 
     async def delete(self, user_id: str) -> None:
         self._db.execute(
             "DELETE FROM bot_user_llm_config WHERE user_id = ?",
             (user_id,),
         )
-        self._db.connection().commit()
 
 
 class LlmConfigMissingError(Exception):
