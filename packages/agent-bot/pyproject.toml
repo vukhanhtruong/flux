@@ -19,6 +19,9 @@ dependencies = [
     "cryptography>=43",
 ]
 
+[project.scripts]
+flux = "flux_bot.cli.main:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
