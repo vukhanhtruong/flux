@@ -2,9 +2,6 @@
 
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
-
-_SRC_DIR = Path(__file__).resolve().parent
 
 
 @dataclass
@@ -17,11 +14,6 @@ class TelegramConfig:
 @dataclass
 class RunnerConfig:
     timeout: int = 300
-    max_turns: int = 10
-    model: str | None = None
-    mcp_config_path: str = "/app/mcp-config.json"
-    system_prompt_path: str = str(_SRC_DIR / "system-prompt.txt")
-    kind: str = "deepagent"  # "claude" | "deepagent" — set via FLUX_RUNNER env var
 
 
 @dataclass
@@ -56,14 +48,5 @@ def load_config() -> BotConfig:
 
     # Runner
     config.runner.timeout = int(os.getenv("CLAUDE_TIMEOUT", str(config.runner.timeout)))
-    config.runner.max_turns = int(os.getenv("CLAUDE_MAX_TURNS", str(config.runner.max_turns)))
-    config.runner.model = os.getenv("CLAUDE_MODEL") or config.runner.model
-    config.runner.mcp_config_path = os.getenv(
-        "MCP_CONFIG_PATH", config.runner.mcp_config_path
-    )
-    config.runner.system_prompt_path = os.getenv(
-        "SYSTEM_PROMPT_PATH", config.runner.system_prompt_path
-    )
-    config.runner.kind = os.getenv("FLUX_RUNNER", config.runner.kind)
 
     return config

@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock
 
 from flux_bot.channels.base import Channel
 from flux_bot.orchestrator.heartbeat import typing_heartbeat
-from flux_bot.runner.sdk import ClaudeResult
+from flux_bot.runner.result import AgentResult
+from flux_bot.db.llm_config import UserLlmConfig
 
 
 # ---------------------------------------------------------------------------
@@ -19,9 +20,19 @@ def _make_mock_channel():
     return channel
 
 
-def _make_mock_runner(text="ok", session_id="sess-1", error=None):
+def _make_llm_config():
+    return UserLlmConfig(
+        user_id="tg:user",
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        base_url=None,
+        api_key="sk-test-key",
+    )
+
+
+def _make_mock_runner(text="ok", thread_id="t-1", error=None):
     runner = AsyncMock()
-    runner.run = AsyncMock(return_value=ClaudeResult(text=text, session_id=session_id, error=error))
+    runner.run = AsyncMock(return_value=AgentResult(text=text, thread_id=thread_id, error=error))
     return runner
 
 
@@ -58,7 +69,6 @@ async def test_typing_heartbeat_swallows_errors():
 async def test_typing_heartbeat_cancelled_on_success(monkeypatch):
     """Heartbeat is cancelled after runner.run() completes successfully."""
     from flux_bot.orchestrator import handler as handler_module
-    from flux_bot.runner.sdk import ClaudeResult
 
     heartbeat_started = []
 
@@ -75,16 +85,17 @@ async def test_typing_heartbeat_cancelled_on_success(monkeypatch):
     runner = AsyncMock()
     async def slow_run(**kwargs):
         await asyncio.sleep(0)
-        return ClaudeResult(text="ok", session_id="sess-1", error=None)
+        return AgentResult(text="ok", thread_id=None, error=None)
     runner.run = AsyncMock(side_effect=slow_run)
     msg_repo = AsyncMock()
     msg_repo.mark_processed = AsyncMock()
     msg_repo.mark_failed = AsyncMock()
     session_repo = AsyncMock()
-    session_repo.get_session_id = AsyncMock(return_value=None)
-    session_repo.upsert = AsyncMock()
+    session_repo.get_thread_id = AsyncMock(return_value=None)
     profile_repo = AsyncMock()
     profile_repo.get_by_user_id = AsyncMock(return_value=None)
+    llm_config_repo = AsyncMock()
+    llm_config_repo.get = AsyncMock(return_value=_make_llm_config())
 
     from flux_bot.orchestrator.handler import make_handle_message
     handle_message = make_handle_message(
@@ -93,6 +104,7 @@ async def test_typing_heartbeat_cancelled_on_success(monkeypatch):
         session_repo=session_repo,
         profile_repo=profile_repo,
         channels={"telegram": channel},
+        llm_config_repo=llm_config_repo,
     )
 
     msg = {
@@ -123,14 +135,16 @@ async def test_typing_heartbeat_cancelled_on_error(monkeypatch):
     monkeypatch.setattr(handler_module, "typing_heartbeat", fake_heartbeat)
 
     channel = _make_mock_channel()
-    runner = _make_mock_runner(text=None, session_id=None, error="Timeout")
+    runner = _make_mock_runner(text=None, thread_id=None, error="Timeout")
     msg_repo = AsyncMock()
     msg_repo.mark_failed = AsyncMock()
     msg_repo.mark_processed = AsyncMock()
     session_repo = AsyncMock()
-    session_repo.get_session_id = AsyncMock(return_value=None)
+    session_repo.get_thread_id = AsyncMock(return_value=None)
     profile_repo = AsyncMock()
     profile_repo.get_by_user_id = AsyncMock(return_value=None)
+    llm_config_repo = AsyncMock()
+    llm_config_repo.get = AsyncMock(return_value=_make_llm_config())
 
     from flux_bot.orchestrator.handler import make_handle_message
     handle_message = make_handle_message(
@@ -139,6 +153,7 @@ async def test_typing_heartbeat_cancelled_on_error(monkeypatch):
         session_repo=session_repo,
         profile_repo=profile_repo,
         channels={"telegram": channel},
+        llm_config_repo=llm_config_repo,
     )
 
     msg = {

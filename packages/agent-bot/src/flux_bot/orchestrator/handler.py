@@ -6,11 +6,9 @@ import time
 import structlog
 
 from flux_bot.orchestrator.heartbeat import typing_heartbeat
-from flux_bot.runner.deepagent import DeepAgentRunner
 
 logger = structlog.get_logger(__name__)
 
-_THINKING_SIGNATURE_ERROR = "Invalid `signature` in `thinking` block"
 _DELIVERY_ERROR_MSG = "⚠️ I got a response but couldn't send it due to a network issue. Please try again."
 _USAGE_LIMIT_ERROR_MSG = (
     "⚠️ I hit an AI usage/context limit and could not finish that request. "
@@ -54,12 +52,6 @@ _AUTH_ERROR_ADMIN_MSG = (
 _AUTH_NOTIFY_THROTTLE_SECS = 3600  # 1 hour
 
 
-_SESSION_RETRY_PATTERNS = (
-    _THINKING_SIGNATURE_ERROR.lower(),
-    "command failed with exit code 1",
-)
-
-
 def _matches_any(error: str, patterns: tuple[str, ...]) -> bool:
     """Check if error (case-insensitive) contains any of the given patterns."""
     err = error.lower()
@@ -68,10 +60,6 @@ def _matches_any(error: str, patterns: tuple[str, ...]) -> bool:
 
 def _is_auth_error(error: str) -> bool:
     return _matches_any(error, _AUTH_ERROR_PATTERNS)
-
-
-def _should_retry_without_session(error: str) -> bool:
-    return _matches_any(error, _SESSION_RETRY_PATTERNS)
 
 
 def _should_notify_usage_limit(error: str) -> bool:
@@ -118,91 +106,40 @@ def make_handle_message(
 
         profile = await profile_repo.get_by_user_id(user_id)
 
-        if isinstance(runner, DeepAgentRunner):
-            # ----------------------------------------------------------------
-            # DeepAgentRunner path — uses thread_id + llm_config
-            # ----------------------------------------------------------------
-            if llm_config_repo is None:
-                await msg_repo.mark_failed(msg["id"], "llm_config_repo required for DeepAgentRunner")
-                return
-            llm_cfg = await llm_config_repo.get(user_id)
-            if llm_cfg is None:
-                if channel and platform_id:
-                    await channel.send_message(platform_id, _LLM_NOT_CONFIGURED_MSG)
-                await msg_repo.mark_processed(msg["id"])
-                return
-
-            thread_id = await session_repo.get_thread_id(user_id, channel_name)
-
-            heartbeat_task = None
+        if llm_config_repo is None:
+            await msg_repo.mark_failed(msg["id"], "llm_config_repo required")
+            return
+        llm_cfg = await llm_config_repo.get(user_id)
+        if llm_cfg is None:
             if channel and platform_id:
-                heartbeat_task = asyncio.create_task(
-                    typing_heartbeat(channel, platform_id)
-                )
+                await channel.send_message(platform_id, _LLM_NOT_CONFIGURED_MSG)
+            await msg_repo.mark_processed(msg["id"])
+            return
 
-            try:
-                result = await runner.run(
-                    prompt=msg.get("text") or "Describe this image",
-                    user_id=user_id,
-                    thread_id=thread_id,
-                    image_path=msg.get("image_path"),
-                    profile=profile,
-                    llm_config=llm_cfg,
-                )
-            finally:
-                if heartbeat_task is not None:
-                    heartbeat_task.cancel()
-                    try:
-                        await heartbeat_task
-                    except asyncio.CancelledError:
-                        pass
+        thread_id = await session_repo.get_thread_id(user_id, channel_name)
 
-        else:
-            # ----------------------------------------------------------------
-            # ClaudeRunner path — uses session_id
-            # ----------------------------------------------------------------
-            session_id = await session_repo.get_session_id(user_id)
+        heartbeat_task = None
+        if channel and platform_id:
+            heartbeat_task = asyncio.create_task(
+                typing_heartbeat(channel, platform_id)
+            )
 
-            heartbeat_task = None
-            if channel and platform_id:
-                heartbeat_task = asyncio.create_task(
-                    typing_heartbeat(channel, platform_id)
-                )
-
-            try:
-                result = await runner.run(
-                    prompt=msg.get("text") or "Describe this image",
-                    user_id=user_id,
-                    session_id=session_id,
-                    image_path=msg.get("image_path"),
-                    profile=profile,
-                )
-
-                # Stale/invalid sessions cause CLI exit code 1 or thinking signature
-                # errors. Clear the session and retry fresh.
-                if result.error and session_id and _should_retry_without_session(result.error):
-                    logger.warning(
-                        f"Message {msg['id']}: session error (likely stale), "
-                        "clearing session and retrying"
-                    )
-                    await session_repo.delete(user_id)
-                    result = await runner.run(
-                        prompt=msg.get("text") or "Describe this image",
-                        user_id=user_id,
-                        session_id=None,
-                        image_path=msg.get("image_path"),
-                        profile=profile,
-                    )
-            finally:
-                if heartbeat_task is not None:
-                    heartbeat_task.cancel()
-                    try:
-                        await heartbeat_task
-                    except asyncio.CancelledError:
-                        pass
-
-            if result.session_id:
-                await session_repo.upsert(user_id, result.session_id)
+        try:
+            result = await runner.run(
+                prompt=msg.get("text") or "Describe this image",
+                user_id=user_id,
+                thread_id=thread_id,
+                image_path=msg.get("image_path"),
+                profile=profile,
+                llm_config=llm_cfg,
+            )
+        finally:
+            if heartbeat_task is not None:
+                heartbeat_task.cancel()
+                try:
+                    await heartbeat_task
+                except asyncio.CancelledError:
+                    pass
 
         if result.error is not None:
             await msg_repo.mark_failed(msg["id"], result.error)

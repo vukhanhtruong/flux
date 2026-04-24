@@ -27,7 +27,7 @@ packages/
 ```
 Web UI (React) ──HTTP──▶ Nginx ──proxy──▶ FastAPI ──▶ Use Cases ──▶ UoW ──▶ SQLite + zvec
 Claude Desktop ──MCP───▶ FastMCP Server ──▶ Use Cases ──▶ UoW ──▶ SQLite + zvec
-Telegram ──▶ Agent Bot ──▶ Claude SDK ──▶ MCP Server ──▶ Use Cases ──▶ UoW ──▶ SQLite + zvec
+Telegram ──▶ Agent Bot ──▶ DeepAgentRunner (LangGraph) ──▶ flux tools ──▶ Use Cases ──▶ UoW ──▶ SQLite + zvec
 
 EventBus (in-process pub/sub) connects:
   - MessageCreated → Dispatcher (replaces Poller)
@@ -40,8 +40,8 @@ EventBus (in-process pub/sub) connects:
 1. Telegram receives message → stores in `bot_messages` table
 2. EventBus emits `MessageCreated` → Dispatcher routes to per-user queue
 3. Queue processes one message at a time per user (parallel across users)
-4. `ClaudeRunner` uses `claude-agent-sdk` Python to run Claude with MCP tools (finance tools)
-5. Response sent back to user via Telegram, session saved for conversation continuity
+4. `DeepAgentRunner` uses the LangGraph deepagents SDK to run the agent with direct flux tool access
+5. Response sent back to user via Telegram, thread ID saved for conversation continuity
 
 **Layered architecture in packages/core**:
 
@@ -69,7 +69,7 @@ SQLite Implementation    ZvecStore      Subscribers
 
 - **packages/api-server**: FastAPI routes → instantiate Use Case → call `execute()` → return response
 - **packages/mcp-server**: FastMCP tool registration → instantiate Use Case → call `execute()` → return dict
-- **packages/agent-bot**: Orchestrator — uses `claude-agent-sdk` Python which connects to MCP server for tools
+- **packages/agent-bot**: Orchestrator — uses `DeepAgentRunner` (LangGraph deepagents SDK) with direct flux tool access
 - **packages/web-ui**: React components consuming REST API
 
 ### Core Package Structure
@@ -118,9 +118,8 @@ packages/core/src/flux_core/
 
 ### Deploy
 
-- Single Docker container (Python + Nginx + Node.js for Claude CLI)
+- Single Docker container (Python + Nginx)
 - SQLite (WAL mode) + zvec stored in `/data/` volume
-- Agent Bot requires Node.js + Claude Code CLI (for claude-agent-sdk)
 
 ## Commands
 
@@ -128,7 +127,7 @@ packages/core/src/flux_core/
 
 ```bash
 ./dev.sh                                           # Start all services with hot reload
-TELEGRAM_BOT_TOKEN=... CLAUDE_AUTH_TOKEN=... ./dev.sh  # With agent bot
+TELEGRAM_BOT_TOKEN=... ./dev.sh                    # With agent bot
 ```
 
 ### Core Package
@@ -185,7 +184,7 @@ python -m main               # Run locally (needs DATABASE_PATH, TELEGRAM_BOT_TO
 ```bash
 # Production — single container
 docker run -d -p 80:80 -v flux_data:/data \
-  -e TELEGRAM_BOT_TOKEN=... -e CLAUDE_AUTH_TOKEN=... \
+  -e TELEGRAM_BOT_TOKEN=... \
   yourname/flux-finance
 
 # Development — from source
@@ -312,7 +311,7 @@ All async tests use `pytest-asyncio` with `asyncio_mode = "auto"` — no `@pytes
 - **WAL mode** — concurrent reads, serialized writes, `synchronous=NORMAL` for performance
 - **MCP tools are registered via `register_*_tools()` functions** — each tools file exports a registration function called during server setup
 - **MCP server has no AI provider dependency** — it's purely tools/data; the agent orchestrator owns AI reasoning
-- **Agent Bot uses Claude CLI as subprocess** — spawns `claude -p` with `--mcp-config` for MCP tools, `--resume` for session continuity
+- **Agent Bot uses DeepAgentRunner** — LangGraph-based agent with direct flux tool access; per-user LLM config stored in `bot_llm_configs` table
 
 ## Storage Layout
 

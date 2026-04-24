@@ -3,7 +3,7 @@
 #
 # Multi-stage build:
 #   Stage 1 (node-builder): Build web-ui static files
-#   Stage 2 (runtime):      Python 3.12 + Nginx + Node.js (for Claude CLI)
+#   Stage 2 (runtime):      Python 3.12 + Nginx + ngrok
 # =============================================================================
 
 # --- Stage 1: Build web-ui ---------------------------------------------------
@@ -22,7 +22,7 @@ RUN npm run build
 # --- Stage 2: Runtime ---------------------------------------------------------
 FROM python:3.12-slim
 
-# Install Nginx + Node.js (for Claude CLI used by agent-bot) + ngrok (for web UI tunnel)
+# Install Nginx + ngrok (for web UI tunnel)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         curl \
@@ -32,13 +32,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && curl -fsSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc | gpg --dearmor -o /usr/share/keyrings/ngrok.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/ngrok.gpg] https://ngrok-agent.s3.amazonaws.com buster main" > /etc/apt/sources.list.d/ngrok.list \
     && apt-get update && apt-get install -y --no-install-recommends ngrok \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && npm install -g npm@latest \
-    && npm install -g @anthropic-ai/claude-code@2.1.74 \
-    && NPM_DIR=/usr/lib/node_modules/npm/node_modules \
-    && npm pack minimatch@10.2.3 --pack-destination /tmp && rm -rf $NPM_DIR/minimatch && mkdir -p $NPM_DIR/minimatch && tar xzf /tmp/minimatch-*.tgz -C $NPM_DIR/minimatch --strip-components=1 && rm /tmp/minimatch-*.tgz \
-    && npm pack tar@7.5.10 --pack-destination /tmp && rm -rf $NPM_DIR/tar && mkdir -p $NPM_DIR/tar && tar xzf /tmp/tar-*.tgz -C $NPM_DIR/tar --strip-components=1 && rm /tmp/tar-*.tgz \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -64,7 +57,7 @@ COPY --from=node-builder /build/dist /usr/share/nginx/html
 # Copy nginx config
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 
-# Create non-root user for Claude CLI (refuses --dangerously-skip-permissions as root)
+# Non-root user for data directory ownership
 RUN useradd -r -m -s /bin/bash flux
 
 # Create data directories (owned by flux user)

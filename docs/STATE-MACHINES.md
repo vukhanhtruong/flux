@@ -17,14 +17,13 @@ flowchart LR
     subgraph Processing
         BM -->|"EventBus: MessageCreated"| Dispatcher
         Dispatcher -->|"per-user serial"| Handler
-        Handler -->|"{ prompt, session_id? }"| Claude[ClaudeRunner / SDK]
-        Claude -->|"{ result, session_id }"| Handler
+        Handler -->|"{ prompt, thread_id?, llm_config }"| Claude[DeepAgentRunner]
+        Claude -->|"{ result, thread_id }"| Handler
     end
 
     subgraph Session
-        Handler -->|upsert| SS[(bot_sessions)]
-        SS -->|resume id| Claude
-        Handler -->|"on signature expiry"| SS
+        Handler -->|get_thread_id| SS[(bot_sessions)]
+        SS -->|thread_id| Claude
     end
 
     subgraph Response
@@ -63,7 +62,7 @@ flowchart LR
 | Path                           | Input                                       | Transform                                                       | Output                                                |
 | ------------------------------ | ------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------- |
 | User → bot_messages            | `{ user_id: str, channel: str, text: str }` | INSERT with `status='pending'` + EventBus.emit(MessageCreated)  | `{ id: int, status: 'pending', created_at: str }`     |
-| MessageCreated → Dispatcher    | Event: `{ message_id: int, user_id: str }`  | Route to per-user queue, invoke ClaudeRunner                    | `{ result: str, session_id: str }`                    |
+| MessageCreated → Dispatcher    | Event: `{ message_id: int, user_id: str }`  | Route to per-user queue, invoke DeepAgentRunner                 | `{ result: str, thread_id: str? }`                    |
 | Handler → bot_outbound         | `{ user_id, text, sender }`                 | INSERT with `status='pending'` + EventBus.emit(OutboundCreated) | `{ id, status: 'pending' }`                           |
 | OutboundCreated → Worker       | Event: `{ outbound_id: int, user_id: str }` | Resolve channel handler, send                                   | `{ status: 'sent' }` or `{ status: 'failed', error }` |
 | MCP → Use Case → UoW           | `{ user_id, data, embedding? }`             | SQLite write + zvec write (if embedding) + emit events          | `{ model }`                                           |
@@ -283,10 +282,6 @@ stateDiagram-v2
 
     processing --> processed : Handler success\nmark_processed(id)
     processing --> failed : Handler error\nmark_failed(id, error)
-    processing --> retrying : Signature expiry detected\ndelete session, retry once
-
-    retrying --> processed : Retry succeeds\nmark_processed(id)
-    retrying --> failed : Retry also fails\nmark_failed(id, error)
 
     processed --> [*]
     failed --> [*]
@@ -294,10 +289,10 @@ stateDiagram-v2
     state processing {
         [*] --> queued : UserQueue.enqueue(msg)
         queued --> running : worker dequeues (5s idle timeout)
-        running --> sdk_call : ClaudeRunner.run()
-        sdk_call --> response_received : SDK yields ResultMessage
-        sdk_call --> timed_out : asyncio.timeout(300s)
-        sdk_call --> sdk_error : SDK exception
+        running --> agent_call : DeepAgentRunner.run()
+        agent_call --> response_received : Agent returns AgentResult
+        agent_call --> timed_out : asyncio.timeout(300s)
+        agent_call --> agent_error : Agent exception
     }
 ```
 
@@ -307,22 +302,18 @@ stateDiagram-v2
 | ------------------------ | ------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
 | `[*] → pending`          | Channel handler (Telegram)                 | `{ user_id: str, channel: str, platform_id: str, text: str?, image_path: str? }` | INSERT into `bot_messages` via UoW. EventBus emits `MessageCreated`.                                                                                   | `{ id: int, status: 'pending', created_at: str }`         |
 | `pending → processing`   | Dispatcher receives `MessageCreated` event | `{ message_id: int, user_id: str }`                                              | UPDATE `status='processing'`                                                                                                                           | `{ id, status: 'processing' }`                            |
-| `processing → processed` | Handler completes successfully             | `{ id: int }`                                                                    | UPDATE `status='processed'`, `processed_at`. May INSERT into `bot_outbound_messages` + emit `OutboundCreated`. May upsert `bot_sessions`. All via UoW. | `{ id, status: 'processed', processed_at: str }`          |
-| `processing → retrying`  | Signature expiry or exit code 1            | `{ id: int, error: str }`                                                        | `session_repo.delete(user_id)`. Re-invoke `ClaudeRunner.run(session_id=None)`. **One retry only.**                                                     | (retrying with fresh session)                             |
-| `retrying → processed`   | Retry succeeds                             | `{ id: int }`                                                                    | Same as `processing → processed`.                                                                                                                      | `{ id, status: 'processed' }`                             |
-| `retrying → failed`      | Retry also fails                           | `{ id: int, error: str }`                                                        | UPDATE `status='failed'`, `error`, `processed_at`.                                                                                                     | `{ id, status: 'failed', error: str }`                    |
-| `processing → failed`    | Handler raises or SDK errors               | `{ id: int, error: str }`                                                        | UPDATE `status='failed'`, `error`, `processed_at`. May notify user/admin depending on error class.                                                     | `{ id, status: 'failed', error: str, processed_at: str }` |
+| `processing → processed` | Handler completes successfully             | `{ id: int }`                                                                    | UPDATE `status='processed'`, `processed_at`. May INSERT into `bot_outbound_messages` + emit `OutboundCreated`. All via UoW.                            | `{ id, status: 'processed', processed_at: str }`          |
+| `processing → failed`    | Handler raises or agent errors             | `{ id: int, error: str }`                                                        | UPDATE `status='failed'`, `error`, `processed_at`. May notify user/admin depending on error class.                                                     | `{ id, status: 'failed', error: str, processed_at: str }` |
 
 ### Error Classification
 
-The handler classifies SDK errors and sends targeted notifications:
+The handler classifies agent errors and sends targeted notifications:
 
 | Error Pattern        | Matches                                                                                | User Notification                              | Admin Notification                                            |
 | -------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------- |
 | Usage/context limits | `max_tokens`, `context window`, `token limit`, `rate limit`, `quota`, `credit balance` | "I hit an AI usage/context limit..."           | No                                                            |
 | Authentication       | `authentication_error`, `401`, `invalid token`, `token expired`                        | "I'm temporarily unavailable..."               | Yes (throttled: 1 notification per hour) + refresh-token hint |
 | SDK exit code        | `command failed with exit code 1` + stderr                                             | "I couldn't complete due to upstream error..." | No                                                            |
-| Signature expiry     | `Invalid signature in thinking block`, `exit code 1`                                   | No (automatic retry)                           | No                                                            |
 | Other errors         | (catch-all)                                                                            | No                                             | No                                                            |
 
 ### Dataflow: Processing Phase
@@ -340,22 +331,19 @@ Dispatcher subscribes → routes to UserQueue by user_id
     │  idle (auto-cleanup)     │
     └──────────┬───────────────┘
                ▼
-    ┌─ ClaudeRunner.run() ─────────────────────┐
-    │  system_prompt: str (enriched w/ profile) │
-    │  mcp_config: { --user-id injected }       │
-    │  session_id: str? (from bot_sessions)     │
-    └──────────┬───────────────────────────────┘
+    ┌─ DeepAgentRunner.run() ──────────────────────┐
+    │  prompt: str (with datetime header)          │
+    │  thread_id: str? (from bot_sessions)         │
+    │  llm_config: UserLlmConfig (per-user)        │
+    │  profile: UserProfile? (for context)         │
+    └──────────┬───────────────────────────────────┘
                ▼
-    SDK yields: SystemMessage { data.session_id }
-                ResultMessage { result, session_id, is_error }
+    Agent returns: AgentResult { text, thread_id, error }
                │
                ▼
-    ┌─ Response routing (via UoW) ───────────────┐
-    │  success → insert outbound + mark_processed │
+    ┌─ Response routing ──────────────────────────┐
+    │  success → send message + mark_processed    │
     │  error   → classify + notify + mark_failed  │
-    │  expiry  → delete session + retry once      │
-    │  session → upsert bot_sessions              │
-    │  events  → OutboundCreated emitted          │
     └─────────────────────────────────────────────┘
 ```
 
@@ -586,59 +574,49 @@ Unlike subscription tasks (which use `advance_next_run()`), savings tasks use `s
 
 ---
 
-## 9. Claude Session Management
+## 9. Conversation Thread Management
 
-Conversation session tracking with expiry recovery.
+LangGraph thread IDs for per-user conversation continuity.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> no_session : New user\nno row in bot_sessions
+    [*] --> no_thread : New user\nno thread_id in bot_sessions
 
-    no_session --> active : ClaudeRunner.run() succeeds\nupsert(user_id, session_id)
+    no_thread --> active : DeepAgentRunner.run() returns thread_id\nLangGraph checkpointer creates thread
 
-    active --> active : Subsequent message\nupsert(user_id, new_session_id)
+    active --> active : Subsequent message\nsame thread_id resumed via checkpointer
 
-    active --> expired : "Invalid signature in thinking block"\nor "command failed with exit code 1"
+    active --> cleared : Manual reset / admin action\nsession_repo.clear_thread_id(user_id)
 
-    expired --> no_session : session_repo.delete(user_id)\nretry ONCE with session_id=None
-
-    active --> cleared : Manual reset / admin action\nsession_repo.delete(user_id)
-
-    cleared --> no_session : Next message starts fresh
+    cleared --> no_thread : Next message starts fresh thread
 ```
 
 ### Transition Table
 
-| Transition             | Trigger                                              | Input Schema                        | Side Effects                                                                                                                                           | Output Schema                              |
-| ---------------------- | ---------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `[*] → no_session`     | First message from user                              | `{ user_id: str }`                  | `get_session_id()` returns `None`.                                                                                                                     | `session_id = None`                        |
-| `no_session → active`  | SDK returns `ResultMessage`                          | `{ user_id: str, session_id: str }` | `INSERT OR REPLACE INTO bot_sessions (user_id, session_id, updated_at)`. Via UoW.                                                                      | `{ user_id, session_id, updated_at: str }` |
-| `active → active`      | Each successful SDK call                             | `{ user_id: str, session_id: str }` | `INSERT OR REPLACE` with new `session_id`. `updated_at` refreshed.                                                                                     | `{ session_id: str, updated_at: str }`     |
-| `active → expired`     | SDK error matching `_should_retry_without_session()` | `{ user_id: str, error: str }`      | Matches: "Invalid signature in thinking block" OR "command failed with exit code 1".                                                                   | (error state, about to recover)            |
-| `expired → no_session` | Automatic recovery (**one-time retry only**)         | `{ user_id: str }`                  | `DELETE FROM bot_sessions WHERE user_id = ?`. Retry message with `session_id=None`. If retry also fails, message marked `failed` (no further retries). | (row removed, fresh start)                 |
-| `active → cleared`     | Manual/admin deletion                                | `{ user_id: str }`                  | `DELETE FROM bot_sessions WHERE user_id = ?`.                                                                                                          | (row removed)                              |
+| Transition            | Trigger                         | Input Schema                       | Side Effects                                                                           | Output Schema                             |
+| --------------------- | ------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `[*] → no_thread`     | First message from user         | `{ user_id: str }`                 | `get_thread_id()` returns `None`. DeepAgentRunner generates new thread_id.             | `thread_id = None`                        |
+| `no_thread → active`  | Agent run completes             | `{ user_id: str, thread_id: str }` | LangGraph SQLite checkpointer stores conversation state under thread_id.               | `{ user_id, thread_id, updated_at: str }` |
+| `active → active`     | Each subsequent message         | `{ user_id: str, thread_id: str }` | LangGraph resumes existing thread; checkpointer appends new messages.                  | `{ thread_id: str }`                      |
+| `active → cleared`    | Manual/admin deletion           | `{ user_id: str }`                 | `DELETE FROM bot_sessions WHERE user_id = ?`. Next run generates a fresh thread_id.   | (row removed)                             |
 
-### Dataflow: Session Resolution
+### Dataflow: Thread Resolution
 
 ```
 Incoming message for user_id = "tg:12345"
         │
         ▼
-session_repo.get_session_id("tg:12345")
+session_repo.get_thread_id("tg:12345", channel)
         │
-        ├── None → ClaudeRunner.run(session_id=None)
-        │          └── SDK starts fresh conversation
+        ├── None → DeepAgentRunner.run(thread_id=None)
+        │          └── Agent generates new thread_id; checkpointer creates thread
         │
-        └── "sess_abc123" → ClaudeRunner.run(session_id="sess_abc123")
-                            └── SDK resumes conversation
-        │
-        ▼
-SDK yields SystemMessage { data.session_id: "sess_def456" }
-SDK yields ResultMessage { session_id: "sess_def456", result: "..." }
+        └── "thr_abc123" → DeepAgentRunner.run(thread_id="thr_abc123")
+                            └── LangGraph checkpointer resumes conversation
         │
         ▼
-session_repo.upsert("tg:12345", "sess_def456") via UoW
-        └── Next message will resume from "sess_def456"
+AgentResult { text: "...", thread_id: "thr_abc123" }
+        └── Checkpointer already persisted state; thread_id available for next call
 ```
 
 ---
