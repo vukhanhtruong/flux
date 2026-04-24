@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 console = Console()
 err_console = Console(stderr=True)
 
+_THREAD_KEY = f"thread:{CLI_USER_ID}:{CLI_CHANNEL}"
+
 
 async def chat(
     prompt: str,
@@ -71,7 +73,7 @@ async def chat(
 
     # 3. Optionally reset the thread.
     if reset:
-        await session_repo.delete(f"thread:{CLI_USER_ID}:{CLI_CHANNEL}")
+        await session_repo.delete(_THREAD_KEY)
 
     # 4. Fetch (or create) stable thread_id.
     thread_id = await session_repo.get_thread_id(CLI_USER_ID, CLI_CHANNEL)
@@ -102,17 +104,27 @@ async def chat_repl(
     session_repo: "SessionRepository",
     profile_repo: "ProfileRepository",
     runner,
+    reset: bool = False,
 ) -> int:
     """Interactive REPL: read lines from stdin and call chat() for each.
 
     Prints a ``> `` prompt to stderr (so pipeline output stays clean).
     Exits cleanly on EOF (Ctrl+D) or when an empty line is entered.
 
+    Parameters
+    ----------
+    reset:
+        If True, delete the existing thread before entering the loop so a
+        fresh conversation is started.
+
     Returns
     -------
     int
         0 when the loop exits normally; 1 if any turn returned an error.
     """
+    if reset:
+        await session_repo.delete(_THREAD_KEY)
+
     last_rc = 0
     while True:
         # Print prompt to stderr so it doesn't pollute pipeline output.

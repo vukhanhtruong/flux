@@ -194,3 +194,29 @@ async def test_chat_reset_deletes_session(capsys):
     # delete called with the namespaced key
     session_repo.delete.assert_awaited_once_with(f"thread:{CLI_USER_ID}:{CLI_CHANNEL}")
     runner.run.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# 6. REPL reset=True: session_repo.delete called with the correct key
+# ---------------------------------------------------------------------------
+
+async def test_chat_repl_reset_deletes_session(monkeypatch, capsys):
+    """chat_repl with reset=True calls session_repo.delete with the thread key."""
+    from flux_bot.cli.chat import chat_repl
+
+    llm_config_repo, session_repo, profile_repo = _make_repos()
+    runner = _make_runner()
+
+    # Simulate immediate EOF so the REPL exits after the reset.
+    monkeypatch.setattr(sys, "stdin", StringIO(""))
+
+    rc = await chat_repl(
+        llm_config_repo=llm_config_repo,
+        session_repo=session_repo,
+        profile_repo=profile_repo,
+        runner=runner,
+        reset=True,
+    )
+
+    assert rc == 0
+    session_repo.delete.assert_awaited_once_with(f"thread:{CLI_USER_ID}:{CLI_CHANNEL}")

@@ -121,16 +121,13 @@ def _cmd_chat(args: argparse.Namespace) -> int:
             return 0
         else:
             # Interactive REPL
-            if reset:
-                from flux_bot.cli.wizard import CLI_CHANNEL as _CH, CLI_USER_ID as _UID
-
-                asyncio.run(session_repo.delete(f"thread:{_UID}:{_CH}"))
             return asyncio.run(
                 chat_repl(
                     llm_config_repo=llm_config_repo,
                     session_repo=session_repo,
                     profile_repo=profile_repo,
                     runner=runner,
+                    reset=reset,
                 )
             )
     except CliError as exc:
