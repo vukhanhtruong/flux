@@ -19,6 +19,8 @@ EXPECTED_TABLES = {
     "bot_user_llm_config",
     "system_config",
     "schema_migrations",
+    "vec_transaction_embeddings",
+    "vec_memory_embeddings",
 }
 
 
@@ -31,7 +33,10 @@ def test_migrate_creates_all_tables(tmp_path):
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
         )
         table_names = {row["name"] for row in rows}
-        assert table_names == EXPECTED_TABLES
+        # vec0 virtual tables create shadow tables (suffixes like _chunks, _rowids,
+        # _info, _auxiliary, _vector_chunks00). Assert subset so the test tracks
+        # user-visible tables only.
+        assert EXPECTED_TABLES.issubset(table_names)
     finally:
         db.disconnect()
 
@@ -44,7 +49,7 @@ def test_migrate_is_idempotent(tmp_path):
         migrate(db)
         row = db.fetchone("SELECT MAX(version) as v FROM schema_migrations")
         assert row is not None
-        assert row["v"] == 5
+        assert row["v"] == 6
     finally:
         db.disconnect()
 

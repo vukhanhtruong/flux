@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from flux_core.sqlite import Database
+from flux_core.sqlite.migrations.migrate import migrate
 
 
 def test_connect_sets_wal_mode(tmp_path):
@@ -89,5 +90,23 @@ def test_connect_loads_sqlite_vec(tmp_path):
         row = db.fetchone("SELECT vec_version() AS v")
         assert row is not None
         assert row["v"].startswith("v")
+    finally:
+        db.disconnect()
+
+
+def test_migration_creates_vec0_tables(tmp_path):
+    db = Database(str(tmp_path / "flux.db"))
+    db.connect()
+    try:
+        migrate(db)
+
+        tables = {
+            r["name"]
+            for r in db.fetchall(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        assert "vec_transaction_embeddings" in tables
+        assert "vec_memory_embeddings" in tables
     finally:
         db.disconnect()
