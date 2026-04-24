@@ -16,6 +16,7 @@ EXPECTED_TABLES = {
     "bot_sessions",
     "bot_scheduled_tasks",
     "bot_outbound_messages",
+    "bot_user_llm_config",
     "system_config",
     "schema_migrations",
 }
@@ -42,7 +43,7 @@ def test_migrate_is_idempotent(tmp_path):
         migrate(db)
         migrate(db)
         row = db.fetchone("SELECT MAX(version) as v FROM schema_migrations")
-        assert row["v"] == 4
+        assert row["v"] == 5
     finally:
         db.disconnect()
 
