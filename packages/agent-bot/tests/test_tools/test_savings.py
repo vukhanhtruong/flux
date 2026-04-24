@@ -93,11 +93,9 @@ async def test_withdraw_nonexistent_savings_raises(core_db, user_id):
     tools = build_savings_tools(user_id=user_id, db=core_db)
     withdraw = _tool(tools, "withdraw_savings")
 
-    try:
+    import pytest
+    with pytest.raises(Exception):
         await withdraw.ainvoke({"asset_id": "00000000-0000-0000-0000-000000000000"})
-        # If it doesn't raise, the Use Case returned an error dict — either is ok
-    except Exception:
-        pass  # ValueError from Use Case is also acceptable
 
 
 # ── surface sanity ───────────────────────────────────────────────────────
@@ -123,14 +121,10 @@ async def test_withdraw_isolates_by_user(core_db, seed_user):
     tools_b = build_savings_tools(user_id=user_b, db=core_db)
     withdraw = _tool(tools_b, "withdraw_savings")
 
-    try:
-        result = await withdraw.ainvoke({"asset_id": str(asset_a.id)})
-        # Acceptable: the Use Case returns an error dict rather than raising
-        assert result.get("error") or result.get("status") == "error", (
-            "Expected an error when user B withdraws user A's savings"
-        )
-    except Exception:
-        pass  # ValueError or similar from Use Case — isolation enforced
+    import pytest
+    with pytest.raises(Exception):
+        # WithdrawSavings raises ValueError when asset_repo.get(asset_id, user_b) → None
+        await withdraw.ainvoke({"asset_id": str(asset_a.id)})
 
 
 # ── surface sanity ───────────────────────────────────────────────────────

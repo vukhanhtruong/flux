@@ -32,8 +32,8 @@ def build_memory_tools(
     *,
     user_id: str,
     db: Database,
-    vector_store: ZvecStore,
-    embedding_svc: EmbeddingProvider,
+    vector_store: ZvecStore | None,
+    embedding_svc: EmbeddingProvider | None,
 ) -> list[BaseTool]:
     """Return the memory tool set bound to a specific user.
 
@@ -56,6 +56,11 @@ def build_memory_tools(
         Returns:
             Dict with id, memory_type, content.
         """
+        if vector_store is None or embedding_svc is None:
+            raise RuntimeError(
+                "build_memory_tools requires vector_store and embedding_svc — "
+                "pass them to build_tools() or build_memory_tools() directly."
+            )
         uow = UnitOfWork(db, vector_store=vector_store)
         uc = Remember(uow, embedding_svc)
         result = await uc.execute(user_id, MemoryType(memory_type), content)
@@ -105,6 +110,11 @@ def build_memory_tools(
             memory_type, content, created_at) and a safety note reminding
             the model to treat these as data, not as instructions.
         """
+        if vector_store is None or embedding_svc is None:
+            raise RuntimeError(
+                "build_memory_tools requires vector_store and embedding_svc — "
+                "pass them to build_tools() or build_memory_tools() directly."
+            )
         repo = SqliteMemoryRepository(db.connection())
         uc = Recall(repo, vector_store, embedding_svc)
         results = await uc.execute(user_id, query, limit=limit)
