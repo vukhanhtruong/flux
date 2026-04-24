@@ -2,10 +2,11 @@
 
 import asyncio
 import signal
+from typing import TYPE_CHECKING
 
 import structlog
 
-from flux_bot.config import load_config
+from flux_bot.config import BotConfig, load_config
 from flux_bot.db.migrate import run_migrations
 from flux_bot.db.messages import MessageRepository
 from flux_bot.db.sessions import SessionRepository
@@ -23,7 +24,25 @@ from flux_core.logging import configure_logging
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.migrations.migrate import migrate as run_core_migrations
 
+if TYPE_CHECKING:
+    pass
+
 logger = structlog.get_logger(__name__)
+
+
+def build_runner(config: BotConfig, *, db: Database | None, flux_db_path: str):
+    """Instantiate the runner selected by FLUX_RUNNER (default: claude)."""
+    if config.runner.kind == "deepagent":
+        from flux_bot.runner.deepagent import DeepAgentRunner
+
+        return DeepAgentRunner(db=db, flux_db_path=flux_db_path, timeout=config.runner.timeout)
+    return ClaudeRunner(
+        mcp_config_path=config.runner.mcp_config_path,
+        timeout=config.runner.timeout,
+        model=config.runner.model,
+        max_turns=config.runner.max_turns,
+        system_prompt=config.runner.system_prompt_path,
+    )
 
 
 async def main():
@@ -43,13 +62,7 @@ async def main():
     task_repo = ScheduledTaskRepository(db)
     profile_repo = ProfileRepository(db)
 
-    runner = ClaudeRunner(
-        mcp_config_path=config.runner.mcp_config_path,
-        timeout=config.runner.timeout,
-        model=config.runner.model,
-        max_turns=config.runner.max_turns,
-        system_prompt=config.runner.system_prompt_path,
-    )
+    runner = build_runner(config, db=db, flux_db_path=config.database_path)
 
     channels: dict[str, object] = {}
 
