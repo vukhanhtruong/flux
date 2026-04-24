@@ -123,6 +123,33 @@ async def test_get_trends_returns_comparison_dict(core_db, user_id):
     assert "expense_change_pct" in result
 
 
+# ── cross-user isolation ─────────────────────────────────────────────────
+
+
+async def test_spending_summary_isolates_by_user(core_db, seed_user, vector_store, embedding_svc):
+    """User B's summary returns zero even when user A has transactions."""
+    user_a = seed_user("tg:alice")
+    user_b = seed_user("tg:bob")
+
+    uow_a = UnitOfWork(core_db, vector_store=vector_store)
+    await AddTransaction(uow_a, embedding_svc).execute(
+        user_id=user_a,
+        date=date(2026, 4, 10),
+        amount=Decimal("200.00"),
+        category="food",
+        description="Alice groceries",
+        transaction_type=TransactionType.expense,
+    )
+
+    tools_b = build_analytics_tools(user_id=user_b, db=core_db)
+    summary = _tool(tools_b, "get_spending_summary")
+    result = await summary.ainvoke({"start_date": "2026-04-01", "end_date": "2026-04-30"})
+
+    assert Decimal(result["total_expenses"]) == Decimal("0"), (
+        "User B should see zero expenses, not user A's data"
+    )
+
+
 # ── surface sanity ───────────────────────────────────────────────────────
 
 

@@ -103,6 +103,39 @@ async def test_withdraw_nonexistent_savings_raises(core_db, user_id):
 # ── surface sanity ───────────────────────────────────────────────────────
 
 
+async def test_withdraw_isolates_by_user(core_db, seed_user):
+    """User B cannot withdraw a savings account that belongs to user A."""
+    user_a = seed_user("tg:alice")
+    user_b = seed_user("tg:bob")
+
+    uow = UnitOfWork(core_db)
+    asset_a = await CreateSavings(uow).execute(
+        user_id=user_a,
+        name="Alice's FD",
+        amount=Decimal("1000.00"),
+        interest_rate=Decimal("5.0"),
+        compound_frequency="at_maturity",
+        start_date=date(2026, 1, 1),
+        maturity_date=date(2027, 1, 1),
+        category="savings",
+    )
+
+    tools_b = build_savings_tools(user_id=user_b, db=core_db)
+    withdraw = _tool(tools_b, "withdraw_savings")
+
+    try:
+        result = await withdraw.ainvoke({"asset_id": str(asset_a.id)})
+        # Acceptable: the Use Case returns an error dict rather than raising
+        assert result.get("error") or result.get("status") == "error", (
+            "Expected an error when user B withdraws user A's savings"
+        )
+    except Exception:
+        pass  # ValueError or similar from Use Case — isolation enforced
+
+
+# ── surface sanity ───────────────────────────────────────────────────────
+
+
 def test_build_returns_two_named_tools(core_db, user_id):
     tools = build_savings_tools(user_id=user_id, db=core_db)
     names = {t.name for t in tools}

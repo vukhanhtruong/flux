@@ -149,6 +149,32 @@ async def test_cancel_nonexistent_task_returns_error(core_db, user_id):
     assert result["status"] == "error"
 
 
+# ── cross-user isolation ─────────────────────────────────────────────────
+
+
+async def test_list_tasks_isolates_by_user(core_db, seed_user):
+    """User B's task list is empty even when user A has scheduled tasks."""
+    user_a = seed_user("tg:alice")
+    user_b = seed_user("tg:bob")
+
+    tools_a = build_bot_tools(user_id=user_a, db=core_db)
+    await _tool(tools_a, "schedule_task").ainvoke(
+        {
+            "prompt": "Alice daily summary",
+            "schedule_type": "cron",
+            "schedule_value": "0 8 * * *",
+        }
+    )
+
+    tools_b = build_bot_tools(user_id=user_b, db=core_db)
+    result = await _tool(tools_b, "list_tasks").ainvoke({})
+
+    task_prompts = [t["prompt"] for t in result["tasks"]]
+    assert "Alice daily summary" not in task_prompts, (
+        "User B should not see user A's scheduled tasks"
+    )
+
+
 # ── surface sanity ───────────────────────────────────────────────────────
 
 
