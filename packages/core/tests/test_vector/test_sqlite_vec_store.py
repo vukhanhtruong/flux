@@ -48,3 +48,22 @@ def test_delete(store):
 
     results = store.search("transaction_embeddings", _vec(1.0), limit=5)
     assert "doc1" not in results
+
+
+def test_search_filters_by_user_id(store):
+    store.upsert("transaction_embeddings", "a", _vec(1.0), {"user_id": "tg:1"})
+    store.upsert("transaction_embeddings", "b", _vec(1.0), {"user_id": "tg:2"})
+
+    results = store.search(
+        "transaction_embeddings",
+        _vec(1.0),
+        limit=10,
+        filter={"user_id": "tg:1"},
+    )
+    assert results == ["a"]
+
+
+def test_search_empty_collection_returns_empty_list(store):
+    # Searching before any inserts — vec0 table exists but is empty
+    results = store.search("transaction_embeddings", _vec(1.0), limit=5)
+    assert results == []
