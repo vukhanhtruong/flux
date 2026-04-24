@@ -81,7 +81,7 @@ def _cmd_onboard(args: argparse.Namespace) -> int:
 
 def _cmd_chat(args: argparse.Namespace) -> int:
     """Handle: flux chat [prompt] [--reset] [--user user_id]"""
-    from flux_bot.main import build_runner
+    from flux_bot.runner.deepagent import DeepAgentRunner
 
     config = load_config()
     db = _setup_db(config.database_path)
@@ -89,7 +89,7 @@ def _cmd_chat(args: argparse.Namespace) -> int:
         llm_config_repo = UserLlmConfigRepository(db)
         session_repo = SessionRepository(db)
         profile_repo = ProfileRepository(db)
-        runner = build_runner(config, db=db, flux_db_path=config.database_path)
+        runner = DeepAgentRunner(db=db, flux_db_path=config.database_path, timeout=config.runner.timeout)
 
         prompt: str | None = getattr(args, "prompt", None)
         reset: bool = getattr(args, "reset", False)
