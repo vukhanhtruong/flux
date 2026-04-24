@@ -13,6 +13,7 @@ from flux_bot.db.sessions import SessionRepository
 from flux_bot.db.profile import ProfileRepository
 from flux_bot.channels.telegram import TelegramChannel
 from flux_bot.orchestrator.handler import make_handle_message
+from flux_bot.db.llm_config import UserLlmConfigRepository
 from flux_bot.db.outbound import OutboundRepository
 from flux_bot.orchestrator.outbound import OutboundWorker
 from flux_bot.db.scheduled_tasks import ScheduledTaskRepository
@@ -63,6 +64,7 @@ async def main():
     session_repo = SessionRepository(db)
     task_repo = ScheduledTaskRepository(db)
     profile_repo = ProfileRepository(db)
+    llm_config_repo = UserLlmConfigRepository(db)
 
     runner = build_runner(config, db=db, flux_db_path=config.database_path)
 
@@ -94,6 +96,7 @@ async def main():
         profile_repo=profile_repo,
         channels=channels,
         admin_chat_id=admin_chat_id,
+        llm_config_repo=llm_config_repo,
     )
 
     queue = UserQueue(handler=handle_message)

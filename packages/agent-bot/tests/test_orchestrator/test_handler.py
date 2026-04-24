@@ -1,9 +1,11 @@
 """Tests for make_handle_message, focusing on the thinking-signature retry logic."""
 
-from unittest.mock import AsyncMock, call
+from unittest.mock import AsyncMock, MagicMock, call
 
 
 from flux_bot.orchestrator.handler import make_handle_message
+from flux_bot.runner.deepagent import DeepAgentRunner
+from flux_bot.runner.result import AgentResult
 from flux_bot.runner.sdk import ClaudeResult
 
 _THINKING_ERR = 'API Error: 400 {"error":{"message":"messages.19.content.0: Invalid `signature` in `thinking` block"}}'
@@ -316,3 +318,100 @@ async def test_auth_error_without_platform_id():
     await handler(msg_no_platform)
 
     deps["msg_repo"].mark_failed.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# DeepAgentRunner branching tests
+# ---------------------------------------------------------------------------
+
+def _make_deepagent_runner():
+    """Return a MagicMock that isinstance-checks as DeepAgentRunner."""
+    runner = MagicMock(spec=DeepAgentRunner)
+    runner.run = AsyncMock()
+    return runner
+
+
+def _make_llm_config():
+    from flux_bot.db.llm_config import UserLlmConfig
+    return UserLlmConfig(
+        user_id="tg:123",
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        base_url=None,
+        api_key="sk-test-key",
+    )
+
+
+async def test_handler_uses_thread_id_for_deepagent():
+    """DeepAgentRunner path: run() called with thread_id and llm_config kwargs."""
+    runner = _make_deepagent_runner()
+    llm_cfg = _make_llm_config()
+    runner.run.return_value = AgentResult(text="deep reply", thread_id="t-abc")
+
+    llm_config_repo = AsyncMock()
+    llm_config_repo.get = AsyncMock(return_value=llm_cfg)
+
+    channel = AsyncMock()
+
+    deps = _make_deps(runner=runner, channels={"telegram": channel})
+    deps["session_repo"].get_thread_id = AsyncMock(return_value="t-abc")
+
+    handler = make_handle_message(**deps, llm_config_repo=llm_config_repo)
+    await handler(_MSG)
+
+    runner.run.assert_awaited_once_with(
+        prompt="hello",
+        user_id="tg:123",
+        thread_id="t-abc",
+        image_path=None,
+        profile=None,
+        llm_config=llm_cfg,
+    )
+    channel.send_message.assert_awaited_once_with("42", "deep reply")
+    deps["msg_repo"].mark_processed.assert_awaited_once_with(70)
+    # session_repo.upsert must NOT be called for DeepAgentRunner
+    deps["session_repo"].upsert.assert_not_awaited()
+
+
+async def test_handler_still_works_for_claude_runner():
+    """ClaudeRunner path: run() called with session_id; session saved if present."""
+    deps = _make_deps()
+    deps["runner"].run.return_value = ClaudeResult(
+        text="claude reply", session_id="new-sess"
+    )
+
+    channel = AsyncMock()
+    deps["channels"] = {"telegram": channel}
+
+    handler = make_handle_message(**deps, llm_config_repo=None)
+    await handler(_MSG)
+
+    call_kwargs = deps["runner"].run.call_args
+    assert "session_id" in call_kwargs.kwargs
+    assert "thread_id" not in call_kwargs.kwargs
+
+    deps["session_repo"].upsert.assert_awaited_once_with("tg:123", "new-sess")
+    channel.send_message.assert_awaited_once_with("42", "claude reply")
+    deps["msg_repo"].mark_processed.assert_awaited_once_with(70)
+
+
+async def test_handler_replies_with_setup_prompt_when_llm_config_missing():
+    """DeepAgentRunner + no llm_config → setup message sent, mark_processed called, not mark_failed."""
+    runner = _make_deepagent_runner()
+
+    llm_config_repo = AsyncMock()
+    llm_config_repo.get = AsyncMock(return_value=None)
+
+    channel = AsyncMock()
+
+    deps = _make_deps(runner=runner, channels={"telegram": channel})
+
+    handler = make_handle_message(**deps, llm_config_repo=llm_config_repo)
+    await handler(_MSG)
+
+    runner.run.assert_not_awaited()
+    channel.send_message.assert_awaited_once()
+    sent_text = channel.send_message.call_args.args[1]
+    assert "llm" in sent_text.lower() or "settings" in sent_text.lower()
+    deps["msg_repo"].mark_processed.assert_awaited_once_with(70)
+    deps["msg_repo"].mark_failed.assert_not_awaited()

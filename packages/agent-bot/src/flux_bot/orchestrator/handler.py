@@ -6,6 +6,7 @@ import time
 import structlog
 
 from flux_bot.orchestrator.heartbeat import typing_heartbeat
+from flux_bot.runner.deepagent import DeepAgentRunner
 
 logger = structlog.get_logger(__name__)
 
@@ -96,8 +97,14 @@ async def _safe_send(channel, target: str, text: str, context: str) -> None:
         logger.error(f"{context}: {e}")
 
 
+_LLM_NOT_CONFIGURED_MSG = (
+    "You haven't set up an LLM yet. Run /settings llm to configure one."
+)
+
+
 def make_handle_message(
-    *, runner, msg_repo, session_repo, profile_repo, channels, admin_chat_id=None
+    *, runner, msg_repo, session_repo, profile_repo, channels, admin_chat_id=None,
+    llm_config_repo=None,
 ):
     """Return a handle_message coroutine bound to the given dependencies."""
 
@@ -109,48 +116,90 @@ def make_handle_message(
         channel_name = msg["channel"]
         channel = channels.get(channel_name)
 
-        profile, session_id = await asyncio.gather(
-            profile_repo.get_by_user_id(user_id),
-            session_repo.get_session_id(user_id),
-        )
+        profile = await profile_repo.get_by_user_id(user_id)
 
-        heartbeat_task = None
-        if channel and platform_id:
-            heartbeat_task = asyncio.create_task(
-                typing_heartbeat(channel, platform_id)
-            )
+        if isinstance(runner, DeepAgentRunner):
+            # ----------------------------------------------------------------
+            # DeepAgentRunner path — uses thread_id + llm_config
+            # ----------------------------------------------------------------
+            llm_cfg = await llm_config_repo.get(user_id)
+            if llm_cfg is None:
+                if channel and platform_id:
+                    await channel.send_message(platform_id, _LLM_NOT_CONFIGURED_MSG)
+                await msg_repo.mark_processed(msg["id"])
+                return
 
-        try:
-            result = await runner.run(
-                prompt=msg.get("text") or "Describe this image",
-                user_id=user_id,
-                session_id=session_id,
-                image_path=msg.get("image_path"),
-                profile=profile,
-            )
+            thread_id = await session_repo.get_thread_id(user_id, channel_name)
 
-            # Stale/invalid sessions cause CLI exit code 1 or thinking signature
-            # errors. Clear the session and retry fresh.
-            if result.error and session_id and _should_retry_without_session(result.error):
-                logger.warning(
-                    f"Message {msg['id']}: session error (likely stale), "
-                    "clearing session and retrying"
+            heartbeat_task = None
+            if channel and platform_id:
+                heartbeat_task = asyncio.create_task(
+                    typing_heartbeat(channel, platform_id)
                 )
-                await session_repo.delete(user_id)
+
+            try:
                 result = await runner.run(
                     prompt=msg.get("text") or "Describe this image",
                     user_id=user_id,
-                    session_id=None,
+                    thread_id=thread_id,
+                    image_path=msg.get("image_path"),
+                    profile=profile,
+                    llm_config=llm_cfg,
+                )
+            finally:
+                if heartbeat_task is not None:
+                    heartbeat_task.cancel()
+                    try:
+                        await heartbeat_task
+                    except asyncio.CancelledError:
+                        pass
+
+        else:
+            # ----------------------------------------------------------------
+            # ClaudeRunner path — uses session_id
+            # ----------------------------------------------------------------
+            session_id = await session_repo.get_session_id(user_id)
+
+            heartbeat_task = None
+            if channel and platform_id:
+                heartbeat_task = asyncio.create_task(
+                    typing_heartbeat(channel, platform_id)
+                )
+
+            try:
+                result = await runner.run(
+                    prompt=msg.get("text") or "Describe this image",
+                    user_id=user_id,
+                    session_id=session_id,
                     image_path=msg.get("image_path"),
                     profile=profile,
                 )
-        finally:
-            if heartbeat_task is not None:
-                heartbeat_task.cancel()
-                try:
-                    await heartbeat_task
-                except asyncio.CancelledError:
-                    pass
+
+                # Stale/invalid sessions cause CLI exit code 1 or thinking signature
+                # errors. Clear the session and retry fresh.
+                if result.error and session_id and _should_retry_without_session(result.error):
+                    logger.warning(
+                        f"Message {msg['id']}: session error (likely stale), "
+                        "clearing session and retrying"
+                    )
+                    await session_repo.delete(user_id)
+                    result = await runner.run(
+                        prompt=msg.get("text") or "Describe this image",
+                        user_id=user_id,
+                        session_id=None,
+                        image_path=msg.get("image_path"),
+                        profile=profile,
+                    )
+            finally:
+                if heartbeat_task is not None:
+                    heartbeat_task.cancel()
+                    try:
+                        await heartbeat_task
+                    except asyncio.CancelledError:
+                        pass
+
+            if result.session_id:
+                await session_repo.upsert(user_id, result.session_id)
 
         if result.error is not None:
             await msg_repo.mark_failed(msg["id"], result.error)
@@ -181,9 +230,6 @@ def make_handle_message(
                         f"Could not deliver error notification to {user_id}",
                     )
             return
-
-        if result.session_id:
-            await session_repo.upsert(user_id, result.session_id)
 
         if channel and result.text and platform_id:
             try:
