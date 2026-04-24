@@ -6,13 +6,11 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.0",
     "croniter>=3.0",
+    "sqlite-vec>=0.1.6",
     "structlog>=24.0",
 ]
 
 [project.optional-dependencies]
-vector = [
-    "sqlite-vec>=0.1.6",
-]
 embeddings = [
     "fastembed>=0.4",
 ]

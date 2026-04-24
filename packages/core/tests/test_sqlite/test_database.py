@@ -85,7 +85,9 @@ def test_transaction_rollback(tmp_path):
 def test_connect_loads_sqlite_vec(tmp_path):
     db = Database(str(tmp_path / "flux.db"))
     db.connect()
-    row = db.fetchone("SELECT vec_version() AS v")
-    assert row is not None
-    assert row["v"].startswith("v")
-    db.disconnect()
+    try:
+        row = db.fetchone("SELECT vec_version() AS v")
+        assert row is not None
+        assert row["v"].startswith("v")
+    finally:
+        db.disconnect()
