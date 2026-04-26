@@ -29,7 +29,7 @@ from flux_core.use_cases.transactions.search_transactions import SearchTransacti
 if TYPE_CHECKING:
     from flux_core.embeddings.service import EmbeddingProvider
     from flux_core.sqlite.database import Database
-    from flux_core.vector.store import ZvecStore
+    from flux_core.vector.store import SqliteVecStore
 
 
 # Lazy process-level singletons. Instantiating EmbeddingService downloads
@@ -51,7 +51,7 @@ def build_transaction_tools(
     *,
     user_id: str,
     db: Database,
-    vector_store: ZvecStore,
+    vector_store: SqliteVecStore,
     embedding_svc: EmbeddingProvider | None = None,
 ) -> list[BaseTool]:
     """Return the transaction tool set bound to a specific user.

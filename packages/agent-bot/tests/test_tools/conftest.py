@@ -81,7 +81,7 @@ class _FakeEmbeddingService:
 
     Avoids the ~100MB fastembed model download. Produces distinguishable
     vectors for different texts by hashing the input into the first few
-    dimensions — enough for zvec to order results consistently in tests.
+    dimensions — enough for sqlite-vec to order results consistently in tests.
     """
 
     def embed(self, text: str) -> list[float]:

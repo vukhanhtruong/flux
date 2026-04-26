@@ -25,14 +25,14 @@ from flux_core.use_cases.memory.remember import Remember
 if TYPE_CHECKING:
     from flux_core.embeddings.service import EmbeddingProvider
     from flux_core.sqlite.database import Database
-    from flux_core.vector.store import ZvecStore
+    from flux_core.vector.store import SqliteVecStore
 
 
 def build_memory_tools(
     *,
     user_id: str,
     db: Database,
-    vector_store: ZvecStore | None,
+    vector_store: SqliteVecStore | None,
     embedding_svc: EmbeddingProvider | None,
 ) -> list[BaseTool]:
     """Return the memory tool set bound to a specific user.
