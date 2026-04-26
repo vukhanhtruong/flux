@@ -28,9 +28,10 @@ def test_get_db_lazy_init(tmp_path):
 
 
 def test_get_vector_store_lazy_init(tmp_path):
-    """Test get_vector_store() creates ZvecStore on first call."""
-    zvec_path = str(tmp_path / "zvec")
-    with patch.dict("os.environ", {"ZVEC_PATH": zvec_path}):
+    """Test get_vector_store() creates SqliteVecStore on first call."""
+    db_path = str(tmp_path / "test.db")
+    # SqliteVecStore now uses the same DB as relational data
+    with patch.dict("os.environ", {"DATABASE_PATH": db_path}):
         store = deps.get_vector_store()
 
     assert store is not None
@@ -161,15 +162,13 @@ def test_get_system_config_repo_returns_repo_when_configured():
 
 
 def test_get_uow_creates_unit_of_work():
-    """Test get_uow() creates a UnitOfWork with db, vector_store, and event_bus."""
+    """Test get_uow() creates a UnitOfWork with db and event_bus."""
     mock_db = MagicMock()
-    mock_vs = MagicMock()
     mock_bus = MagicMock()
     infra._db = mock_db
-    infra._vector_store = mock_vs
     infra._event_bus = mock_bus
 
     with patch("flux_core.infrastructure.UnitOfWork") as MockUoW:
         deps.get_uow()
 
-    MockUoW.assert_called_once_with(mock_db, mock_vs, mock_bus)
+    MockUoW.assert_called_once_with(mock_db, mock_bus)

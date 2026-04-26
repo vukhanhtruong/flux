@@ -7,10 +7,10 @@ from flux_core.events.bus import EventBus
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.migrations.migrate import migrate
 from flux_core.uow.unit_of_work import UnitOfWork
-from flux_core.vector.store import ZvecStore
+from flux_core.vector.store import SqliteVecStore
 
 _db: Database | None = None
-_vector_store: ZvecStore | None = None
+_vector_store: SqliteVecStore | None = None
 _event_bus: EventBus | None = None
 _local_storage = None
 _embedding_service: EmbeddingService | None = None
@@ -27,12 +27,11 @@ def get_db() -> Database:
     return _db
 
 
-def get_vector_store() -> ZvecStore:
-    """Get the shared ZvecStore singleton."""
+def get_vector_store() -> SqliteVecStore:
+    """Get the shared SqliteVecStore singleton (uses same DB as relational data)."""
     global _vector_store
     if _vector_store is None:
-        zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
-        _vector_store = ZvecStore(zvec_path)
+        _vector_store = SqliteVecStore(get_db())
     return _vector_store
 
 
@@ -46,7 +45,7 @@ def get_event_bus() -> EventBus:
 
 def get_uow() -> UnitOfWork:
     """Create a new UnitOfWork instance."""
-    return UnitOfWork(get_db(), get_vector_store(), get_event_bus())
+    return UnitOfWork(get_db(), get_event_bus())
 
 
 def get_local_storage():

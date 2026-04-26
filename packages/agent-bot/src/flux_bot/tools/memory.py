@@ -61,7 +61,7 @@ def build_memory_tools(
                 "build_memory_tools requires vector_store and embedding_svc — "
                 "pass them to build_tools() or build_memory_tools() directly."
             )
-        uow = UnitOfWork(db, vector_store=vector_store)
+        uow = UnitOfWork(db)
         uc = Remember(uow, embedding_svc)
         result = await uc.execute(user_id, MemoryType(memory_type), content)
         return {

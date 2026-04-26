@@ -82,7 +82,7 @@ async def test_list_transactions_returns_seeded_rows(
     core_db, user_id, vector_store, embedding_svc
 ):
     # Seed via the real Use Case so the data shape matches production.
-    uow = UnitOfWork(core_db, vector_store=vector_store)
+    uow = UnitOfWork(core_db)
     uc = AddTransaction(uow, embedding_svc)
     await uc.execute(
         user_id=user_id,
@@ -114,7 +114,7 @@ async def test_list_transactions_returns_seeded_rows(
 async def test_search_transactions_returns_seeded_match(
     core_db, user_id, vector_store, embedding_svc
 ):
-    uow = UnitOfWork(core_db, vector_store=vector_store)
+    uow = UnitOfWork(core_db)
     uc = AddTransaction(uow, embedding_svc)
     await uc.execute(
         user_id=user_id,
@@ -155,7 +155,7 @@ async def test_list_isolates_by_closed_over_user_id(
     user_b = seed_user("tg:bob")
 
     # Seed one transaction per user via the real Use Case.
-    uow = UnitOfWork(core_db, vector_store=vector_store)
+    uow = UnitOfWork(core_db)
     uc = AddTransaction(uow, embedding_svc)
     await uc.execute(
         user_id=user_a,

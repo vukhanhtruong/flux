@@ -92,17 +92,12 @@ class _InMemoryVectorStore:
         collection: str,
         vector: list[float],
         limit: int,
-        filter: str | None = None,
+        filter: dict[str, str] | None = None,
     ) -> list[str]:
         coll = self._docs.get(collection, {})
         required_user: str | None = None
         if filter:
-            # Only contract we honor: `user_id = "<uid>"`
-            import re
-
-            m = re.match(r'\s*user_id\s*=\s*"([^"]*)"\s*$', filter)
-            if m:
-                required_user = m.group(1)
+            required_user = filter.get("user_id")
         scored: list[tuple[float, str]] = []
         for doc_id, (vec, meta) in coll.items():
             if required_user is not None and meta.get("user_id") != required_user:

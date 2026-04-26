@@ -100,7 +100,7 @@ def build_transaction_tools(
         else:
             txn_date = date_cls.fromisoformat(date)
 
-        uow = UnitOfWork(db, vector_store=vector_store)
+        uow = UnitOfWork(db)
         uc = AddTransaction(uow, emb)
         result = await uc.execute(
             user_id=user_id,

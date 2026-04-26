@@ -9,9 +9,8 @@ import flux_mcp.server as server_module
 from flux_core.events.bus import EventBus
 from flux_core.sqlite.database import Database
 from flux_core.sqlite.migrations.migrate import migrate
-from flux_core.testing.fixtures import InMemoryVectorStore
 from flux_core.uow.unit_of_work import UnitOfWork
-from flux_core.vector.store import ZVEC_AVAILABLE, ZvecStore
+from flux_core.vector.store import SqliteVecStore
 
 TEST_USER_ID = "test:e2e-user"
 
@@ -49,11 +48,9 @@ def seeded_db(tmp_path):
 
 
 @pytest.fixture
-def vector_store(tmp_path):
-    """Create a vector store — real zvec if available, in-memory mock otherwise."""
-    if ZVEC_AVAILABLE:
-        return ZvecStore(str(tmp_path / "zvec"))
-    return InMemoryVectorStore()
+def vector_store(seeded_db):
+    """Create a vector store using the same database as relational data."""
+    return SqliteVecStore(seeded_db)
 
 
 @pytest.fixture
@@ -97,7 +94,7 @@ def seeded_server(
     monkeypatch.setattr(server_module, "get_user_timezone", lambda: "UTC")
 
     def patched_get_uow():
-        return UnitOfWork(seeded_db, vector_store, event_bus)
+        return UnitOfWork(seeded_db, event_bus)
 
     monkeypatch.setattr(server_module, "get_uow", patched_get_uow)
 

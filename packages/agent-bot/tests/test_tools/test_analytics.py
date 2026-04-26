@@ -36,7 +36,7 @@ async def test_get_spending_summary_returns_without_error(core_db, user_id):
 async def test_get_spending_summary_reflects_seeded_data(
     core_db, user_id, vector_store, embedding_svc
 ):
-    uow = UnitOfWork(core_db, vector_store=vector_store)
+    uow = UnitOfWork(core_db)
     uc = AddTransaction(uow, embedding_svc)
     await uc.execute(
         user_id=user_id,
@@ -64,7 +64,7 @@ async def test_get_spending_summary_reflects_seeded_data(
 async def test_get_category_breakdown_on_seeded_data(
     core_db, user_id, vector_store, embedding_svc
 ):
-    uow = UnitOfWork(core_db, vector_store=vector_store)
+    uow = UnitOfWork(core_db)
     uc = AddTransaction(uow, embedding_svc)
     await uc.execute(
         user_id=user_id,
@@ -131,7 +131,7 @@ async def test_spending_summary_isolates_by_user(core_db, seed_user, vector_stor
     user_a = seed_user("tg:alice")
     user_b = seed_user("tg:bob")
 
-    uow_a = UnitOfWork(core_db, vector_store=vector_store)
+    uow_a = UnitOfWork(core_db)
     await AddTransaction(uow_a, embedding_svc).execute(
         user_id=user_a,
         date=date(2026, 4, 10),

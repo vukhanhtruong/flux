@@ -35,7 +35,7 @@ async def test_save_memory_creates_row(core_db, user_id, vector_store, embedding
 
 
 async def test_list_memories_returns_seeded(core_db, user_id, vector_store, embedding_svc):
-    uow = UnitOfWork(core_db, vector_store=vector_store)
+    uow = UnitOfWork(core_db)
     uc = Remember(uow, embedding_svc)
     await uc.execute(user_id, MemoryType.preference, "User likes summaries.")
 
@@ -53,10 +53,10 @@ async def test_list_memories_returns_seeded(core_db, user_id, vector_store, embe
 
 
 async def test_list_memories_filter_by_type(core_db, user_id, vector_store, embedding_svc):
-    uow = UnitOfWork(core_db, vector_store=vector_store)
+    uow = UnitOfWork(core_db)
     uc = Remember(uow, embedding_svc)
     await uc.execute(user_id, MemoryType.fact, "Fact memory.")
-    uow2 = UnitOfWork(core_db, vector_store=vector_store)
+    uow2 = UnitOfWork(core_db)
     await Remember(uow2, embedding_svc).execute(user_id, MemoryType.preference, "Pref memory.")
 
     tools = build_memory_tools(
@@ -74,7 +74,7 @@ async def test_list_memories_filter_by_type(core_db, user_id, vector_store, embe
 
 
 async def test_search_memory_returns_saved_item(core_db, user_id, vector_store, embedding_svc):
-    uow = UnitOfWork(core_db, vector_store=vector_store)
+    uow = UnitOfWork(core_db)
     uc = Remember(uow, embedding_svc)
     await uc.execute(user_id, MemoryType.fact, "dark mode preferred")
 
@@ -99,10 +99,10 @@ async def test_list_memories_isolates_by_user(
     user_a = seed_user("tg:alice")
     user_b = seed_user("tg:bob")
 
-    uow_a = UnitOfWork(core_db, vector_store=vector_store)
+    uow_a = UnitOfWork(core_db)
     await Remember(uow_a, embedding_svc).execute(user_a, MemoryType.fact, "Alice fact")
 
-    uow_b = UnitOfWork(core_db, vector_store=vector_store)
+    uow_b = UnitOfWork(core_db)
     await Remember(uow_b, embedding_svc).execute(user_b, MemoryType.fact, "Bob fact")
 
     tools_a = build_memory_tools(
