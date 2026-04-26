@@ -25,14 +25,14 @@ from .transactions import build_transaction_tools
 if TYPE_CHECKING:
     from flux_core.embeddings.service import EmbeddingProvider
     from flux_core.sqlite.database import Database
-    from flux_core.vector.store import ZvecStore
+    from flux_core.vector.store import SqliteVecStore
 
 
 def build_tools(
     *,
     user_id: str,
     db: Database,
-    vector_store: ZvecStore | None = None,
+    vector_store: SqliteVecStore | None = None,
     embedding_svc: EmbeddingProvider | None = None,
 ) -> list[BaseTool]:
     """Return all domain tools bound to user_id.
@@ -41,7 +41,7 @@ def build_tools(
         user_id: The user identity closed over by every tool. Never
             exposed as a tool argument — guarantees isolation.
         db: Connected core ``Database`` (SQLite, WAL mode).
-        vector_store: ``ZvecStore`` used for transaction and memory embedding
+        vector_store: ``SqliteVecStore`` used for transaction and memory embedding
             dual-writes and semantic search. Required for tools that perform
             vector operations (transactions, memory).
         embedding_svc: Optional ``EmbeddingProvider``. Falls back to a

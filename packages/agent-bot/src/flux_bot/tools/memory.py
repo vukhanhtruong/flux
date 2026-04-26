@@ -41,7 +41,7 @@ def build_memory_tools(
         user_id: The user identity closed over by every tool. Never
             exposed as a tool argument — guarantees isolation.
         db: Connected core ``Database`` (SQLite, WAL mode).
-        vector_store: ``ZvecStore`` used for embedding dual-writes and
+        vector_store: ``SqliteVecStore`` used for embedding dual-writes and
             semantic search.
         embedding_svc: ``EmbeddingProvider`` for generating memory embeddings.
     """

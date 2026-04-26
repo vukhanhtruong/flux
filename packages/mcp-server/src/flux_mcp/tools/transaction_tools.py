@@ -14,14 +14,14 @@ from flux_core.use_cases.transactions.delete_transaction import DeleteTransactio
 from flux_core.use_cases.transactions.list_transactions import ListTransactions
 from flux_core.use_cases.transactions.search_transactions import SearchTransactions
 from flux_core.use_cases.transactions.update_transaction import UpdateTransaction
-from flux_core.vector.store import ZvecStore
+from flux_core.vector.store import SqliteVecStore
 
 
 def register_transaction_tools(
     mcp: FastMCP,
     get_db: Callable[[], Database],
     get_uow: Callable[[], UnitOfWork],
-    get_vector_store: Callable[[], ZvecStore],
+    get_vector_store: Callable[[], SqliteVecStore],
     get_embedding_service: Callable[[], EmbeddingProvider],
     get_user_id: Callable[[], str],
     get_user_timezone: Callable[[], str],

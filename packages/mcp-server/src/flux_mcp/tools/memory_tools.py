@@ -9,14 +9,14 @@ from flux_core.uow.unit_of_work import UnitOfWork
 from flux_core.use_cases.memory.list_memories import ListMemories
 from flux_core.use_cases.memory.recall import Recall
 from flux_core.use_cases.memory.remember import Remember
-from flux_core.vector.store import ZvecStore
+from flux_core.vector.store import SqliteVecStore
 
 
 def register_memory_tools(
     mcp: FastMCP,
     get_db: Callable[[], Database],
     get_uow: Callable[[], UnitOfWork],
-    get_vector_store: Callable[[], ZvecStore],
+    get_vector_store: Callable[[], SqliteVecStore],
     get_embedding_service: Callable[[], EmbeddingProvider],
     get_user_id: Callable[[], str],
 ):

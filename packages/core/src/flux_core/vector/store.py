@@ -10,10 +10,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-# Backward compatibility: sqlite-vec is always available in this version
-ZVEC_AVAILABLE = True
-
-
 def _serialize(vector: list[float]) -> bytes:
     return struct.pack(f"{len(vector)}f", *vector)
 
@@ -80,23 +76,3 @@ class SqliteVecStore:
             logger.debug("sqlite-vec query failed, returning empty", exc_info=True)
             return []
         return [r["id"] for r in rows]
-
-
-class ZvecStore(SqliteVecStore):
-    """Backward compatibility alias for SqliteVecStore.
-
-    Accepts either a Database object (new API) or a path string (old API).
-    When given a path, creates an in-memory database for testing purposes.
-    """
-
-    def __init__(self, db_or_path):
-        from flux_core.sqlite.database import Database
-
-        if isinstance(db_or_path, Database):
-            super().__init__(db_or_path)
-        else:
-            # Legacy path-based API: create a temp database
-            # This is for backward compat in tests; production uses get_vector_store()
-            db = Database(str(db_or_path) + "/vectors.db")
-            db.connect()
-            super().__init__(db)

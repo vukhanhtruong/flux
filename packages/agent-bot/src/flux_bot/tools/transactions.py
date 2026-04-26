@@ -51,7 +51,7 @@ def build_transaction_tools(
     *,
     user_id: str,
     db: Database,
-    vector_store: SqliteVecStore,
+    vector_store: SqliteVecStore | None,
     embedding_svc: EmbeddingProvider | None = None,
 ) -> list[BaseTool]:
     """Return the transaction tool set bound to a specific user.
@@ -60,7 +60,7 @@ def build_transaction_tools(
         user_id: The user identity closed over by every tool. Never
             exposed as a tool argument — guarantees isolation.
         db: Connected core ``Database`` (SQLite, WAL mode).
-        vector_store: ``ZvecStore`` used for embedding dual-writes and
+        vector_store: ``SqliteVecStore`` used for embedding dual-writes and
             semantic search.
         embedding_svc: Optional ``EmbeddingProvider``. If omitted, a
             process-level ``EmbeddingService`` is lazily constructed
@@ -183,6 +183,11 @@ def build_transaction_tools(
             List of matching transaction dicts (id, date, amount,
             category, description, type).
         """
+        if vector_store is None:
+            raise RuntimeError(
+                "search_transactions requires vector_store — "
+                "pass it to build_tools() or build_transaction_tools() directly."
+            )
         repo = SqliteTransactionRepository(db.connection())
         uc = SearchTransactions(repo, vector_store, emb)
         results = await uc.execute(user_id, query, limit=limit)
