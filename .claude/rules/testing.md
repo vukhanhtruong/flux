@@ -14,11 +14,11 @@ paths:
 |----------|----------|---------|--------------|
 | Unit | `test_models/` | Pydantic validation | None |
 | Repository | `test_repositories/` | SQLite repos | temp SQLite file |
-| Vector | `test_vector/` | ZvecStore | tmp_path directory |
-| UoW | `test_uow/` | Dual-write, rollback | temp SQLite + zvec |
+| Vector | `test_vector/` | SqliteVecStore | same SQLite DB |
+| UoW | `test_uow/` | Single-transaction, rollback | temp SQLite |
 | Event | `test_events/` | EventBus pub/sub | None |
 | Use Case | `test_use_cases/` | Business logic | Mocked repos |
-| E2E | `test_e2e/` | Full protocol | Seeded SQLite + zvec |
+| E2E | `test_e2e/` | Full protocol | Seeded SQLite |
 | Performance | `test_perf/` | Latency, concurrency | pytest-benchmark |
 
 ## pytest-asyncio Configuration
@@ -34,7 +34,7 @@ async def test_something():
 
 ## Fixtures
 
-- Use `tmp_path` fixture for tests needing real SQLite or zvec files
+- Use `tmp_path` fixture for tests needing real SQLite files
 - Use `tmp_path_factory` for session-scoped temp directories
 
 ```python

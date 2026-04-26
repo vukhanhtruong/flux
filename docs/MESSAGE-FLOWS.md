@@ -56,7 +56,7 @@ sequenceDiagram
     Note over MCP,UoW: Claude may invoke MCP tools
     MCP->>UC: execute(user_id, ...)
     UC->>UoW: repo.create() + add_vector() + add_event()
-    UoW->>UoW: COMMIT (SQLite + zvec)
+    UoW->>UoW: COMMIT (single SQLite transaction)
     UoW->>EB: emit(TransactionCreated / MemoryCreated / ...)
 
     MCP-->>Runner: result + session_id
@@ -138,15 +138,14 @@ sequenceDiagram
 
 ## Flow 4 — Financial Entity Write (Transaction Example)
 
-All write use cases follow the same UoW pattern: SQLite write → zvec write (if embeddings) → COMMIT → emit events.
+All write use cases follow the same UoW pattern: single SQLite transaction (relational + sqlite-vec) → COMMIT → emit events.
 
 ```mermaid
 sequenceDiagram
     participant Client as MCP / API
     participant UC as AddTransaction
     participant UoW as UnitOfWork
-    participant SQLite
-    participant zvec
+    participant SQLite as SQLite + sqlite-vec
     participant EB as EventBus
 
     Client->>UC: execute(user_id, date, amount, ...)
@@ -156,31 +155,29 @@ sequenceDiagram
     UoW->>SQLite: INSERT transaction
 
     UC->>UoW: add_vector(collection, id, embedding, metadata)
+    UoW->>SQLite: INSERT into sqlite-vec table
     UC->>UoW: add_event(TransactionCreated)
     UC->>UoW: commit()
 
-    UoW->>zvec: upsert(doc)
     UoW->>SQLite: COMMIT
 
-    Note over UoW: Events emitted only after both stores succeed
+    Note over UoW: Events emitted only after transaction commits
 
     UoW->>EB: emit(TransactionCreated)
 ```
 
-**Failure / compensation:**
+**Failure handling:**
 
 ```mermaid
 sequenceDiagram
     participant UC as Use Case
     participant UoW as UnitOfWork
-    participant SQLite
-    participant zvec
+    participant SQLite as SQLite + sqlite-vec
     participant EB as EventBus
 
     UC->>UoW: commit()
-    UoW->>zvec: upsert(doc) ✓
     UoW->>SQLite: COMMIT ✗ (error)
-    UoW->>zvec: compensate → delete(doc)
+    UoW->>SQLite: ROLLBACK (atomic)
 
     Note over EB: No events emitted on failure
 ```
@@ -249,7 +246,7 @@ sequenceDiagram
 
 ## Event Emission Invariants
 
-1. **Events emit only after successful commit** — UoW emits `_pending_events` only after both SQLite COMMIT and zvec writes succeed.
+1. **Events emit only after successful commit** — UoW emits `_pending_events` only after the single SQLite transaction (including sqlite-vec operations) commits.
 2. **One failure does not block other subscribers** — EventBus catches and logs subscriber errors, then continues to remaining handlers.
 3. **No persistence or replay** — events are fire-and-forget in-process signals. If a subscriber is down when the event fires, the event is lost (polling provides the fallback).
 4. **Polling as safety net** — Poller and OutboundWorker poll on intervals regardless of events. `notify()` from EventBus provides early wake for lower latency, but correctness does not depend on it.

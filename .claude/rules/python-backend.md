@@ -27,9 +27,8 @@ class SearchTransactions:
 ## Unit of Work Pattern
 
 ALL write operations go through UnitOfWork. It coordinates:
-1. SQLite transaction (BEGIN/COMMIT/ROLLBACK)
-2. zvec writes (only if embeddings registered via `add_vector()`)
-3. Event emission (only after both stores succeed)
+1. SQLite transaction (BEGIN/COMMIT/ROLLBACK) — includes vector writes via sqlite-vec
+2. Event emission (only after commit succeeds)
 
 ```python
 async with uow:
@@ -44,7 +43,7 @@ async with uow:
 - **Interfaces** in `repositories/` — Protocol classes defining method signatures
 - **Implementations** in `sqlite/` — pure SQL, take `sqlite3.Connection` from UoW
 - Repos accept and return Pydantic models at the interface boundary
-- Repos never know about zvec or events — that's the UoW's job
+- Repos never know about vectors or events — that's the UoW's job
 
 ## EventBus Pattern
 

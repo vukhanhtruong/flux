@@ -1,4 +1,4 @@
-"""UpdateTransaction use case — update transaction and re-embed in zvec."""
+"""UpdateTransaction use case — update transaction and re-embed in sqlite-vec."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class UpdateTransaction:
-    """Update a transaction and re-embed in zvec (dual-write)."""
+    """Update a transaction and re-embed in sqlite-vec (dual-write)."""
 
     def __init__(self, uow: UnitOfWork, embedding_svc: EmbeddingProvider):
         self._uow = uow

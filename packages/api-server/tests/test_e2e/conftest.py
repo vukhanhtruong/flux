@@ -1,4 +1,4 @@
-"""Shared fixtures for API server E2E tests — seeded SQLite + mock zvec."""
+"""Shared fixtures for API server E2E tests — seeded SQLite."""
 from unittest.mock import MagicMock
 
 import pytest
@@ -51,7 +51,7 @@ def mock_embedding_service():
 
 @pytest.fixture
 def seeded_app(seeded_db, vector_store, event_bus, mock_embedding_service, monkeypatch):
-    """Patch infrastructure singletons to use seeded SQLite + zvec, return TestClient.
+    """Patch infrastructure singletons to use seeded SQLite, return TestClient.
 
     We patch the module-level singletons in flux_core.infrastructure so that
     the get_*() functions return our test instances (they check

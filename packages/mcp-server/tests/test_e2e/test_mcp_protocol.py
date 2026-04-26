@@ -1,4 +1,4 @@
-"""E2E tests for MCP protocol with seeded SQLite+zvec."""
+"""E2E tests for MCP protocol with seeded SQLite."""
 from flux_mcp.server import mcp
 
 from .conftest import extract_json
@@ -202,4 +202,5 @@ async def test_dual_write_transaction_adds_to_both_stores(seeded_server):
     # Verify embedding was created (mock was called)
     import flux_core.infrastructure as infra
     svc = infra._embedding_service
-    svc.embed.assert_called()
+    assert svc is not None
+    svc.embed.assert_called()  # type: ignore[union-attr]

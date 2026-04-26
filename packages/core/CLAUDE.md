@@ -13,8 +13,8 @@ packages/core/src/flux_core/
 │   ├── database.py    # Database class (sqlite3 + ThreadPoolExecutor, WAL)
 │   ├── migrations/    # Fresh SQLite DDL
 │   └── bot/           # Bot-specific SQLite repos
-├── vector/            # zvec implementations
-│   └── store.py       # ZvecStore wrapper (zvec 0.2.1b0)
+├── vector/            # sqlite-vec implementations
+│   └── store.py       # SqliteVecStore (sqlite-vec)
 ├── use_cases/         # Business logic (one class per operation)
 │   ├── transactions/
 │   ├── budgets/
@@ -27,7 +27,7 @@ packages/core/src/flux_core/
 ├── events/            # In-process event bus (pub/sub)
 │   ├── bus.py
 │   └── events.py
-├── uow/               # Unit of Work (dual-write coordinator)
+├── uow/               # Unit of Work (single-transaction coordinator)
 │   └── unit_of_work.py
 └── embeddings/        # fastembed service
     └── service.py     # all-MiniLM-L6-v2 (384-dim)
@@ -36,9 +36,9 @@ packages/core/src/flux_core/
 ## Key Patterns
 
 - Repos accept/return Pydantic models at interface boundary
-- Repos never know about zvec or events — UoW handles coordination
+- Repos never know about vectors or events — UoW handles coordination
 - Database uses WAL mode, `synchronous=NORMAL`, `busy_timeout=5000`
-- zvec collections: `transaction_embeddings`, `memory_embeddings`
+- Embeddings stored in sqlite-vec tables within the same SQLite DB
 - Embeddings: fastembed all-MiniLM-L6-v2 (384-dim vectors)
 
 ## Development

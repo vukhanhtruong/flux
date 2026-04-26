@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced all zvec references with sqlite-vec terminology
+- Simplified backup to single-file (`flux.db` only, no zvec directory)
+- Removed `ZVEC_PATH` environment variable (vectors now stored in SQLite via sqlite-vec)
+- Removed `ZvecStore` backward-compatibility alias — use `SqliteVecStore` directly
+
 ## [1.4.0] - 2026-03-15
 
 ### Added

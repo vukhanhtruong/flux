@@ -11,7 +11,7 @@ from flux_core.logging import configure_logging
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialise SQLite+zvec on startup, clean up on shutdown."""
+    """Initialise SQLite on startup, clean up on shutdown."""
     configure_logging()
     get_db()
     yield

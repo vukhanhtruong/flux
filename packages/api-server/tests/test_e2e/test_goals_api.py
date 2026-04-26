@@ -1,4 +1,4 @@
-"""E2E tests for goal API routes with seeded SQLite+zvec."""
+"""E2E tests for goal API routes with seeded SQLite."""
 TEST_USER_ID = "test:e2e-user"
 
 

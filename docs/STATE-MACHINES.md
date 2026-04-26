@@ -43,8 +43,7 @@ flowchart LR
 
     subgraph Finance["Financial Entities"]
         MCP -->|"Use Case"| UC{UnitOfWork}
-        UC -->|relational| SQLite[(SQLite WAL)]
-        UC -->|embeddings| ZVEC[(zvec)]
+        UC -->|"relational + vectors"| SQLite[(SQLite WAL + sqlite-vec)]
         UC -->|"on success"| EB[EventBus]
     end
 
@@ -65,7 +64,7 @@ flowchart LR
 | MessageCreated → Dispatcher    | Event: `{ message_id: int, user_id: str }`  | Route to per-user queue, invoke DeepAgentRunner                 | `{ result: str, thread_id: str? }`                    |
 | Handler → bot_outbound         | `{ user_id, text, sender }`                 | INSERT with `status='pending'` + EventBus.emit(OutboundCreated) | `{ id, status: 'pending' }`                           |
 | OutboundCreated → Worker       | Event: `{ outbound_id: int, user_id: str }` | Resolve channel handler, send                                   | `{ status: 'sent' }` or `{ status: 'failed', error }` |
-| MCP → Use Case → UoW           | `{ user_id, data, embedding? }`             | SQLite write + zvec write (if embedding) + emit events          | `{ model }`                                           |
+| MCP → Use Case → UoW           | `{ user_id, data, embedding? }`             | Single SQLite transaction (relational + sqlite-vec) + emit events | `{ model }`                                           |
 | MCP → scheduled_tasks          | `{ prompt, schedule_type, schedule_value }` | INSERT with `status='active'` via UoW                           | `{ id, next_run_at: str }`                            |
 | SchedulerWorker → bot_messages | `{ user_id, prompt }`                       | Inject synthetic message via UoW + emit MessageCreated          | Re-enters Processing pipeline                         |
 
@@ -131,7 +130,7 @@ stateDiagram-v2
 
 ## 2. Unit of Work
 
-Dual-write coordinator for SQLite + zvec with event emission.
+Single-transaction coordinator for SQLite + sqlite-vec with event emission.
 
 ```mermaid
 stateDiagram-v2
@@ -145,24 +144,15 @@ stateDiagram-v2
     open --> committing : commit()
 
     state committing {
-        [*] --> sqlite_write : BEGIN → execute all SQL → COMMIT
-        sqlite_write --> zvec_upsert : has pending vectors?\nyes → execute zvec upserts
-        sqlite_write --> zvec_delete : has pending deletes?\nyes → execute zvec deletes
-        sqlite_write --> emit_events : no pending vectors/deletes?\nskip to events
-        zvec_upsert --> zvec_delete : has pending deletes?\nyes → execute zvec deletes
-        zvec_upsert --> emit_events : no pending deletes?\nskip to events
-        zvec_delete --> emit_events : deletes succeeded
+        [*] --> sqlite_write : BEGIN → execute all SQL (relational + sqlite-vec) → COMMIT
+        sqlite_write --> emit_events : COMMIT succeeded
         emit_events --> committed : all events dispatched
 
         sqlite_write --> rolling_back : SQL failed → ROLLBACK
-        zvec_upsert --> compensating : zvec upsert failed → ROLLBACK SQL + cleanup written docs
-        zvec_delete --> rolling_back_delete : zvec delete failed → ROLLBACK SQL
     }
 
     committing --> closed : success (_committed = True)
     rolling_back --> closed : failure (raise)
-    compensating --> closed : failure (raise)
-    rolling_back_delete --> closed : failure (raise)
 
     state "__aexit__" as exit {
         closed --> auto_rollback : _committed == False?\nROLLBACK safety net
@@ -175,33 +165,29 @@ stateDiagram-v2
 
 The UoW maintains three separate pending buffers, all cleared on `__aenter__`:
 
-| Buffer             | Method                                                | Contents                           |
-| ------------------ | ----------------------------------------------------- | ---------------------------------- |
-| `_pending_vectors` | `add_vector(collection, doc_id, embedding, metadata)` | Upsert operations for zvec         |
-| `_pending_deletes` | `add_vector_delete(collection, doc_id)`               | Delete operations for zvec         |
-| `_pending_events`  | `add_event(event)`                                    | Domain events to emit after commit |
+| Buffer             | Method                                                | Contents                                 |
+| ------------------ | ----------------------------------------------------- | ---------------------------------------- |
+| `_pending_vectors` | `add_vector(collection, doc_id, embedding, metadata)` | Upsert operations for sqlite-vec         |
+| `_pending_deletes` | `add_vector_delete(collection, doc_id)`               | Delete operations for sqlite-vec         |
+| `_pending_events`  | `add_event(event)`                                    | Domain events to emit after commit       |
 
 ### Transition Table
 
-| Transition                    | Trigger                                                                             | Side Effects                                                                                                                                                                                   |
-| ----------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[*] → open`                  | `async with uow:` (`__aenter__`)                                                    | SQLite `BEGIN` via explicit `conn.execute("BEGIN")`. Repos bound to UoW's connection. Pending buffers cleared. `_committed` set to `False`.                                                    |
-| `collecting → collecting`     | `repo.create(model)`, `add_vector(...)`, `add_vector_delete(...)`, `add_event(...)` | SQL executes against the open transaction. Vector ops and events buffered (no I/O yet).                                                                                                        |
-| `open → committing`           | `uow.commit()`                                                                      | Starts the commit sequence.                                                                                                                                                                    |
-| `sqlite_write`                | Execute all SQL in transaction                                                      | `conn.commit()` the SQLite transaction. `_committed = True`.                                                                                                                                   |
-| `zvec_upsert`                 | Execute all zvec upserts                                                            | `collection.upsert(doc)` for each pending vector. Tracks `written_vectors` for potential compensation.                                                                                         |
-| `zvec_delete`                 | Execute all zvec deletes                                                            | `collection.delete(doc_id)` for each pending delete.                                                                                                                                           |
-| `emit_events`                 | Emit domain events                                                                  | `event_bus.emit(event)` for each pending event.                                                                                                                                                |
-| `zvec_upsert → compensating`  | zvec upsert raises                                                                  | Call `_compensate_zvec()`: attempt `collection.delete(id)` for each already-written doc. **Compensation failures are silently logged** — partial inconsistency possible. Raise original error. |
-| `zvec_delete → rolling_back`  | zvec delete raises                                                                  | `conn.rollback()`. Raise original error.                                                                                                                                                       |
-| `sqlite_write → rolling_back` | SQL raises                                                                          | `ROLLBACK`. No zvec writes attempted. Raise original error.                                                                                                                                    |
-| `__aexit__`                   | Context manager exit                                                                | If `_committed == False`, execute `conn.rollback()` as safety net.                                                                                                                             |
+| Transition                    | Trigger                                                                             | Side Effects                                                                                                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[*] → open`                  | `async with uow:` (`__aenter__`)                                                    | SQLite `BEGIN` via explicit `conn.execute("BEGIN")`. Repos bound to UoW's connection. Pending buffers cleared. `_committed` set to `False`.      |
+| `collecting → collecting`     | `repo.create(model)`, `add_vector(...)`, `add_vector_delete(...)`, `add_event(...)` | All SQL (relational + sqlite-vec) executes against the open transaction. Events buffered.                                                        |
+| `open → committing`           | `uow.commit()`                                                                      | Starts the commit sequence.                                                                                                                      |
+| `sqlite_write`                | Execute all SQL in transaction                                                      | All pending relational and sqlite-vec operations committed atomically. `conn.commit()`. `_committed = True`.                                     |
+| `emit_events`                 | Emit domain events                                                                  | `event_bus.emit(event)` for each pending event.                                                                                                  |
+| `sqlite_write → rolling_back` | SQL raises                                                                          | `ROLLBACK`. All writes (relational + sqlite-vec) rolled back atomically. Raise original error.                                                   |
+| `__aexit__`                   | Context manager exit                                                                | If `_committed == False`, execute `conn.rollback()` as safety net.                                                                               |
 
 ### Key Invariants
 
-- Events are only emitted after ALL writes (SQLite + zvec upserts + zvec deletes) succeed. Consumers never see partial state.
+- Events are only emitted after the single SQLite transaction (including sqlite-vec operations) commits. Consumers never see partial state.
 - SQLite uses `isolation_level=None` (autocommit mode), so UoW must explicitly `BEGIN`/`COMMIT`.
-- Compensation for failed zvec writes is best-effort — `_compensate_zvec()` catches and logs exceptions per doc, meaning partial compensation can leave zvec inconsistent.
+- All writes (relational + vector) are in the same transaction, so rollback is atomic with no compensation logic needed.
 
 ---
 
@@ -493,7 +479,7 @@ stateDiagram-v2
 | `paused → active`                   | `ToggleSubscription` when currently paused | `{ subscription_id: str }`                                                                                         | 1. UPDATE `subscriptions.active = 1`. 2. UPDATE `bot_scheduled_tasks.status = 'active'`, recompute `next_run_at`. Via UoW.                                     | `{ id, active: true }`                                              |
 | `* → deleted`                       | `DeleteSubscription` use case              | `{ subscription_id: str, user_id: str }`                                                                           | 1. DELETE `bot_scheduled_tasks` WHERE subscription_id. 2. DELETE `subscriptions` row. **Order matters**: task first, then subscription. Via UoW.               | (rows removed)                                                      |
 | `waiting → billing_due`             | Scheduler fires (cron matches)             | `{ task.prompt: str }`                                                                                             | Inject synthetic `bot_message` via UoW + emit MessageCreated.                                                                                                  | `{ bot_message.id: int }`                                           |
-| `billing_due → transaction_created` | Bot/Claude processes prompt                | `{ subscription_id: str, amount: Decimal }`                                                                        | `AddTransaction` use case (type='expense'). SQLite + zvec via UoW.                                                                                             | `{ transaction.id: str }`                                           |
+| `billing_due → transaction_created` | Bot/Claude processes prompt                | `{ subscription_id: str, amount: Decimal }`                                                                        | `AddTransaction` use case (type='expense'). SQLite + sqlite-vec via UoW.                                                                                       | `{ transaction.id: str }`                                           |
 | `transaction_created → waiting`     | Scheduler advances                         | `{ task_id: int }`                                                                                                 | `advance_next_run()` with new cron-derived `next_run_at`. UPDATE `subscriptions.next_date` via `advance_next_date()` (monthly: `+1 month`, yearly: `+1 year`). | `{ next_date: str, next_run_at: str }`                              |
 
 ### Bidirectional Coupling
@@ -629,7 +615,7 @@ Data backup and restoration with safety mechanisms.
 stateDiagram-v2
     state "CreateBackup" as create {
         [*] --> dumping : CreateBackup.execute()
-        dumping --> zipping : SQLite + zvec files collected
+        dumping --> zipping : SQLite file collected
         zipping --> storing : zip archive created
         storing --> pruning : stored to local / S3
         pruning --> done : retention policy applied
@@ -640,7 +626,7 @@ stateDiagram-v2
         safety_backup --> extracting : safety backup complete
         extracting --> validating : zip extracted to temp dir
         validating --> replacing : PRAGMA integrity_check passes
-        replacing --> reconnecting : DB disconnected, files replaced
+        replacing --> reconnecting : DB disconnected, file replaced
         reconnecting --> restored : DB reconnected, migrate()
 
         validating --> restore_failed : integrity check fails
@@ -656,13 +642,13 @@ stateDiagram-v2
 
 | Transition                    | Trigger                   | Side Effects                                                                                                           |
 | ----------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `[*] → dumping`               | `CreateBackup.execute()`  | Collect SQLite DB file + zvec directories.                                                                             |
+| `[*] → dumping`               | `CreateBackup.execute()`  | Collect SQLite DB file (includes sqlite-vec data).                                                                     |
 | `dumping → zipping`           | Files collected           | Create zip archive with `BackupMetadata` (timestamp, storage type).                                                    |
 | `zipping → storing`           | Archive created           | Write to `BACKUP_LOCAL_DIR` or upload to S3.                                                                           |
 | `storing → pruning`           | Storage complete          | Apply retention: keep last N backups (local: `BACKUP_LOCAL_RETENTION=7`, S3: `BACKUP_S3_RETENTION=30`). Delete oldest. |
 | `[*] → safety_backup`         | `RestoreBackup.execute()` | Create automatic backup of current data before overwriting.                                                            |
 | `extracting → validating`     | Zip extracted to temp     | Run `PRAGMA integrity_check` on extracted SQLite file.                                                                 |
-| `validating → replacing`      | Integrity OK              | `db.disconnect()`. Replace SQLite file + zvec directories with extracted versions.                                     |
+| `validating → replacing`      | Integrity OK              | `db.disconnect()`. Replace SQLite file with extracted version.                                                         |
 | `replacing → reconnecting`    | Files replaced            | `db.connect()` (re-runs PRAGMAs + `migrate()`).                                                                        |
 | `validating → restore_failed` | Integrity check fails     | Raise error. Original data untouched.                                                                                  |
 | `replacing → restore_failed`  | File ops fail             | **Partial state possible** — DB may be partially replaced. Safety backup exists for manual recovery.                   |

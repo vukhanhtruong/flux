@@ -3,7 +3,7 @@
 Tools wrap flux_core Use Cases, so the fixtures here mirror what a real
 request-scope would provide: a migrated SQLite database, a per-request
 user_id, and helpers for vector-store + embedding dependencies that would
-otherwise be slow (fastembed model download) or filesystem-heavy (zvec).
+otherwise be slow (fastembed model download) or filesystem-heavy (sqlite-vec).
 """
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def vector_store(core_db):
     """SqliteVecStore backed by the same SQLite DB as the relational data.
 
     Now that UoW writes vectors directly to sqlite-vec tables inside the same
-    DB (no external zvec directory), tests must use SqliteVecStore for both
+    DB (no external directory), tests must use SqliteVecStore for both
     writes (via UoW) and reads (via Recall/SearchTransactions) so they share
     the same data.
     """

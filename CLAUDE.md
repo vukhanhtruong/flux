@@ -25,9 +25,9 @@ packages/
 ## Architecture
 
 ```
-Web UI (React) ──HTTP──▶ Nginx ──proxy──▶ FastAPI ──▶ Use Cases ──▶ UoW ──▶ SQLite + zvec
-Claude Desktop ──MCP───▶ FastMCP Server ──▶ Use Cases ──▶ UoW ──▶ SQLite + zvec
-Telegram ──▶ Agent Bot ──▶ DeepAgentRunner ──▶ flux tools ──▶ Use Cases ──▶ UoW ──▶ SQLite + zvec
+Web UI (React) ──HTTP──▶ Nginx ──proxy──▶ FastAPI ──▶ Use Cases ──▶ UoW ──▶ SQLite + sqlite-vec
+Claude Desktop ──MCP───▶ FastMCP Server ──▶ Use Cases ──▶ UoW ──▶ SQLite + sqlite-vec
+Telegram ──▶ Agent Bot ──▶ DeepAgentRunner ──▶ flux tools ──▶ Use Cases ──▶ UoW ──▶ SQLite + sqlite-vec
 ```
 
 **Layered architecture in packages/core:**
@@ -37,11 +37,11 @@ MCP/API (thin adapter)
     ↓
 Use Case (business logic + orchestration)
     ↓
-Unit of Work (dual-write coordination + event emission)
+Unit of Work (single-transaction coordination + event emission)
     ↓
 Repository Interface (Protocol)          EventBus (pub/sub)
     ↓                                        ↓
-SQLite Implementation    ZvecStore      Subscribers
+SQLite Implementation    sqlite-vec     Subscribers
 ```
 
 ## Key Design Decisions
@@ -49,7 +49,7 @@ SQLite Implementation    ZvecStore      Subscribers
 - **All SQL uses parameterized queries** — never string interpolation
 - **Financial amounts** are `Decimal` in Python, `TEXT` in SQLite
 - **Every table has `user_id`** — multi-user via `tg:12345` format
-- **Strict dual-write** — requests fail unless both SQLite and zvec succeed (UoW enforced)
+- **Single-transaction** — vectors stored via sqlite-vec in same SQLite transaction (UoW enforced)
 - **WAL mode** — concurrent reads, serialized writes
 - **MCP server has no AI dependency** — purely tools/data
 

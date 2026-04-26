@@ -6,33 +6,33 @@ Living document — all use cases implemented in FluxFinance. Keep in sync with 
 
 ## Inventory
 
-| Domain            | Use Case               | Writes            | Vectors       | Events                 |
-| ----------------- | ---------------------- | ----------------- | ------------- | ---------------------- |
-| **Transactions**  | `AddTransaction`       | SQLite            | zvec          | `TransactionCreated`   |
-|                   | `ListTransactions`     | —                 | —             | —                      |
-|                   | `SearchTransactions`   | —                 | zvec (read)   | —                      |
-|                   | `UpdateTransaction`    | SQLite            | zvec          | `TransactionUpdated`   |
-|                   | `DeleteTransaction`    | SQLite            | zvec (delete) | `TransactionDeleted`   |
-| **Budgets**       | `SetBudget`            | SQLite            | —             | —                      |
-|                   | `ListBudgets`          | —                 | —             | —                      |
-|                   | `RemoveBudget`         | SQLite            | —             | —                      |
-|                   | `CheckBudgets`         | —                 | —             | —                      |
-| **Goals**         | `CreateGoal`           | SQLite            | —             | —                      |
-|                   | `ListGoals`            | —                 | —             | —                      |
-|                   | `DepositToGoal`        | SQLite            | —             | —                      |
-|                   | `WithdrawFromGoal`     | SQLite            | —             | —                      |
-|                   | `DeleteGoal`           | SQLite            | —             | —                      |
-| **Subscriptions** | `CreateSubscription`         | SQLite (2 tables) | —             | `SubscriptionCreated`  |
-|                   | `ListSubscriptions`          | —                 | —             | —                      |
-|                   | `ToggleSubscription`         | SQLite (2 tables) | —             | —                      |
-|                   | `DeleteSubscription`         | SQLite (2 tables) | —             | —                      |
-|                   | `ProcessSubscriptionBilling` | SQLite (2 tables) | zvec          | —                      |
-| **Savings**       | `CreateSavings`        | SQLite (2 tables) | —             | `SavingsCreated`       |
-|                   | `ProcessInterest`      | SQLite            | —             | —                      |
-|                   | `WithdrawSavings`      | SQLite (3 tables) | —             | —                      |
-| **Memory**        | `Remember`             | SQLite            | zvec          | `MemoryCreated`        |
-|                   | `Recall`               | —                 | zvec (read)   | —                      |
-|                   | `ListMemories`         | —                 | —             | —                      |
+| Domain            | Use Case               | Writes            | Vectors            | Events                 |
+| ----------------- | ---------------------- | ----------------- | ------------------ | ---------------------- |
+| **Transactions**  | `AddTransaction`       | SQLite            | sqlite-vec         | `TransactionCreated`   |
+|                   | `ListTransactions`     | —                 | —                  | —                      |
+|                   | `SearchTransactions`   | —                 | sqlite-vec (read)  | —                      |
+|                   | `UpdateTransaction`    | SQLite            | sqlite-vec         | `TransactionUpdated`   |
+|                   | `DeleteTransaction`    | SQLite            | sqlite-vec (delete)| `TransactionDeleted`   |
+| **Budgets**       | `SetBudget`            | SQLite            | —                  | —                      |
+|                   | `ListBudgets`          | —                 | —                  | —                      |
+|                   | `RemoveBudget`         | SQLite            | —                  | —                      |
+|                   | `CheckBudgets`         | —                 | —                  | —                      |
+| **Goals**         | `CreateGoal`           | SQLite            | —                  | —                      |
+|                   | `ListGoals`            | —                 | —                  | —                      |
+|                   | `DepositToGoal`        | SQLite            | —                  | —                      |
+|                   | `WithdrawFromGoal`     | SQLite            | —                  | —                      |
+|                   | `DeleteGoal`           | SQLite            | —                  | —                      |
+| **Subscriptions** | `CreateSubscription`         | SQLite (2 tables) | —                  | `SubscriptionCreated`  |
+|                   | `ListSubscriptions`          | —                 | —                  | —                      |
+|                   | `ToggleSubscription`         | SQLite (2 tables) | —                  | —                      |
+|                   | `DeleteSubscription`         | SQLite (2 tables) | —                  | —                      |
+|                   | `ProcessSubscriptionBilling` | SQLite (2 tables) | sqlite-vec         | —                      |
+| **Savings**       | `CreateSavings`        | SQLite (2 tables) | —                  | `SavingsCreated`       |
+|                   | `ProcessInterest`      | SQLite            | —                  | —                      |
+|                   | `WithdrawSavings`      | SQLite (3 tables) | —                  | —                      |
+| **Memory**        | `Remember`             | SQLite            | sqlite-vec         | `MemoryCreated`        |
+|                   | `Recall`               | —                 | sqlite-vec (read)  | —                      |
+|                   | `ListMemories`         | —                 | —                  | —                      |
 | **Analytics**     | `GetSummary`                 | —                 | —             | —                      |
 |                   | `GetTrends`                  | —                 | —             | —                      |
 |                   | `GetCategoryBreakdown`       | —                 | —             | —                      |
@@ -55,12 +55,12 @@ Living document — all use cases implemented in FluxFinance. Keep in sync with 
 
 | Use Case | Write | Vector | Event | Description |
 |---|---|---|---|---|
-| CreateBackup | No | No | No | Snapshot SQLite + zvec → .zip → upload to local/S3 |
-| RestoreBackup | Yes* | Yes* | No | Auto-backup → download → replace SQLite + zvec |
+| CreateBackup | No | No | No | Snapshot SQLite (includes sqlite-vec) → .zip → upload to local/S3 |
+| RestoreBackup | Yes* | Yes* | No | Auto-backup → download → replace SQLite file |
 | ListBackups | No | No | No | List backups from local + S3 |
 | DeleteBackup | No | No | No | Delete backup from specified storage |
 
-*RestoreBackup replaces the entire database, bypassing UoW.
+*RestoreBackup replaces the entire database file (including sqlite-vec tables), bypassing UoW.
 
 ---
 
@@ -75,7 +75,7 @@ class AddTransaction:
         # 1. Build domain model
         # 2. Generate embedding
         # 3. UoW: repo.create() + add_vector() + add_event()
-        # 4. uow.commit() → SQLite + zvec + events
+        # 4. uow.commit() → single SQLite transaction (relational + sqlite-vec) + events
 ```
 
 ### Read-only use cases (no UoW)
@@ -85,7 +85,7 @@ class SearchTransactions:
     def __init__(self, txn_repo, embedding_repo, embedding_svc): ...
     async def execute(self, user_id, query, limit) -> list[Transaction]:
         # 1. Embed query
-        # 2. Search zvec for matching IDs
+        # 2. Search sqlite-vec for matching IDs
         # 3. Fetch full records from SQLite
 ```
 
@@ -102,7 +102,7 @@ class SendOutbound:
 
 Note: `SendOutbound` does not follow the standard `execute()` pattern — it exposes two methods, each managing its own UoW transaction.
 
-### SQLite-only write use cases
+### SQLite-only write use cases (no vector operations)
 
 ```python
 class CreateScheduledTask:
@@ -110,7 +110,7 @@ class CreateScheduledTask:
     async def execute(self, user_id, prompt, ...) -> ScheduledTask:
         # 1. Build domain model
         # 2. UoW: repo.create() + add_event()
-        # 3. uow.commit() → SQLite + events (no zvec)
+        # 3. uow.commit() → SQLite + events (no sqlite-vec)
 ```
 
 ---

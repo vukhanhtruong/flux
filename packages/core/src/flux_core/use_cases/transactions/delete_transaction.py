@@ -1,4 +1,4 @@
-"""DeleteTransaction use case — delete from SQLite and zvec."""
+"""DeleteTransaction use case — delete from SQLite and sqlite-vec."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class DeleteTransaction:
-    """Delete a transaction from SQLite and zvec (dual-write)."""
+    """Delete a transaction from SQLite and sqlite-vec (dual-write)."""
 
     def __init__(self, uow: UnitOfWork):
         self._uow = uow

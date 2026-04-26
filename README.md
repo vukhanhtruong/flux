@@ -176,29 +176,28 @@ Single Container
 │    └── /api/     →  proxy to uvicorn :8000              │
 │                                                         │
 │  FastAPI (:8000)                                        │
-│    └── Routes → Use Cases → UoW → SQLite + zvec         │
+│    └── Routes → Use Cases → UoW → SQLite + sqlite-vec   │
 │                                                         │
 │  Agent Bot (optional)                                   │
 │    └── claude-agent-sdk → MCP Server (stdio)            │
-│         └── MCP Tools → Use Cases → UoW → SQLite + zvec │
+│         └── MCP Tools → Use Cases → UoW → SQLite + sqlite-vec │
 │                                                         │
 │  Storage                                                │
-│    ├── /data/sqlite/flux.db   (SQLite, WAL mode)        │
-│    └── /data/zvec/            (vector embeddings)       │
+│    └── /data/sqlite/flux.db   (SQLite + sqlite-vec, WAL mode) │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
 
-Every write goes through the **Unit of Work**, which coordinates SQLite transactions, vector writes, and event emission as a single atomic operation.
+Every write goes through the **Unit of Work**, which coordinates SQLite transactions (including sqlite-vec vector operations) and event emission as a single atomic operation.
 
 ```
 Interface (API / MCP)
     ↓
 Use Case (business logic)
     ↓
-Unit of Work (atomic dual-write + events)
+Unit of Work (single-transaction + events)
     ↓                    ↓
-SQLite + zvec        EventBus (pub/sub)
+SQLite + sqlite-vec  EventBus (pub/sub)
 ```
 
 ### Telegram Message Flow
@@ -237,7 +236,7 @@ test-all.sh          # Run all tests across packages
 | Layer    | Technology                                         |
 | -------- | -------------------------------------------------- |
 | Backend  | Python 3.12, FastAPI, FastMCP 3.0, Pydantic v2     |
-| Storage  | SQLite (WAL) + zvec 0.2.1b0 (vector embeddings)    |
+| Storage  | SQLite (WAL) + sqlite-vec (vector embeddings)      |
 | Frontend | React 19, TypeScript, Vite 7, Tailwind CSS v4      |
 | AI       | fastembed (all-MiniLM-L6-v2), claude-agent-sdk     |
 | Deploy   | Single Docker container (Python + Nginx + Node.js) |

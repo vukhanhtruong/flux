@@ -1,4 +1,4 @@
-"""Shared fixtures for MCP server E2E tests — seeded SQLite + mock zvec."""
+"""Shared fixtures for MCP server E2E tests — seeded SQLite."""
 import json
 from unittest.mock import MagicMock
 
@@ -71,7 +71,7 @@ def mock_embedding_service():
 def seeded_server(
     seeded_db, vector_store, event_bus, mock_embedding_service, monkeypatch
 ):
-    """Patch MCP server globals to use seeded SQLite + zvec,
+    """Patch MCP server globals to use seeded SQLite,
     then return the FastMCP server instance for E2E testing."""
     # Patch infrastructure singletons
     monkeypatch.setattr(infra, "_db", seeded_db)
