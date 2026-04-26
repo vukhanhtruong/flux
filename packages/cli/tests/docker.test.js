@@ -62,7 +62,6 @@ describe("docker", () => {
     const envVars = buildEnvVars(config);
     assert.ok(envVars.includes("TELEGRAM_BOT_TOKEN=123:ABC"));
     assert.ok(envVars.includes("DATABASE_PATH=/data/sqlite/flux.db"));
-    assert.ok(envVars.includes("ZVEC_PATH=/data/zvec"));
     assert.ok(envVars.includes("BACKUP_LOCAL_DIR=/data/backups"));
     assert.ok(envVars.includes("MCP_CONFIG_PATH=/app/mcp-config.json"));
     // PORT should NOT be in container env — it's the host port

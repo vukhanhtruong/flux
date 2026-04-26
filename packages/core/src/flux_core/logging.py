@@ -12,7 +12,6 @@ from flux_core.logging_filters import RedactSecretsFilter
 
 LAYER_ENV_MAP = {
     "LOG_LEVEL_SQL": "flux_core.sqlite",
-    "LOG_LEVEL_ZVEC": "flux_core.vector",
     "LOG_LEVEL_UOW": "flux_core.uow",
     "LOG_LEVEL_EVENTS": "flux_core.events",
     "LOG_LEVEL_BOT": "flux_bot",

@@ -106,7 +106,6 @@ All configuration is stored in `~/.flux-finance/`:
 ├── .env                 # Credentials and settings
 └── data/                # Application data (persisted across updates)
     ├── sqlite/          # Database
-    ├── zvec/            # Vector embeddings
     └── backups/         # Backup archives
 ```
 

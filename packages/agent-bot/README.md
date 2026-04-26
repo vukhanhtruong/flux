@@ -1,6 +1,6 @@
 # flux Agent Bot
 
-Telegram bot that processes finance messages via the DeepAgent SDK, using LangGraph-based agents to call finance tools against a SQLite + zvec database.
+Telegram bot that processes finance messages via the DeepAgent SDK, using LangGraph-based agents to call finance tools against a SQLite + sqlite-vec database.
 
 ## What It Does
 
@@ -13,7 +13,7 @@ Telegram ──▶ Agent Bot (Python orchestrator)
                ├── per-user async queues (parallel across users)
                └── DeepAgentRunner (LangGraph + deepagents SDK)
                      └── flux tools (direct function calls)
-                           └── Core Package ──▶ SQLite + zvec
+                           └── Core Package ──▶ SQLite + sqlite-vec
 ```
 
 **Message flow:**
@@ -30,7 +30,6 @@ Telegram ──▶ Agent Bot (Python orchestrator)
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_PATH` | Yes | SQLite database file path, e.g. `/data/sqlite/flux.db` |
-| `ZVEC_PATH` | No | zvec data directory (default: `/data/zvec`) |
 | `TELEGRAM_BOT_TOKEN` | Yes | Telegram Bot API token from @BotFather |
 | `TELEGRAM_ALLOW_FROM` | No | Comma-separated Telegram usernames to whitelist (empty = all) |
 | `CLAUDE_TIMEOUT` | No | Agent query timeout in seconds (default: 300) |
@@ -46,7 +45,6 @@ cd packages/agent-bot
 pip install -e ".[dev]"
 
 export DATABASE_PATH="/tmp/flux/flux.db"
-export ZVEC_PATH="/tmp/flux/zvec"
 export TELEGRAM_BOT_TOKEN="..."
 
 python -m flux_bot.main

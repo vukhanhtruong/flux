@@ -5,7 +5,6 @@ export const IMAGE_NAME = "vukhanhtruong/flux:latest";
 
 const FIXED_ENV_VARS = {
   DATABASE_PATH: "/data/sqlite/flux.db",
-  ZVEC_PATH: "/data/zvec",
   BACKUP_LOCAL_DIR: "/data/backups",
   CORS_ORIGINS: "http://localhost",
   MCP_CONFIG_PATH: "/app/mcp-config.json",

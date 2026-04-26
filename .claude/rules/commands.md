@@ -86,19 +86,15 @@ migrate(db)
 ```
 /data/
 ├── backups/                      # Backup archives (.zip)
-├── sqlite/
-│   ├── flux.db                   # SQLite database (WAL mode)
-│   ├── flux.db-wal               # Write-ahead log
-│   └── flux.db-shm               # Shared memory
-└── zvec/
-    ├── transaction_embeddings/   # zvec collection
-    └── memory_embeddings/        # zvec collection
+└── sqlite/
+    ├── flux.db                   # SQLite database (WAL mode)
+    ├── flux.db-wal               # Write-ahead log
+    └── flux.db-shm               # Shared memory
 ```
 
 ## Environment Variables
 
 - `DATABASE_PATH` — SQLite file path (default: `/data/sqlite/flux.db`)
-- `ZVEC_PATH` — zvec data directory (default: `/data/zvec`)
 - `FLUX_SECRET_KEY` — Encryption key for sensitive config
 - `BACKUP_LOCAL_DIR` — Local backup directory (default: `/data/backups`)
 - `BACKUP_LOCAL_RETENTION` — Max local backups (default: `7`)
