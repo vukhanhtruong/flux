@@ -62,75 +62,18 @@ def seed_user(core_db):
     return _seed
 
 
-class _InMemoryVectorStore:
-    """Minimal in-memory stand-in for ``ZvecStore``.
-
-    Duck-types the methods UoW + SearchTransactions rely on (``upsert``,
-    ``delete``, ``search``) so we don't need the optional ``zvec``
-    native dependency installed to run tool tests.
-
-    Supports the single filter form the Use Cases emit today:
-    ``user_id = "<uid>"``. Search ranks by cosine similarity.
-    """
-
-    def __init__(self) -> None:
-        # collection -> doc_id -> (vector, metadata)
-        self._docs: dict[str, dict[str, tuple[list[float], dict]]] = {}
-
-    def upsert(
-        self, collection: str, doc_id: str, vector: list[float], metadata: dict
-    ) -> None:
-        self._docs.setdefault(collection, {})[doc_id] = (list(vector), dict(metadata))
-
-    def delete(self, collection: str, doc_id: str) -> None:
-        coll = self._docs.get(collection)
-        if coll is not None:
-            coll.pop(doc_id, None)
-
-    def search(
-        self,
-        collection: str,
-        vector: list[float],
-        limit: int,
-        filter: dict[str, str] | None = None,
-    ) -> list[str]:
-        coll = self._docs.get(collection, {})
-        required_user: str | None = None
-        if filter:
-            required_user = filter.get("user_id")
-        scored: list[tuple[float, str]] = []
-        for doc_id, (vec, meta) in coll.items():
-            if required_user is not None and meta.get("user_id") != required_user:
-                continue
-            scored.append((_cosine(vector, vec), doc_id))
-        scored.sort(key=lambda t: t[0], reverse=True)
-        return [doc_id for _, doc_id in scored[:limit]]
-
-    def optimize(self, collection: str) -> None:  # pragma: no cover - noop
-        return None
-
-
-def _cosine(a: list[float], b: list[float]) -> float:
-    import math
-
-    if len(a) != len(b):
-        return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
-    na = math.sqrt(sum(x * x for x in a))
-    nb = math.sqrt(sum(y * y for y in b))
-    if na == 0.0 or nb == 0.0:
-        return 0.0
-    return dot / (na * nb)
-
-
 @pytest.fixture
-def vector_store() -> _InMemoryVectorStore:
-    """In-memory vector store that duck-types ZvecStore.
+def vector_store(core_db):
+    """SqliteVecStore backed by the same SQLite DB as the relational data.
 
-    Avoids the optional ``zvec`` native dependency in unit tests while
-    exercising the real Use Case / UoW dual-write codepath.
+    Now that UoW writes vectors directly to sqlite-vec tables inside the same
+    DB (no external zvec directory), tests must use SqliteVecStore for both
+    writes (via UoW) and reads (via Recall/SearchTransactions) so they share
+    the same data.
     """
-    return _InMemoryVectorStore()
+    from flux_core.vector.store import SqliteVecStore
+
+    return SqliteVecStore(core_db)
 
 
 class _FakeEmbeddingService:
