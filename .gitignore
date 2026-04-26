@@ -1,4 +1,8 @@
-.claude/
+# Claude Code - ignore local settings but track shared config
+.claude/*
+!.claude/rules/
+!.claude/settings.json
+!.claude/CLAUDE.md
 .agent/
 
 .dev-data/
