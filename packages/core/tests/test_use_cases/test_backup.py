@@ -4,6 +4,7 @@ import sqlite3
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -26,15 +27,6 @@ def _make_test_db(tmp_path: Path) -> str:
     return db_path
 
 
-def _make_test_zvec(tmp_path: Path) -> str:
-    zvec_path = str(tmp_path / "zvec")
-    os.makedirs(zvec_path, exist_ok=True)
-    coll_dir = Path(zvec_path) / "transaction_embeddings"
-    coll_dir.mkdir()
-    (coll_dir / "data.bin").write_bytes(b"fake-vector-data")
-    return zvec_path
-
-
 def _mock_db(db_path: str):
     db = MagicMock()
     db._path = db_path
@@ -44,7 +36,6 @@ def _mock_db(db_path: str):
 
 async def test_create_backup_local(tmp_path):
     db_path = _make_test_db(tmp_path)
-    zvec_path = _make_test_zvec(tmp_path)
 
     db = _mock_db(db_path)
     local_provider = AsyncMock()
@@ -63,26 +54,24 @@ async def test_create_backup_local(tmp_path):
 
     local_provider.upload.side_effect = capture_upload
 
-    uc = CreateBackup(db=db, zvec_path=zvec_path, local_provider=local_provider, s3_provider=None)
+    uc = CreateBackup(db=db, local_provider=local_provider, s3_provider=None)
     result = await uc.execute(storage="local")
 
     assert result.filename.startswith("flux-backup-")
     assert result.filename.endswith(".zip")
     local_provider.upload.assert_called_once()
-    # Verify the uploaded zip contains both sqlite and zvec data
+    # Verify the uploaded zip contains the database
     assert any("flux.db" in n for n in captured_names)
-    assert any("zvec/" in n for n in captured_names)
 
 
 async def test_create_backup_s3(tmp_path):
     db_path = _make_test_db(tmp_path)
-    zvec_path = _make_test_zvec(tmp_path)
 
     db = _mock_db(db_path)
     s3_provider = AsyncMock()
     s3_provider.upload.return_value = "backups/flux-backup-test.zip"
 
-    uc = CreateBackup(db=db, zvec_path=zvec_path, local_provider=None, s3_provider=s3_provider)
+    uc = CreateBackup(db=db, local_provider=None, s3_provider=s3_provider)
     result = await uc.execute(storage="s3")
 
     assert result.storage == "s3"
@@ -91,7 +80,6 @@ async def test_create_backup_s3(tmp_path):
 
 async def test_create_backup_both(tmp_path):
     db_path = _make_test_db(tmp_path)
-    zvec_path = _make_test_zvec(tmp_path)
 
     db = _mock_db(db_path)
     local_provider = AsyncMock()
@@ -100,7 +88,7 @@ async def test_create_backup_both(tmp_path):
     s3_provider.upload.return_value = "backups/flux-backup-test.zip"
 
     uc = CreateBackup(
-        db=db, zvec_path=zvec_path, local_provider=local_provider, s3_provider=s3_provider,
+        db=db, local_provider=local_provider, s3_provider=s3_provider,
     )
     await uc.execute(storage="both")
 
@@ -110,7 +98,6 @@ async def test_create_backup_both(tmp_path):
 
 async def test_create_backup_applies_retention(tmp_path):
     db_path = _make_test_db(tmp_path)
-    zvec_path = _make_test_zvec(tmp_path)
 
     db = _mock_db(db_path)
     local_provider = AsyncMock()
@@ -129,7 +116,6 @@ async def test_create_backup_applies_retention(tmp_path):
 
     uc = CreateBackup(
         db=db,
-        zvec_path=zvec_path,
         local_provider=local_provider,
         local_retention=3,
     )
@@ -141,10 +127,9 @@ async def test_create_backup_applies_retention(tmp_path):
 
 async def test_create_backup_no_provider_raises(tmp_path):
     db_path = _make_test_db(tmp_path)
-    zvec_path = _make_test_zvec(tmp_path)
     db = _mock_db(db_path)
 
-    uc = CreateBackup(db=db, zvec_path=zvec_path, local_provider=None, s3_provider=None)
+    uc = CreateBackup(db=db, local_provider=None, s3_provider=None)
     with pytest.raises(ValueError, match="No storage provider"):
         await uc.execute(storage="s3")
 
@@ -154,7 +139,7 @@ async def test_create_backup_no_provider_raises(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _make_meta(filename: str, storage: str = "local") -> BackupMetadata:
+def _make_meta(filename: str, storage: Literal["local", "s3"] = "local") -> BackupMetadata:
     return BackupMetadata(
         id="test-id",
         filename=filename,
@@ -213,7 +198,7 @@ async def test_delete_backup_s3():
 
 
 def _make_valid_backup_zip(tmp_path: Path) -> Path:
-    """Create a valid backup zip with SQLite DB and zvec directory."""
+    """Create a valid backup zip with SQLite DB."""
     tmp_path.mkdir(parents=True, exist_ok=True)
     zip_path = tmp_path / "restore-test.zip"
     db_path = tmp_path / "backup-db.db"
@@ -223,22 +208,13 @@ def _make_valid_backup_zip(tmp_path: Path) -> Path:
     conn.commit()
     conn.close()
 
-    zvec_dir = tmp_path / "backup-zvec"
-    zvec_dir.mkdir()
-    (zvec_dir / "test_collection").mkdir()
-    (zvec_dir / "test_collection" / "data.bin").write_bytes(b"vectors")
-
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.write(db_path, "flux.db")
-        for f in zvec_dir.rglob("*"):
-            if f.is_file():
-                zf.write(f, f"zvec/{f.relative_to(zvec_dir)}")
     return zip_path
 
 
 async def test_restore_from_file(tmp_path):
     db_path = _make_test_db(tmp_path)
-    zvec_path = _make_test_zvec(tmp_path)
     backup_zip = _make_valid_backup_zip(tmp_path / "backup-source")
 
     db = _mock_db(db_path)
@@ -248,7 +224,7 @@ async def test_restore_from_file(tmp_path):
     create_backup = AsyncMock()
     create_backup.execute.return_value = _make_meta("auto-safety.zip")
 
-    uc = RestoreBackup(db=db, zvec_path=zvec_path, create_backup=create_backup)
+    uc = RestoreBackup(db=db, create_backup=create_backup)
     await uc.execute(file_path=backup_zip)
 
     create_backup.execute.assert_called_once()
@@ -258,7 +234,6 @@ async def test_restore_from_file(tmp_path):
 
 async def test_restore_from_s3(tmp_path):
     db_path = _make_test_db(tmp_path)
-    zvec_path = _make_test_zvec(tmp_path)
     backup_zip = _make_valid_backup_zip(tmp_path / "s3-source")
 
     db = _mock_db(db_path)
@@ -272,7 +247,7 @@ async def test_restore_from_s3(tmp_path):
     create_backup.execute.return_value = _make_meta("auto-safety.zip")
 
     uc = RestoreBackup(
-        db=db, zvec_path=zvec_path, create_backup=create_backup, s3_provider=s3_provider,
+        db=db, create_backup=create_backup, s3_provider=s3_provider,
     )
     await uc.execute(s3_key="backups/test.zip")
 
@@ -280,9 +255,9 @@ async def test_restore_from_s3(tmp_path):
     create_backup.execute.assert_called_once()
 
 
-async def test_restore_no_args_raises(tmp_path):
+async def test_restore_no_args_raises():
     db = MagicMock()
     create_backup = AsyncMock()
-    uc = RestoreBackup(db=db, zvec_path="/tmp", create_backup=create_backup)
+    uc = RestoreBackup(db=db, create_backup=create_backup)
     with pytest.raises(ValueError, match="Provide either"):
         await uc.execute()

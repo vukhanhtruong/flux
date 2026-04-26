@@ -1,12 +1,11 @@
 """MCP tools for backup and restore operations."""
 from __future__ import annotations
 
-import os
-from typing import Callable
+from pathlib import Path
+from typing import Callable, Literal, cast
 
 from fastmcp import FastMCP
 from flux_core.sqlite.database import Database
-from pathlib import Path
 
 from flux_core.use_cases.backup.create_backup import CreateBackup
 from flux_core.use_cases.backup.delete_backup import DeleteBackup
@@ -16,7 +15,6 @@ from flux_core.use_cases.backup.restore_backup import RestoreBackup
 
 async def _create_backup_impl(
     db: Database,
-    zvec_path: str,
     local_storage,
     s3_storage,
     storage: str = "auto",
@@ -25,8 +23,8 @@ async def _create_backup_impl(
     try:
         if storage == "auto":
             storage = "s3" if s3_storage is not None else "local"
-        uc = CreateBackup(db, zvec_path, local_storage, s3_storage)
-        meta = await uc.execute(storage=storage)
+        uc = CreateBackup(db, local_storage, s3_storage)
+        meta = await uc.execute(storage=cast(Literal["local", "s3", "both"], storage))
         return {
             "status": "ok",
             "filename": meta.filename,
@@ -62,7 +60,7 @@ async def _delete_backup_impl(
     """Internal implementation for delete_backup tool."""
     try:
         uc = DeleteBackup(local_storage, s3_storage)
-        await uc.execute(key, storage=storage)
+        await uc.execute(key, storage=cast(Literal["local", "s3"], storage))
         return {"status": "ok", "key": key, "storage": storage}
     except (ValueError, OSError) as exc:
         return {"status": "error", "error": str(exc)}
@@ -70,7 +68,6 @@ async def _delete_backup_impl(
 
 async def _restore_backup_impl(
     db: Database,
-    zvec_path: str,
     local_storage,
     s3_storage,
     file_path: str | None = None,
@@ -78,8 +75,8 @@ async def _restore_backup_impl(
 ) -> dict:
     """Internal implementation for restore_backup tool."""
     try:
-        create_uc = CreateBackup(db, zvec_path, local_storage, s3_storage)
-        uc = RestoreBackup(db, zvec_path, create_uc, s3_storage)
+        create_uc = CreateBackup(db, local_storage, s3_storage)
+        uc = RestoreBackup(db, create_uc, s3_storage)
         await uc.execute(
             file_path=Path(file_path) if file_path else None,
             s3_key=s3_key,
@@ -98,15 +95,13 @@ def register_backup_tools(
 ):
     @mcp.tool()
     async def create_backup(storage: str = "auto") -> dict:
-        """Create a backup of the database and vector store.
+        """Create a backup of the database.
 
         Args:
             storage: Where to store — "auto" (S3 if configured, else local), "local", "s3", or "both".
         """
-        zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
         return await _create_backup_impl(
             db=get_db(),
-            zvec_path=zvec_path,
             local_storage=get_local_storage(),
             s3_storage=get_s3_storage(),
             storage=storage,

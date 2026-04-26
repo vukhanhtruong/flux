@@ -1,7 +1,6 @@
 """Backup/restore REST routes — thin adapters over use cases."""
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -39,10 +38,8 @@ async def create_backup(
 ) -> BackupMetadata:
     """Create a new backup."""
     db = get_db()
-    zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
     uc = CreateBackup(
         db,
-        zvec_path,
         local_provider=get_local_storage(),
         s3_provider=get_s3_storage(),
     )
@@ -102,12 +99,11 @@ async def restore_backup(
 ) -> dict:
     """Restore from a backup file upload, or from a backup_id in local/S3 storage."""
     db = get_db()
-    zvec_path = os.getenv("ZVEC_PATH", "/data/zvec")
     local = get_local_storage()
     s3 = get_s3_storage()
 
-    create_uc = CreateBackup(db, zvec_path, local_provider=local, s3_provider=s3)
-    uc = RestoreBackup(db, zvec_path, create_backup=create_uc, s3_provider=s3)
+    create_uc = CreateBackup(db, local_provider=local, s3_provider=s3)
+    uc = RestoreBackup(db, create_backup=create_uc, s3_provider=s3)
 
     if file and file.filename:
         # Multipart file upload

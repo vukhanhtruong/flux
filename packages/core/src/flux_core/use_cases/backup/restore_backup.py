@@ -1,4 +1,4 @@
-"""RestoreBackup use case — auto-backup then replace SQLite + zvec."""
+"""RestoreBackup use case — auto-backup then replace SQLite database."""
 from __future__ import annotations
 
 import shutil
@@ -22,12 +22,10 @@ class RestoreBackup:
     def __init__(
         self,
         db: Database,
-        zvec_path: str,
         create_backup: CreateBackup,
         s3_provider: S3StorageProvider | None = None,
     ):
         self._db = db
-        self._zvec_path = zvec_path
         self._create_backup = create_backup
         self._s3 = s3_provider
 
@@ -89,13 +87,6 @@ class RestoreBackup:
                 wal = db_path.with_name(db_path.name + suffix)
                 if wal.exists():
                     wal.unlink()
-
-            restored_zvec = extract_dir / "zvec"
-            if restored_zvec.exists():
-                zvec_dest = Path(self._zvec_path)
-                if zvec_dest.exists():
-                    shutil.rmtree(zvec_dest)
-                shutil.copytree(restored_zvec, zvec_dest)
 
             # 7. Reconnect
             self._db.connect()

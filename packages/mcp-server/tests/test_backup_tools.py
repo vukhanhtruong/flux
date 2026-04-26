@@ -52,7 +52,6 @@ async def test_create_backup_tool():
 
         result = await _create_backup_impl(
             db=mock_db,
-            zvec_path="/data/zvec",
             local_storage=mock_local_storage,
             s3_storage=mock_s3_storage,
             storage="local",
@@ -63,7 +62,7 @@ async def test_create_backup_tool():
     assert result["size_bytes"] == 1024
     assert result["storage"] == "local"
     MockCreateBackup.assert_called_once_with(
-        mock_db, "/data/zvec", mock_local_storage, mock_s3_storage,
+        mock_db, mock_local_storage, mock_s3_storage,
     )
     mock_uc.execute.assert_awaited_once_with(storage="local")
 
@@ -94,7 +93,6 @@ async def test_create_backup_auto_prefers_s3():
 
         result = await _create_backup_impl(
             db=mock_db,
-            zvec_path="/data/zvec",
             local_storage=mock_local_storage,
             s3_storage=mock_s3_storage,
             storage="auto",
@@ -130,7 +128,6 @@ async def test_create_backup_auto_falls_back_to_local():
 
         result = await _create_backup_impl(
             db=mock_db,
-            zvec_path="/data/zvec",
             local_storage=mock_local_storage,
             s3_storage=None,
             storage="auto",
@@ -156,7 +153,6 @@ async def test_create_backup_tool_error():
 
         result = await _create_backup_impl(
             db=mock_db,
-            zvec_path="/data/zvec",
             local_storage=None,
             s3_storage=None,
             storage="s3",
@@ -329,7 +325,6 @@ async def test_restore_backup_tool_local():
 
         result = await _restore_backup_impl(
             db=mock_db,
-            zvec_path="/data/zvec",
             local_storage=mock_local_storage,
             s3_storage=mock_s3_storage,
             file_path="/data/backups/flux-backup-2026-03-07T120000.zip",
@@ -339,10 +334,10 @@ async def test_restore_backup_tool_local():
     assert result["status"] == "ok"
     assert result["source"] == "local"
     MockCreateBackup.assert_called_once_with(
-        mock_db, "/data/zvec", mock_local_storage, mock_s3_storage
+        mock_db, mock_local_storage, mock_s3_storage
     )
     MockRestoreBackup.assert_called_once_with(
-        mock_db, "/data/zvec", mock_create_uc, mock_s3_storage
+        mock_db, mock_create_uc, mock_s3_storage
     )
     from pathlib import Path
 
@@ -373,7 +368,6 @@ async def test_restore_backup_tool_s3():
 
         result = await _restore_backup_impl(
             db=mock_db,
-            zvec_path="/data/zvec",
             local_storage=None,
             s3_storage=mock_s3_storage,
             file_path=None,
@@ -405,7 +399,6 @@ async def test_restore_backup_tool_error():
 
         result = await _restore_backup_impl(
             db=mock_db,
-            zvec_path="/data/zvec",
             local_storage=None,
             s3_storage=None,
             file_path=None,

@@ -1,7 +1,6 @@
-"""CreateBackup use case — snapshot SQLite + zvec into a .zip archive."""
+"""CreateBackup use case — snapshot SQLite database into a .zip archive."""
 from __future__ import annotations
 
-import shutil
 import sqlite3
 import tempfile
 import zipfile
@@ -25,14 +24,12 @@ class CreateBackup:
     def __init__(
         self,
         db: Database,
-        zvec_path: str,
         local_provider: LocalStorageProvider | None = None,
         s3_provider: S3StorageProvider | None = None,
         local_retention: int | None = None,
         s3_retention: int | None = None,
     ):
         self._db = db
-        self._zvec_path = zvec_path
         self._local = local_provider
         self._s3 = s3_provider
         self._local_retention = local_retention
@@ -58,20 +55,9 @@ class CreateBackup:
             src_conn.backup(dst_conn)
             dst_conn.close()
 
-            # 2. Copy zvec directory
-            zvec_src = Path(self._zvec_path)
-            zvec_dst = tmp / "zvec"
-            if zvec_src.exists():
-                shutil.copytree(zvec_src, zvec_dst)
-
-            # 3. Create zip
+            # 2. Create zip (just the database)
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 zf.write(db_backup, "flux.db")
-                if zvec_dst.exists():
-                    for f in zvec_dst.rglob("*"):
-                        if f.is_file():
-                            arcname = f"zvec/{f.relative_to(zvec_dst)}"
-                            zf.write(f, arcname)
 
             # 4. Upload to storage(s)
             result_meta = None
@@ -98,6 +84,7 @@ class CreateBackup:
 
         await self._apply_retention()
 
+        assert result_meta is not None, "No backup created after _resolve_provider passed"
         return result_meta
 
     async def _apply_retention(self) -> None:
