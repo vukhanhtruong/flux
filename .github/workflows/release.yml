@@ -106,7 +106,7 @@ jobs:
           cache-dependency-path: packages/*/pyproject.toml
 
       - name: Install pip-audit
-        run: pip install pip-audit
+        run: pip install --upgrade pip pip-audit
 
       - name: Audit Python dependencies
         run: |
@@ -116,7 +116,8 @@ jobs:
             -e "./packages/mcp-server" \
             -e "./packages/agent-bot"
           pip-audit --desc --skip-editable \
-            --ignore-vuln CVE-2026-25990  # pillow <12; blocked by fastembed pinning pillow<12.0
+            --ignore-vuln CVE-2026-25990 \
+            --ignore-vuln CVE-2026-3219  # pip archive handling; no fix version yet
 
       # Scan Dockerfile and filesystem for misconfigurations
       - name: Run Trivy vulnerability scanner
