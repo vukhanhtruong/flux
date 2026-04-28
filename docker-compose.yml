@@ -7,8 +7,8 @@
 #
 # Environment variables (set in .env or export):
 #   TELEGRAM_BOT_TOKEN   — enables agent bot
-#   CLAUDE_AUTH_TOKEN     — required for agent bot
 #   VITE_USER_ID is derived from TELEGRAM_ALLOW_FROM (tg:<id>)
+#   LLM config is per-user in DB — configure via /settings llm in Telegram
 
 services:
   flux:
@@ -29,8 +29,6 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_ALLOW_FROM: ${TELEGRAM_ALLOW_FROM:-}
-      CLAUDE_AUTH_TOKEN: ${CLAUDE_AUTH_TOKEN:-}
-      CLAUDE_MODEL: ${CLAUDE_MODEL:-}
       CLAUDE_TIMEOUT: ${CLAUDE_TIMEOUT:-300}
       MCP_CONFIG_PATH: /app/mcp-config.json
       BACKUP_LOCAL_DIR: /data/backups
