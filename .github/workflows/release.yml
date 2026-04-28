@@ -113,9 +113,10 @@ jobs:
             -e "./packages/api-server" \
             -e "./packages/mcp-server" \
             -e "./packages/agent-bot"
-          # CVE-2026-25990: pillow <12; blocked by fastembed pinning pillow<12.0
+          # pillow <12 vulns blocked by fastembed pinning pillow<12.0
           pip-audit --desc --skip-editable \
-            --ignore-vuln CVE-2026-25990
+            --ignore-vuln CVE-2026-25990 \
+            --ignore-vuln CVE-2026-40192
 
       # Scan Dockerfile and filesystem for misconfigurations
       - name: Run Trivy vulnerability scanner
