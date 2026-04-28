@@ -42,7 +42,6 @@ export function writeConfig(config) {
 
   fs.mkdirSync(fluxDir, { recursive: true });
   fs.mkdirSync(path.join(dataDir, "sqlite"), { recursive: true });
-  fs.mkdirSync(path.join(dataDir, "zvec"), { recursive: true });
   fs.mkdirSync(path.join(dataDir, "backups"), { recursive: true });
 
   const lines = Object.entries(config)

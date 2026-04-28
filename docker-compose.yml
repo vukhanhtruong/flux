@@ -1,4 +1,4 @@
-# docker-compose.yml — Single-container FluxFinance (SQLite+zvec)
+# docker-compose.yml — Single-container FluxFinance (SQLite + sqlite-vec)
 #
 # Usage:
 #   docker compose up --build             # Build and run
@@ -26,7 +26,6 @@ services:
       - "${PORT:-5173}:80"
     environment:
       DATABASE_PATH: /data/sqlite/flux.db
-      ZVEC_PATH: /data/zvec
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_ALLOW_FROM: ${TELEGRAM_ALLOW_FROM:-}

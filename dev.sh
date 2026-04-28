@@ -54,9 +54,8 @@ uv pip install -e "$ROOT/packages/core[dev,vector,embeddings]" \
                --quiet
 
 # --- 3. Data directories ---------------------------------------------------
-mkdir -p "$DATA/sqlite" "$DATA/zvec"
+mkdir -p "$DATA/sqlite"
 export DATABASE_PATH="$DATA/sqlite/flux.db"
-export ZVEC_PATH="$DATA/zvec"
 info "Data dir: $DATA"
 
 # --- 4. Run migrations -----------------------------------------------------

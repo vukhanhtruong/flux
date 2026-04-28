@@ -47,7 +47,6 @@ describe("config", () => {
     writeConfig({ PORT: "3000" });
     const dataDir = path.join(tmpHome, ".flux-finance", "data");
     assert.ok(fs.existsSync(path.join(dataDir, "sqlite")));
-    assert.ok(fs.existsSync(path.join(dataDir, "zvec")));
     assert.ok(fs.existsSync(path.join(dataDir, "backups")));
   });
 

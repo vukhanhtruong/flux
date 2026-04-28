@@ -58,7 +58,7 @@ COPY docker/nginx.conf /etc/nginx/nginx.conf
 RUN useradd -r -m -s /bin/bash flux
 
 # Create data directories (owned by flux user)
-RUN mkdir -p /data/sqlite /data/zvec /data/backups && chown -R flux:flux /data
+RUN mkdir -p /data/sqlite /data/backups && chown -R flux:flux /data
 
 # Entrypoint script
 COPY docker/entrypoint.sh /app/entrypoint.sh
@@ -69,7 +69,6 @@ EXPOSE 80
 
 # Environment defaults
 ENV DATABASE_PATH=/data/sqlite/flux.db
-ENV ZVEC_PATH=/data/zvec
 ENV CORS_ORIGINS=http://localhost
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

@@ -6,7 +6,7 @@
 #   ./test-all.sh              # Run all tests
 #   ./test-all.sh --coverage   # Run with coverage reports
 #
-# Creates a temporary SQLite + zvec database for E2E tests,
+# Creates a temporary SQLite database for E2E tests,
 # completely isolated from the dev environment (.dev-data/).
 #
 set -euo pipefail
@@ -33,9 +33,8 @@ done
 
 # --- Isolated test data directory (auto-cleaned) ----------------------------
 TEST_DATA="$(mktemp -d "${TMPDIR:-/tmp}/flux-test-XXXXXX")"
-mkdir -p "$TEST_DATA/sqlite" "$TEST_DATA/zvec"
+mkdir -p "$TEST_DATA/sqlite"
 export DATABASE_PATH="$TEST_DATA/sqlite/flux-test.db"
-export ZVEC_PATH="$TEST_DATA/zvec"
 
 cleanup() {
     echo ""
@@ -47,7 +46,6 @@ trap cleanup EXIT
 echo ""
 echo "Test data directory: $TEST_DATA"
 echo "  DATABASE_PATH=$DATABASE_PATH"
-echo "  ZVEC_PATH=$ZVEC_PATH"
 
 # --- Run tests per package ---------------------------------------------------
 for pkg in "${PACKAGES[@]}"; do

@@ -349,7 +349,7 @@ export function Settings() {
                 Infrastructure Storage
               </label>
               <p className="text-center font-mono text-xs text-slate-600 truncate py-2">
-                SQLite (WAL) + zvec @ /data/
+                SQLite (WAL) + sqlite-vec @ /data/
               </p>
             </div>
           </div>

@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Transactions (NO embedding column — embeddings in zvec)
+-- Transactions (NO embedding column — embeddings in sqlite-vec)
 CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
