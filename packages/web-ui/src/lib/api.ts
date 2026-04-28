@@ -17,6 +17,8 @@ import type {
   ScheduledTask,
   BackupMetadata,
   S3Config,
+  LlmConfig,
+  LlmConfigUpdate,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
@@ -268,6 +270,31 @@ class ApiClient {
     return this.request("/backups/config", {
       method: "PUT",
       body: JSON.stringify(config),
+    });
+  }
+
+  // LLM Config
+  async getLlmConfig(userId: string): Promise<LlmConfig | null> {
+    const params = new URLSearchParams({ user_id: userId });
+    try {
+      return await this.request(`/llm-config?${params}`);
+    } catch {
+      return null;
+    }
+  }
+
+  async updateLlmConfig(userId: string, data: LlmConfigUpdate): Promise<LlmConfig> {
+    const params = new URLSearchParams({ user_id: userId });
+    return this.request(`/llm-config?${params}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteLlmConfig(userId: string): Promise<void> {
+    const params = new URLSearchParams({ user_id: userId });
+    return this.request(`/llm-config?${params}`, {
+      method: "DELETE",
     });
   }
 }
