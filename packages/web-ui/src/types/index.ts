@@ -174,3 +174,21 @@ export interface ScheduledTask {
   asset_id: string | null;
   created_at: string;
 }
+
+// LLM Config types
+export type LlmProvider = "anthropic" | "openai" | "openrouter" | "ollama" | "custom";
+
+export interface LlmConfig {
+  user_id: string;
+  provider: LlmProvider;
+  model: string;
+  base_url: string | null;
+  api_key_masked: string;
+}
+
+export interface LlmConfigUpdate {
+  provider: LlmProvider;
+  model: string;
+  base_url?: string | null;
+  api_key?: string;
+}
