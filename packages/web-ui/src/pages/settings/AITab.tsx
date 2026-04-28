@@ -212,10 +212,11 @@ export function AITab() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <label htmlFor="provider" className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Provider
                 </label>
                 <select
+                  id="provider"
                   value={formProvider}
                   onChange={(e) => handleProviderChange(e.target.value as LlmProvider)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-primary/50 transition-colors h-12 appearance-none"
@@ -243,12 +244,13 @@ export function AITab() {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <label htmlFor="baseUrl" className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Base URL <span className="text-slate-600">(optional)</span>
                 </label>
                 <div className="relative">
                   <Server className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input
+                    id="baseUrl"
                     type="text"
                     value={formBaseUrl}
                     onChange={(e) => setFormBaseUrl(e.target.value)}
