@@ -11,7 +11,6 @@ const mockReadConfig = mock.fn();
 const mockWriteConfig = mock.fn();
 const mockExecSync = mock.fn();
 const mockGetDataDir = mock.fn();
-const mockAcquireClaudeToken = mock.fn();
 const mockShowQR = mock.fn();
 
 mock.module("prompts", {
@@ -45,12 +44,6 @@ mock.module("../src/config.js", {
     getFluxDir: () => "/tmp/.flux-finance",
     CONFIG_DIR_NAME: ".flux-finance",
     ENV_FILE_NAME: ".env",
-  },
-});
-
-mock.module("../src/claude-auth.js", {
-  namedExports: {
-    acquireClaudeToken: mockAcquireClaudeToken,
   },
 });
 
@@ -222,7 +215,6 @@ describe("runWizard", () => {
     mockStartContainer.mock.resetCalls();
     mockWriteConfig.mock.resetCalls();
     mockGetDataDir.mock.resetCalls();
-    mockAcquireClaudeToken.mock.resetCalls();
     mockShowQR.mock.resetCalls();
     mockExecSync.mock.resetCalls();
   });
@@ -240,16 +232,8 @@ describe("runWizard", () => {
     assert.equal(exitCode, 1);
   });
 
-  it("exits when no Claude token is provided", async () => {
-    mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => null);
-
-    await assert.rejects(() => runWizard(), { message: "EXIT_1" });
-  });
-
   it("exits when no bot token is provided", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
 
     let callCount = 0;
     mockPrompts.mock.mockImplementation(async () => {
@@ -264,7 +248,6 @@ describe("runWizard", () => {
 
   it("exits when no user ID is provided", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
 
     let callCount = 0;
     mockPrompts.mock.mockImplementation(async () => {
@@ -280,7 +263,6 @@ describe("runWizard", () => {
 
   it("completes full wizard flow successfully", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
     mockPullImage.mock.mockImplementation(async () => {});
     mockStartContainer.mock.mockImplementation(async () => {});
     mockWriteConfig.mock.mockImplementation(() => {});
@@ -292,9 +274,8 @@ describe("runWizard", () => {
       callCount++;
       if (callCount === 1) return { botToken: "123:ABC" };   // bot token
       if (callCount === 2) return { userId: "456" };         // user ID
-      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" }; // model
-      if (callCount === 4) return { port: "5173" };          // port
-      if (callCount === 5) return { setupNgrok: false };     // skip ngrok
+      if (callCount === 3) return { port: "5173" };          // port
+      if (callCount === 4) return { setupNgrok: false };     // skip ngrok
       return {};
     });
 
@@ -302,13 +283,18 @@ describe("runWizard", () => {
     assert.equal(mockWriteConfig.mock.callCount(), 1);
     assert.equal(mockPullImage.mock.callCount(), 1);
     assert.equal(mockStartContainer.mock.callCount(), 1);
+
     const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
-    assert.equal(writtenConfig.CLAUDE_MODEL, "claude-haiku-4-5-20251001");
+    assert.equal(writtenConfig.TELEGRAM_BOT_TOKEN, "123:ABC");
+    assert.equal(writtenConfig.TELEGRAM_ALLOW_FROM, "456");
+    assert.ok(writtenConfig.FLUX_SECRET_KEY);
+    // No CLAUDE_AUTH_TOKEN or CLAUDE_MODEL — LLM config is per-user in DB
+    assert.equal(writtenConfig.CLAUDE_AUTH_TOKEN, undefined);
+    assert.equal(writtenConfig.CLAUDE_MODEL, undefined);
   });
 
   it("completes wizard with ngrok setup", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
     mockPullImage.mock.mockImplementation(async () => {});
     mockStartContainer.mock.mockImplementation(async () => {});
     mockWriteConfig.mock.mockImplementation(() => {});
@@ -320,10 +306,9 @@ describe("runWizard", () => {
       callCount++;
       if (callCount === 1) return { botToken: "123:ABC" };
       if (callCount === 2) return { userId: "456" };
-      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: true };
-      if (callCount === 6) return { ngrokToken: "ngrok-token-123" };
+      if (callCount === 3) return { port: "5173" };
+      if (callCount === 4) return { setupNgrok: true };
+      if (callCount === 5) return { ngrokToken: "ngrok-token-123" };
       return {};
     });
 
@@ -336,7 +321,6 @@ describe("runWizard", () => {
 
   it("handles pull image failure", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
     mockPullImage.mock.mockImplementation(async () => { throw new Error("pull failed"); });
     mockWriteConfig.mock.mockImplementation(() => {});
     mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
@@ -347,8 +331,7 @@ describe("runWizard", () => {
       callCount++;
       if (callCount === 1) return { botToken: "123:ABC" };
       if (callCount === 2) return { userId: "456" };
-      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 4) return { port: "5173" };
+      if (callCount === 3) return { port: "5173" };
       return {};
     });
 
@@ -357,7 +340,6 @@ describe("runWizard", () => {
 
   it("handles start container failure", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
     mockPullImage.mock.mockImplementation(async () => {});
     mockStartContainer.mock.mockImplementation(async () => { throw new Error("start failed"); });
     mockWriteConfig.mock.mockImplementation(() => {});
@@ -369,42 +351,15 @@ describe("runWizard", () => {
       callCount++;
       if (callCount === 1) return { botToken: "123:ABC" };
       if (callCount === 2) return { userId: "456" };
-      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 4) return { port: "5173" };
+      if (callCount === 3) return { port: "5173" };
       return {};
     });
 
     await assert.rejects(() => runWizard(), { message: "EXIT_1" });
   });
 
-  it("acquires token via acquireClaudeToken", async () => {
-    mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-oat01-acquired");
-    mockPullImage.mock.mockImplementation(async () => {});
-    mockStartContainer.mock.mockImplementation(async () => {});
-    mockWriteConfig.mock.mockImplementation(() => {});
-    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
-    mockShowQR.mock.mockImplementation(async () => {});
-
-    let callCount = 0;
-    mockPrompts.mock.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) return { botToken: "123:ABC" };
-      if (callCount === 2) return { userId: "456" };
-      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: false };
-      return {};
-    });
-
-    await runWizard();
-    assert.equal(mockAcquireClaudeToken.mock.callCount(), 1);
-    assert.equal(mockWriteConfig.mock.callCount(), 1);
-  });
-
   it("handles ngrok restart failure gracefully", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
     mockPullImage.mock.mockImplementation(async () => {});
     let startCount = 0;
     mockStartContainer.mock.mockImplementation(async () => {
@@ -420,10 +375,9 @@ describe("runWizard", () => {
       callCount++;
       if (callCount === 1) return { botToken: "123:ABC" };
       if (callCount === 2) return { userId: "456" };
-      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: true };
-      if (callCount === 6) return { ngrokToken: "ngrok-123" };
+      if (callCount === 3) return { port: "5173" };
+      if (callCount === 4) return { setupNgrok: true };
+      if (callCount === 5) return { ngrokToken: "ngrok-123" };
       return {};
     });
 
@@ -433,7 +387,6 @@ describe("runWizard", () => {
 
   it("exits when bot token verification fails and user declines to continue", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
     mockShowQR.mock.mockImplementation(async () => {});
 
     // Make fetch return failure so token verification fails
@@ -454,7 +407,6 @@ describe("runWizard", () => {
 
   it("continues when bot token verification fails but user confirms", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
     mockPullImage.mock.mockImplementation(async () => {});
     mockStartContainer.mock.mockImplementation(async () => {});
     mockWriteConfig.mock.mockImplementation(() => {});
@@ -477,9 +429,8 @@ describe("runWizard", () => {
       if (callCount === 1) return { botToken: "123:UNVERIFIED" };
       if (callCount === 2) return { continueAnyway: true };  // continue anyway
       if (callCount === 3) return { userId: "456" };
-      if (callCount === 4) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 5) return { port: "5173" };
-      if (callCount === 6) return { setupNgrok: false };
+      if (callCount === 4) return { port: "5173" };
+      if (callCount === 5) return { setupNgrok: false };
       return {};
     });
 
@@ -489,7 +440,6 @@ describe("runWizard", () => {
 
   it("shows warning when user ID cannot be verified", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
     mockPullImage.mock.mockImplementation(async () => {});
     mockStartContainer.mock.mockImplementation(async () => {});
     mockWriteConfig.mock.mockImplementation(() => {});
@@ -511,9 +461,8 @@ describe("runWizard", () => {
       callCount++;
       if (callCount === 1) return { botToken: "123:ABC" };
       if (callCount === 2) return { userId: "999" };
-      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: false };
+      if (callCount === 3) return { port: "5173" };
+      if (callCount === 4) return { setupNgrok: false };
       return {};
     });
 
@@ -523,7 +472,6 @@ describe("runWizard", () => {
 
   it("handles ngrok setup with empty token", async () => {
     mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
     mockPullImage.mock.mockImplementation(async () => {});
     mockStartContainer.mock.mockImplementation(async () => {});
     mockWriteConfig.mock.mockImplementation(() => {});
@@ -535,41 +483,14 @@ describe("runWizard", () => {
       callCount++;
       if (callCount === 1) return { botToken: "123:ABC" };
       if (callCount === 2) return { userId: "456" };
-      if (callCount === 3) return { model: "claude-haiku-4-5-20251001" };
-      if (callCount === 4) return { port: "5173" };
-      if (callCount === 5) return { setupNgrok: true };
-      if (callCount === 6) return { ngrokToken: undefined }; // empty ngrok token
+      if (callCount === 3) return { port: "5173" };
+      if (callCount === 4) return { setupNgrok: true };
+      if (callCount === 5) return { ngrokToken: undefined }; // empty ngrok token
       return {};
     });
 
     await runWizard();
     // writeConfig called only once (no ngrok restart)
     assert.equal(mockWriteConfig.mock.callCount(), 1);
-  });
-
-  it("allows custom model selection in wizard", async () => {
-    mockIsDockerRunning.mock.mockImplementation(async () => true);
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-test-token");
-    mockPullImage.mock.mockImplementation(async () => {});
-    mockStartContainer.mock.mockImplementation(async () => {});
-    mockWriteConfig.mock.mockImplementation(() => {});
-    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
-    mockShowQR.mock.mockImplementation(async () => {});
-
-    let callCount = 0;
-    mockPrompts.mock.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) return { botToken: "123:ABC" };
-      if (callCount === 2) return { userId: "456" };
-      if (callCount === 3) return { model: "custom" };
-      if (callCount === 4) return { customModel: "claude-sonnet-4-6" };
-      if (callCount === 5) return { port: "5173" };
-      if (callCount === 6) return { setupNgrok: false };
-      return {};
-    });
-
-    await runWizard();
-    const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
-    assert.equal(writtenConfig.CLAUDE_MODEL, "claude-sonnet-4-6");
   });
 });

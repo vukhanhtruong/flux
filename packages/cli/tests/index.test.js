@@ -15,7 +15,6 @@ const mockRemoveContainer = mock.fn();
 const mockGetContainerStatus = mock.fn();
 const mockContainerLogs = mock.fn();
 const mockRunWizard = mock.fn();
-const mockAcquireClaudeToken = mock.fn();
 const mockPrompts = mock.fn();
 const mockExistsSync = mock.fn();
 const mockUnlinkSync = mock.fn();
@@ -57,13 +56,6 @@ mock.module("../src/wizard.js", {
     validateUserId: () => true,
     validatePort: () => true,
     generateSecretKey: () => "test-uuid",
-  },
-});
-
-mock.module("../src/claude-auth.js", {
-  namedExports: {
-    readClaudeToken: () => null,
-    acquireClaudeToken: mockAcquireClaudeToken,
   },
 });
 
@@ -127,7 +119,6 @@ describe("cli commands", () => {
     mockContainerLogs.mock.resetCalls();
     mockRunWizard.mock.resetCalls();
     mockPrompts.mock.resetCalls();
-    mockAcquireClaudeToken.mock.resetCalls();
     mockExistsSync.mock.resetCalls();
     mockUnlinkSync.mock.resetCalls();
   });
@@ -385,67 +376,5 @@ describe("cli commands", () => {
     await program.parseAsync(["node", "flux-finance", "reset"]);
     assert.equal(mockRemoveContainer.mock.callCount(), 1);
     assert.equal(mockUnlinkSync.mock.callCount(), 0);
-  });
-
-  it("refresh-token acquires token, updates config, and restarts", async () => {
-    mockReadConfig.mock.mockImplementation(() => ({
-      PORT: "5173",
-      TELEGRAM_BOT_TOKEN: "123:ABC",
-      CLAUDE_AUTH_TOKEN: "sk-ant-oat01-old",
-    }));
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-oat01-new-token");
-    mockWriteConfig.mock.mockImplementation(() => {});
-    mockStartContainer.mock.mockImplementation(async () => {});
-    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
-
-    await program.parseAsync(["node", "flux-finance", "refresh-token"]);
-    assert.equal(mockAcquireClaudeToken.mock.callCount(), 1);
-    assert.equal(mockWriteConfig.mock.callCount(), 1);
-    const writtenConfig = mockWriteConfig.mock.calls[0].arguments[0];
-    assert.equal(writtenConfig.CLAUDE_AUTH_TOKEN, "sk-ant-oat01-new-token");
-    assert.equal(mockStartContainer.mock.callCount(), 1);
-  });
-
-  it("refresh-token exits when no config exists", async () => {
-    mockReadConfig.mock.mockImplementation(() => ({}));
-
-    await assert.rejects(
-      () => program.parseAsync(["node", "flux-finance", "refresh-token"]),
-      { message: "EXIT_1" }
-    );
-    assert.equal(mockAcquireClaudeToken.mock.callCount(), 0);
-  });
-
-  it("refresh-token exits when no token acquired", async () => {
-    mockReadConfig.mock.mockImplementation(() => ({
-      PORT: "5173",
-      CLAUDE_AUTH_TOKEN: "sk-ant-oat01-old",
-    }));
-    mockAcquireClaudeToken.mock.mockImplementation(async () => null);
-
-    await assert.rejects(
-      () => program.parseAsync(["node", "flux-finance", "refresh-token"]),
-      { message: "EXIT_1" }
-    );
-    assert.equal(mockWriteConfig.mock.callCount(), 0);
-  });
-
-  it("refresh-token handles restart failure after config update", async () => {
-    mockReadConfig.mock.mockImplementation(() => ({
-      PORT: "5173",
-      CLAUDE_AUTH_TOKEN: "sk-ant-oat01-old",
-    }));
-    mockAcquireClaudeToken.mock.mockImplementation(async () => "sk-ant-oat01-new");
-    mockWriteConfig.mock.mockImplementation(() => {});
-    mockStartContainer.mock.mockImplementation(async () => {
-      throw new Error("restart failed");
-    });
-    mockGetDataDir.mock.mockImplementation(() => "/tmp/data");
-
-    await assert.rejects(
-      () => program.parseAsync(["node", "flux-finance", "refresh-token"]),
-      { message: "EXIT_1" }
-    );
-    assert.equal(mockWriteConfig.mock.callCount(), 1);
   });
 });

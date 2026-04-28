@@ -15,7 +15,6 @@ import {
   CONTAINER_NAME,
 } from "./docker.js";
 import { runWizard } from "./wizard.js";
-import { acquireClaudeToken } from "./claude-auth.js";
 import fs from "node:fs";
 
 export const program = new Command();
@@ -223,43 +222,6 @@ program
       console.log(`  ${chalk.dim(key)}: ${masked}`);
     }
     console.log();
-  });
-
-program
-  .command("refresh-token")
-  .description("Refresh Claude authentication token")
-  .action(async () => {
-    const config = readConfig();
-    if (Object.keys(config).length === 0) {
-      console.log(
-        chalk.yellow("  No configuration found. Run setup first.\n")
-      );
-      process.exit(1);
-    }
-
-    const newToken = await acquireClaudeToken();
-
-    if (!newToken) {
-      console.log(chalk.red("\n  No token provided. Aborting.\n"));
-      process.exit(1);
-    }
-
-    config.CLAUDE_AUTH_TOKEN = newToken;
-    writeConfig(config);
-    console.log(chalk.green("  Token saved.\n"));
-
-    const spinner = ora("Restarting FluxFinance...").start();
-    try {
-      await startContainer(config, getDataDir());
-      spinner.succeed("FluxFinance restarted with new token!");
-    } catch (err) {
-      spinner.fail(`Failed to restart: ${err.message}`);
-      console.log(
-        chalk.yellow("  Token was saved. Try restarting manually with:"),
-      );
-      console.log(chalk.cyan("    npx @flux-finance/cli start\n"));
-      process.exit(1);
-    }
   });
 
 // Only parse when run directly (not when imported for testing)

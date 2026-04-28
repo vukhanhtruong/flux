@@ -4,7 +4,6 @@ import prompts from "prompts";
 import ora from "ora";
 import { isDockerRunning, pullImage, startContainer } from "./docker.js";
 import { readConfig, writeConfig, getDataDir, getConfigPath } from "./config.js";
-import { acquireClaudeToken } from "./claude-auth.js";
 import {
   showQR,
   BOTFATHER_URL,
@@ -82,17 +81,8 @@ export async function runWizard() {
   }
   console.log(chalk.green("  Docker is running.\n"));
 
-  // Step 2: Claude Authentication
-  console.log(chalk.bold("Step 2: Claude Authentication\n"));
-  const claudeToken = await acquireClaudeToken();
-
-  if (!claudeToken) {
-    console.log(chalk.red("\n  Claude token is required. Exiting.\n"));
-    process.exit(1);
-  }
-
-  // Step 3: Create Telegram Bot
-  console.log(chalk.bold("\nStep 3: Create your Telegram Bot\n"));
+  // Step 2: Create Telegram Bot
+  console.log(chalk.bold("Step 2: Create your Telegram Bot\n"));
   await showQR(BOTFATHER_URL);
   console.log(BOTFATHER_INSTRUCTIONS);
   console.log();
@@ -134,8 +124,8 @@ export async function runWizard() {
     );
   }
 
-  // Step 4: Get Telegram User ID
-  console.log(chalk.bold("\nStep 4: Get your Telegram User ID\n"));
+  // Step 3: Get Telegram User ID
+  console.log(chalk.bold("\nStep 3: Get your Telegram User ID\n"));
   await showQR(RAW_DATA_BOT_URL);
   console.log(RAW_DATA_BOT_INSTRUCTIONS);
   console.log();
@@ -167,44 +157,8 @@ export async function runWizard() {
     console.log(chalk.green(`\n  User ID verified! Hello, ${name}\n`));
   }
 
-  // Step 5: Configuration
-  console.log(chalk.bold("\nStep 5: Configuration\n"));
-
-  const { model } = await prompts({
-    type: "select",
-    name: "model",
-    message: "Which Claude model should the bot use?",
-    choices: [
-      {
-        title: "claude-haiku-4-5-20251001 (fastest, cheapest — recommended)",
-        value: "claude-haiku-4-5-20251001",
-      },
-      {
-        title: "claude-sonnet-4-6 (balanced)",
-        value: "claude-sonnet-4-6",
-      },
-      {
-        title: "claude-opus-4-6 (most capable, slowest)",
-        value: "claude-opus-4-6",
-      },
-      {
-        title: "Custom (enter model ID)",
-        value: "custom",
-      },
-    ],
-    initial: 0,
-  });
-
-  let selectedModel = model || "claude-haiku-4-5-20251001";
-  if (selectedModel === "custom") {
-    const { customModel } = await prompts({
-      type: "text",
-      name: "customModel",
-      message: "Enter Claude model ID",
-      initial: "claude-haiku-4-5-20251001",
-    });
-    selectedModel = customModel || "claude-haiku-4-5-20251001";
-  }
+  // Step 4: Configuration
+  console.log(chalk.bold("\nStep 4: Configuration\n"));
 
   const { port } = await prompts({
     type: "text",
@@ -214,14 +168,12 @@ export async function runWizard() {
     validate: validatePort,
   });
 
-  // Step 6: Pull & Start
-  console.log(chalk.bold("\nStep 6: Installing FluxFinance...\n"));
+  // Step 5: Pull & Start
+  console.log(chalk.bold("\nStep 5: Installing FluxFinance...\n"));
 
   const config = {
     TELEGRAM_BOT_TOKEN: botToken,
     TELEGRAM_ALLOW_FROM: userId,
-    CLAUDE_AUTH_TOKEN: claudeToken,
-    CLAUDE_MODEL: selectedModel,
     FLUX_SECRET_KEY: generateSecretKey(),
     PORT: port || "5173",
   };
@@ -249,7 +201,7 @@ export async function runWizard() {
     process.exit(1);
   }
 
-  // Step 7: Optional ngrok
+  // Step 6: Optional ngrok
   console.log();
   const { setupNgrok } = await prompts({
     type: "confirm",
@@ -279,14 +231,14 @@ export async function runWizard() {
     }
   }
 
-  // Step 8: Done!
+  // Done!
   const finalPort = config.PORT || "5173";
 
   console.log(chalk.bold.green("\n  ============================================="));
   console.log(chalk.bold.green("    FluxFinance is up and running!"));
   console.log(chalk.bold.green("  =============================================\n"));
 
-  // Show chat link with QR (botUsername already verified in Step 3)
+  // Show chat link with QR (botUsername already verified in Step 2)
   if (botUsername) {
     const botUrl = `https://t.me/${botUsername}`;
     console.log(chalk.bold("  Chat with your bot:"));
@@ -294,6 +246,10 @@ export async function runWizard() {
     console.log(`    Or scan this QR code:\n`);
     await showQR(botUrl);
   }
+
+  // Important: Configure AI
+  console.log(chalk.bold.yellow("  Configure AI (required):"));
+  console.log(`    Send ${chalk.cyan("/settings llm")} to your bot to set up your AI provider.\n`);
 
   // Web UI
   console.log(chalk.bold("  Web UI:"));
@@ -306,7 +262,7 @@ export async function runWizard() {
   console.log(`    Backups:  ${chalk.dim(getDataDir() + "/backups/")}\n`);
 
   // Getting started tips
-  console.log(chalk.bold("  Getting started — try sending these to your bot:"));
+  console.log(chalk.bold("  After configuring AI, try sending:"));
   console.log(`    ${chalk.cyan('"I spent $12 on lunch today"')}`);
   console.log(`    ${chalk.cyan('"Set a monthly budget of $500 for food"')}`);
   console.log(`    ${chalk.cyan('"Show me my spending this week"')}`);
@@ -323,6 +279,5 @@ export async function runWizard() {
   console.log(`    ${chalk.cyan("npx @flux-finance/cli logs")}      View logs`);
   console.log(`    ${chalk.cyan("npx @flux-finance/cli update")}    Update to latest version`);
   console.log(`    ${chalk.cyan("npx @flux-finance/cli config")}    Show configuration`);
-  console.log(`    ${chalk.cyan("npx @flux-finance/cli refresh-token")} Refresh Claude token`);
   console.log();
 }
