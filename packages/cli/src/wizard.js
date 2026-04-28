@@ -247,13 +247,9 @@ export async function runWizard() {
     await showQR(botUrl);
   }
 
-  // Important: Configure AI
+  // Important: Configure AI via Web UI
   console.log(chalk.bold.yellow("  Configure AI (required):"));
-  console.log(`    Send ${chalk.cyan("/settings llm")} to your bot to set up your AI provider.\n`);
-
-  // Web UI
-  console.log(chalk.bold("  Web UI:"));
-  console.log(`    ${chalk.cyan(`http://localhost:${finalPort}`)}\n`);
+  console.log(`    Open ${chalk.cyan(`http://localhost:${finalPort}/settings`)} to set up your AI provider.\n`);
 
   // Data location
   console.log(chalk.bold("  Your data:"));

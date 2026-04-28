@@ -70,20 +70,6 @@ async def test_cron_task_injects_message_and_advances(worker, mock_task_repo, mo
     assert next_run > datetime.now(UTC)
 
 
-async def test_subscription_cron_uses_subscription_next_date(
-    worker, mock_task_repo, mock_msg_repo,
-):
-    expected = datetime(2026, 4, 1, 0, 0, tzinfo=UTC)
-    mock_task_repo.fetch_due_tasks.return_value = [_SUB_CRON_TASK]
-    mock_task_repo.get_subscription_next_run.return_value = expected
-    mock_msg_repo.insert.return_value = 15
-
-    await worker._fire_once()
-
-    mock_task_repo.get_subscription_next_run.assert_called_once_with(5)
-    mock_task_repo.advance_next_run.assert_called_once_with(5, expected)
-
-
 async def test_interval_task_injects_message_and_advances(worker, mock_task_repo, mock_msg_repo):
     mock_task_repo.fetch_due_tasks.return_value = [_INTERVAL_TASK]
     mock_msg_repo.insert.return_value = 12
@@ -162,21 +148,6 @@ async def test_once_savings_task_marks_completed_not_advances(
     mock_task_repo.advance_next_run.assert_not_called()
 
 
-async def test_subscription_cron_falls_back_to_croniter_when_lookup_missing(
-    worker, mock_task_repo, mock_msg_repo,
-):
-    task = {**_SUB_CRON_TASK, "user_timezone": "Asia/Bangkok"}
-    mock_task_repo.fetch_due_tasks.return_value = [task]
-    mock_task_repo.get_subscription_next_run.return_value = None
-    mock_msg_repo.insert.return_value = 16
-
-    await worker._fire_once()
-
-    mock_task_repo.get_subscription_next_run.assert_called_once_with(5)
-    _, next_run = mock_task_repo.advance_next_run.call_args.args
-    assert next_run > datetime.now(UTC)
-
-
 async def test_message_inject_failure_skips_task(worker, mock_task_repo, mock_msg_repo):
     """When message_repo.insert raises, task must NOT be marked completed."""
     mock_task_repo.fetch_due_tasks.return_value = [_ONCE_TASK]
@@ -186,3 +157,21 @@ async def test_message_inject_failure_skips_task(worker, mock_task_repo, mock_ms
 
     mock_task_repo.mark_completed.assert_not_called()
     mock_task_repo.advance_next_run.assert_not_called()
+
+
+async def test_subscription_cron_next_run_must_be_in_future(
+    worker, mock_task_repo, mock_msg_repo,
+):
+    """Subscription tasks must always set next_run_at to a future date.
+
+    Bug: Previously, scheduler read subscription.next_date (the date that just
+    triggered the task) and used it as next_run_at. This caused last_run_at > next_run_at.
+    Fix: Always use cron computation for recurring tasks.
+    """
+    mock_task_repo.fetch_due_tasks.return_value = [_SUB_CRON_TASK]
+    mock_msg_repo.insert.return_value = 17
+
+    await worker._fire_once()
+
+    _, next_run = mock_task_repo.advance_next_run.call_args.args
+    assert next_run > datetime.now(UTC), "next_run_at must always be in the future"
