@@ -56,10 +56,9 @@ jobs:
       - name: Run tests with coverage
         env:
           DATABASE_PATH: /tmp/flux-test/flux.db
-          ZVEC_PATH: /tmp/flux-test/zvec
         working-directory: packages/${{ matrix.package }}
         run: |
-          mkdir -p /tmp/flux-test/sqlite /tmp/flux-test/zvec
+          mkdir -p /tmp/flux-test/sqlite
           pytest tests/ -v --tb=short \
             --cov=${{ matrix.cov_source }} --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
