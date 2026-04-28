@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { User, Send, Smartphone, Cpu, Database, Globe, Clock, Coins, CalendarClock, Trash2, AlertTriangle, X, CheckCircle } from "lucide-react";
 import { DataTab } from "./settings/DataTab";
+import { AITab } from "./settings/AITab";
 import { USER_ID } from "../lib/constants";
 import { useProfile } from "../context/ProfileContext";
 import { api } from "../lib/api";
 import { formatDateTime } from "../lib/format";
 import type { ScheduledTask } from "../types";
 
-type Tab = "general" | "data" | "messaging" | "system" | "scheduled-tasks";
+type Tab = "general" | "data" | "ai" | "messaging" | "system" | "scheduled-tasks";
 
 function formatScheduleValue(type: string, value: string): string {
   if (type === "interval") {
@@ -23,6 +24,7 @@ function formatScheduleValue(type: string, value: string): string {
 const TABS: { key: Tab; label: string }[] = [
   { key: "general", label: "General" },
   { key: "data", label: "Data" },
+  { key: "ai", label: "AI" },
   { key: "scheduled-tasks", label: "Scheduled Tasks" },
   { key: "messaging", label: "Messaging Platforms" },
   { key: "system", label: "System" },
@@ -210,6 +212,8 @@ export function Settings() {
         )}
 
         {activeTab === "data" && <DataTab />}
+
+        {activeTab === "ai" && <AITab />}
 
         {activeTab === "messaging" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 lg:gap-8">
