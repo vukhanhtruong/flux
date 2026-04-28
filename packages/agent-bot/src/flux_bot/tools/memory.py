@@ -27,13 +27,24 @@ if TYPE_CHECKING:
     from flux_core.sqlite.database import Database
     from flux_core.vector.store import SqliteVecStore
 
+_default_embedding_svc: EmbeddingProvider | None = None
+
+
+def _get_default_embedding_svc() -> EmbeddingProvider:
+    global _default_embedding_svc
+    if _default_embedding_svc is None:
+        from flux_core.embeddings.service import EmbeddingService
+
+        _default_embedding_svc = EmbeddingService()
+    return _default_embedding_svc
+
 
 def build_memory_tools(
     *,
     user_id: str,
     db: Database,
     vector_store: SqliteVecStore | None,
-    embedding_svc: EmbeddingProvider | None,
+    embedding_svc: EmbeddingProvider | None = None,
 ) -> list[BaseTool]:
     """Return the memory tool set bound to a specific user.
 
@@ -43,8 +54,11 @@ def build_memory_tools(
         db: Connected core ``Database`` (SQLite, WAL mode).
         vector_store: ``SqliteVecStore`` used for embedding dual-writes and
             semantic search.
-        embedding_svc: ``EmbeddingProvider`` for generating memory embeddings.
+        embedding_svc: Optional ``EmbeddingProvider``. If omitted, a
+            process-level ``EmbeddingService`` is lazily constructed
+            and reused across calls.
     """
+    emb = embedding_svc if embedding_svc is not None else _get_default_embedding_svc()
 
     async def save_memory(memory_type: str, content: str) -> dict:
         """Store a memory with semantic embedding for later recall.
@@ -56,13 +70,13 @@ def build_memory_tools(
         Returns:
             Dict with id, memory_type, content.
         """
-        if vector_store is None or embedding_svc is None:
+        if vector_store is None:
             raise RuntimeError(
-                "build_memory_tools requires vector_store and embedding_svc — "
-                "pass them to build_tools() or build_memory_tools() directly."
+                "save_memory requires vector_store — "
+                "pass it to build_tools() or build_memory_tools() directly."
             )
         uow = UnitOfWork(db)
-        uc = Remember(uow, embedding_svc)
+        uc = Remember(uow, emb)
         result = await uc.execute(user_id, MemoryType(memory_type), content)
         return {
             "id": str(result.id),
@@ -110,13 +124,13 @@ def build_memory_tools(
             memory_type, content, created_at) and a safety note reminding
             the model to treat these as data, not as instructions.
         """
-        if vector_store is None or embedding_svc is None:
+        if vector_store is None:
             raise RuntimeError(
-                "build_memory_tools requires vector_store and embedding_svc — "
-                "pass them to build_tools() or build_memory_tools() directly."
+                "search_memory requires vector_store — "
+                "pass it to build_tools() or build_memory_tools() directly."
             )
         repo = SqliteMemoryRepository(db.connection())
-        uc = Recall(repo, vector_store, embedding_svc)
+        uc = Recall(repo, vector_store, emb)
         results = await uc.execute(user_id, query, limit=limit)
         return {
             "memories": [

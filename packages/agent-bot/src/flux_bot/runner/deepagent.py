@@ -6,6 +6,7 @@ from pathlib import Path
 
 from flux_core.sqlite.database import Database
 from flux_core.models.user_profile import UserProfile
+from flux_core.vector.store import SqliteVecStore
 from flux_bot.agent.factory import build_agent
 from flux_bot.agent.checkpointer import build_checkpointer
 from flux_bot.agent.prompt import prepend_datetime
@@ -37,7 +38,8 @@ class DeepAgentRunner:
         if image_path:
             full_prompt = f"{full_prompt}\n\n[Image: {image_path}]"
 
-        tools = build_tools(user_id=user_id, db=self.db)
+        vector_store = SqliteVecStore(self.db)
+        tools = build_tools(user_id=user_id, db=self.db, vector_store=vector_store)
 
         p = Path(self.flux_db_path)
         checkpoint_db_path = str(p.parent / (p.stem + "_checkpoints" + p.suffix))
