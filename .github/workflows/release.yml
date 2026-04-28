@@ -33,7 +33,7 @@ jobs:
             install: "'./packages/core[vector,embeddings]' './packages/mcp-server[dev]'"
             cov_source: flux_mcp
           - package: agent-bot
-            install: "'./packages/core' './packages/mcp-server' './packages/agent-bot[dev]'"
+            install: "'./packages/core[embeddings]' './packages/mcp-server' './packages/agent-bot[dev]'"
             cov_source: src
     steps:
       - uses: actions/checkout@v4
